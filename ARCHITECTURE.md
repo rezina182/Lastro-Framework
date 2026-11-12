@@ -40,6 +40,15 @@ Pacotes: `core`, `web`, `auth`, `pii`, `realtime`, `uploads`, `assets`, `agent`.
    - `incomplete` se algum controle alto ou crítico estiver sem prova;
    - `pass` nos demais casos.
 
+## Mapa e cobertura do ASVS
+
+`catalog/asvs-map.json` lista os 345 requisitos do ASVS 5.0.0 com o nível mínimo de cada um (só IDs e nível, sem o texto da norma). Ele é gerado a partir do CSV oficial por `lastro asvs sync` e conferido por `lastro asvs verify`, que o CI roda contra o CSV da tag `v5.0.0` com checksum fixo. O CSV não é versionado.
+
+- Toda referência `ASVS` de um controle precisa existir no mapa (validação offline do catálogo).
+- `lastro asvs` calcula a cobertura por capítulo até o nível pedido: requisitos citados por verificação automática, só por controle manual, sem controle e não aplicáveis.
+- Com `--state`, o comando roda o `check` e mostra, por requisito, se os controles ligados estão verificados, com falha, sem prova ou fora do perfil.
+- Limite atual: "citado" não distingue cobertura total de parcial. O número é um teto.
+
 ## Estados de um controle
 
 `verified`, `failed`, `unverified` e `not_applicable`. Erro interno em uma verificação vira `unverified`.

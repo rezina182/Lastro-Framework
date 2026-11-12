@@ -7,7 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { runCheck, ConfigError } = require('../src/engine');
-const { loadCatalog, validateCatalog } = require('../src/catalog');
+const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/catalog');
 const { registry } = require('../src/checks');
 const { formatReport } = require('../src/report');
 const { loadProfile } = require('../src/engine');
@@ -15,7 +15,9 @@ const { loadTickets, planBacklog, writeTickets } = require('../src/backlog');
 const { FLAGS } = require('../src/schema');
 const { nowIso } = require('../src/util');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only']);
+const asvsLib = require('../src/asvs');
+
+const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -40,6 +42,9 @@ Uso:
   lastro check [opções]                      verifica o projeto e dá o veredito
   lastro baseline [--write] [opções]         registra os achados atuais como dívida conhecida
   lastro backlog [--write] [opções]          gera tickets P0-P3 a partir das lacunas
+  lastro asvs [--level 1|2|3] [--state]      cobertura do ASVS 5.0 por capítulo (--state mostra o estado no projeto)
+  lastro asvs verify --csv ARQUIVO           confere o mapa do kit contra o CSV oficial do ASVS
+  lastro asvs sync --csv ARQUIVO [--write]   regenera catalog/asvs-map.json a partir do CSV oficial
 
 Opções de check, baseline e backlog:
   --root DIR           pasta do projeto (padrão: a pasta atual)
@@ -77,6 +82,67 @@ async function main(argv) {
       return 3;
     }
     console.log(`Catálogo ${cat.version} válido: ${cat.controls.length} controles, ${cat.lessons.length} lições, ${registry.size} verificações automáticas.`);
+    return 0;
+  }
+
+  if (cmd === 'asvs') {
+    const sub = pos[1];
+    if (sub === 'sync' || sub === 'verify') {
+      if (!flags.csv || flags.csv === true) {
+        console.error(`Informe --csv ARQUIVO (CSV oficial do ASVS ${asvsLib.ASVS_VERSION}). O CSV não é versionado neste repositório.`);
+        return 3;
+      }
+      let reqs;
+      try {
+        reqs = asvsLib.requirementsFromCsv(fs.readFileSync(path.resolve(flags.csv), 'utf8'));
+      } catch (e) {
+        console.error(`CSV inválido: ${e.message}`);
+        return 3;
+      }
+      const loaded = asvsLib.loadAsvsMap(DEFAULT_CATALOG_DIR);
+      if (sub === 'verify') {
+        if (!loaded.ok) { console.error(loaded.error); return 3; }
+        const errs = asvsLib.verifyMap(loaded.value, reqs);
+        if (errs.length) {
+          console.error(`Mapa diverge do CSV oficial (${errs.length}):\n- ${errs.slice(0, 30).join('\n- ')}`);
+          return 3;
+        }
+        console.log(`Mapa confere com o CSV oficial: ${Object.keys(reqs).length} requisitos, níveis iguais.`);
+        return 0;
+      }
+      const next = asvsLib.buildMap(reqs, loaded.ok ? loaded.value : null);
+      const text = `${JSON.stringify(next, null, 2)}\n`;
+      if (!flags.write) {
+        console.log(`Mapa gerado com ${Object.keys(next.requirements).length} requisitos. Rode com --write para gravar catalog/asvs-map.json.`);
+        return 0;
+      }
+      fs.writeFileSync(loaded.file, text);
+      console.log(`Gravado ${loaded.file} (${Object.keys(next.requirements).length} requisitos).`);
+      return 0;
+    }
+    if (sub !== undefined) {
+      console.error(`Subcomando desconhecido: asvs ${sub}`);
+      return 3;
+    }
+    const level = flags.level === undefined ? 2 : Number(flags.level);
+    if (![1, 2, 3].includes(level)) {
+      console.error('--level deve ser 1, 2 ou 3.');
+      return 3;
+    }
+    const cat = loadCatalog();
+    const errors = validateCatalog(cat, new Set(registry.keys()));
+    if (errors.length) {
+      console.error(`Catálogo inválido:\n- ${errors.slice(0, 15).join('\n- ')}`);
+      return 3;
+    }
+    let states = null;
+    if (flags.state) {
+      const rep = await runCheck({ root, url: flags.url, active: !!flags.active });
+      states = new Map(rep.controls.map((c) => [c.id, c.state]));
+    }
+    const cov = asvsLib.coverage(cat.controls, cat.asvsMap, { level, states });
+    if (flags.out) fs.writeFileSync(path.resolve(flags.out), `${JSON.stringify(cov, null, 2)}\n`);
+    console.log(flags.json ? JSON.stringify(cov, null, 2) : asvsLib.formatCoverage(cov));
     return 0;
   }
 

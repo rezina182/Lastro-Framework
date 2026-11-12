@@ -34,6 +34,7 @@ node /caminho/para/lastro/verifier/bin/lastro.js init
 node /caminho/para/lastro/verifier/bin/lastro.js check
 node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exemplo   # inclui verificações HTTP passivas
 node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
+node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
 ```
 
 Códigos de saída: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração.
@@ -57,6 +58,7 @@ Mais detalhes em [ARCHITECTURE.md](ARCHITECTURE.md), [docs/PRINCIPLES.md](docs/P
 - As verificações de código são varreduras por padrão de texto (heurísticas). Elas encontram o comum e não substituem revisão nem análise estática completa.
 - A v0.1 lê workflows do GitHub Actions. Outros CIs ficam como `unverified` até haver atestação.
 - Referências a padrões citam apenas IDs e links. Conferência automática dos IDs contra as fontes oficiais está no [roadmap](docs/ROADMAP.md).
+- Cobertura do ASVS: na v0.1, 41 dos 253 requisitos até L2 (16%) são citados por algum controle, e "citado" não significa "coberto por inteiro". O comando `lastro asvs` mostra o número atual por capítulo; ele é a medida de progresso, não um atestado.
 - Alinhado a padrões não é o mesmo que em conformidade com eles. O LASTRO não certifica nada.
 
 ## Testes

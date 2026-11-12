@@ -325,7 +325,35 @@ function validateBaseline(b) {
   return errs;
 }
 
+const ID_ASVS = /^V\d{1,2}\.\d{1,2}\.\d{1,2}$/;
+
+/** Mapa de requisitos do ASVS: somente IDs e nível mínimo (sem texto da norma). */
+function validateAsvsMap(m) {
+  const errs = [];
+  if (!isObj(m)) return ['asvs-map.json: deve ser objeto'];
+  checkKeys(m, ['schemaVersion', 'standard', 'version', 'source', 'requirements', 'notApplicable'], [], 'asvs-map', errs);
+  if (m.schemaVersion !== 1) errs.push('asvs-map.schemaVersion: use 1');
+  if (m.standard !== 'ASVS') errs.push('asvs-map.standard: use "ASVS"');
+  text(m.version, 'asvs-map.version', errs, 20);
+  text(m.source, 'asvs-map.source', errs, 300);
+  if (!isObj(m.requirements)) return [...errs, 'asvs-map.requirements: deve ser objeto'];
+  for (const [id, lv] of Object.entries(m.requirements)) {
+    if (!ID_ASVS.test(id)) errs.push(`asvs-map.requirements: id inválido "${id}"`);
+    if (![1, 2, 3].includes(lv)) errs.push(`asvs-map.requirements.${id}: nível deve ser 1, 2 ou 3`);
+  }
+  if (Object.keys(m.requirements).length === 0) errs.push('asvs-map.requirements: vazio');
+  if (!isObj(m.notApplicable)) errs.push('asvs-map.notApplicable: deve ser objeto');
+  else {
+    for (const [id, why] of Object.entries(m.notApplicable)) {
+      if (!(id in m.requirements)) errs.push(`asvs-map.notApplicable: "${id}" não está em requirements`);
+      text(why, `asvs-map.notApplicable.${id}`, errs, 300, 15);
+    }
+  }
+  return errs;
+}
+
 module.exports = {
+  ID_ASVS, validateAsvsMap,
   FLAGS, SEVERITIES, PHASES, ENFORCEMENT, PACKS, PACK_PREFIX, CHECK_TYPES, TICKET_STATUS, PRIORITIES, LESSON_SOURCES,
   ID_CONTROL, ID_LESSON, ID_RISK, ID_TICKET, ID_CHECK, FINGERPRINT,
   validateControl, validateControlFile, validatePacks, validateLessons, validateProfile,

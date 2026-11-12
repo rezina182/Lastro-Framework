@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const schema = require('./schema');
+const { loadAsvsMap } = require('./asvs');
 
 const DEFAULT_CATALOG_DIR = path.join(__dirname, '..', '..', 'catalog');
 
@@ -40,6 +41,9 @@ function loadCatalog(dir = DEFAULT_CATALOG_DIR) {
     errors.push(...schema.validateControlFile(j.value, `controls/${f}`));
     if (Array.isArray(j.value.controls)) controls.push(...j.value.controls);
   }
+  const asvs = loadAsvsMap(dir);
+  if (!asvs.ok) errors.push(asvs.error);
+  else errors.push(...schema.validateAsvsMap(asvs.value));
   if (packsFile.ok) errors.push(...schema.validatePacks(packsFile.value));
   if (lessonsFile.ok) errors.push(...schema.validateLessons(lessonsFile.value));
 
@@ -55,6 +59,7 @@ function loadCatalog(dir = DEFAULT_CATALOG_DIR) {
     version: packsFile.ok ? packsFile.value.catalogVersion : '0.0.0',
     packs: packsFile.ok ? packsFile.value.packs : {},
     lessons: lessonsFile.ok && Array.isArray(lessonsFile.value.lessons) ? lessonsFile.value.lessons : [],
+    asvsMap: asvs.ok ? asvs.value : null,
     controls,
     byId,
     errors,
@@ -73,6 +78,11 @@ function validateCatalog(cat, checkIds) {
     if (c.check.type === 'automated') {
       if (!checkIds.has(c.check.id)) errors.push(`${c.id}: check.id "${c.check.id}" não existe no registro de verificações`);
       else used.add(c.check.id);
+    }
+    if (cat.asvsMap && cat.asvsMap.requirements) {
+      for (const r of c.refs || []) {
+        if (r.std === 'ASVS' && !(r.id in cat.asvsMap.requirements)) errors.push(`${c.id}: referência ASVS inexistente no mapa: ${r.id}`);
+      }
     }
     for (const o of c.origin || []) {
       const l = lessonIds.get(o);

@@ -8,7 +8,7 @@ Data da pesquisa: novembro de 2026.
 
 | Fonte | Uso | Leitura | Licença |
 |-------|-----|---------|---------|
-| OWASP ASVS 5.0 (CSV oficial) | IDs de requisitos citados nos controles | Os IDs citados foram conferidos linha a linha no CSV oficial | CC BY-SA: só IDs, texto próprio |
+| OWASP ASVS 5.0.0 (CSV oficial, tag v5.0.0, sha256 `98c8fe91...cdcf680`) | Mapa dos 345 IDs e níveis; IDs citados nos controles | IDs e níveis conferidos por ferramenta; o texto dos requisitos foi lido só para classificar, nunca copiado | CC BY-SA: só IDs, texto próprio |
 | NIST SP 800-218 (SSDF 1.1) | Alinhamento de práticas (PO, PS, PW, RV) | PDF lido por extração de texto | Domínio público (EUA) |
 | NIST SP 800-218A | Perfil para IA generativa; PO.5.3 | PDF lido | Domínio público (EUA) |
 | NIST SP 800-218 r1 (rascunho inicial) | PO.6 e PS.4 novos | Lido; é rascunho | Domínio público (EUA) |
