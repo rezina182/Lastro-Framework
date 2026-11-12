@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "pack": "core",
+  "controls": [
+    {
+      "id": "CORE-001",
+      "title": "Arquivos de ambiente e chaves privadas fora do repositório",
+      "summary": "Nenhum .env, chave privada ou certificado privado é rastreado pelo Git, e o .env está no .gitignore.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "critical",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.secrets.env-ignored" },
+      "enforcement": "hard",
+      "rationale": "Um segredo commitado fica no histórico para sempre e vira credencial vazada. Em desenvolvimento com IA o risco cresce: o agente lê o .env do disco e pode copiar o valor para código, teste, exemplo ou mensagem de commit.",
+      "remediation": "Coloque .env* no .gitignore (mantendo .env.example sem valores), tire o arquivo do índice (git rm --cached), rotacione qualquer segredo que já tenha sido commitado e guarde segredos em cofre ou gerenciador de senhas, nunca em arquivo solto.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.3.1" },
+        { "std": "SSDF", "id": "PW.9.1", "note": "o exemplo sobre segredos embutidos aparece no rascunho da v1.2" }
+      ],
+      "origin": ["L-A05", "L-R04"]
+    },
+    {
+      "id": "CORE-002",
+      "title": "Dependências com lockfile e versões exatas",
+      "summary": "Todo gerenciador de pacotes usado tem lockfile versionado, e as dependências diretas têm versão exata, sem faixas (^, ~, *).",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.deps.lockfile-exact" },
+      "enforcement": "hard",
+      "rationale": "Faixas de versão deixam uma atualização maliciosa entrar sem revisão. Pacotes inventados por IA (slopsquatting) entram mais facilmente quando não há lockfile nem revisão de cada novo nome.",
+      "remediation": "Gere e versione o lockfile (npm ci no CI), fixe versões exatas (npm install --save-exact) e revise cada dependência nova antes de aceitar.",
+      "refs": [
+        { "std": "SSDF", "id": "PW.4.1" },
+        { "std": "SSDF", "id": "PW.4.4" },
+        { "std": "OpenSSF", "id": "AI-Code-Assistant-Instructions", "note": "seção de cadeia de suprimentos" }
+      ],
+      "origin": ["L-R03"]
+    },
+    {
+      "id": "CORE-003",
+      "title": "Varredura de segredos no histórico roda no CI",
+      "summary": "O pipeline executa um scanner de segredos (como o Gitleaks) sobre o histórico do Git, inclusive em PRs automáticos.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "deploy"],
+      "check": { "type": "automated", "id": "repo.ci.secret-scan" },
+      "enforcement": "hard",
+      "rationale": "O .gitignore evita o erro comum, mas não pega o segredo colado em código, teste ou documento. A varredura no CI é a rede de proteção que não depende da atenção de ninguém.",
+      "remediation": "Adicione um job que baixe o scanner em versão fixa, confira o checksum e varra o histórico completo (fetch-depth: 0). Use a CLI, que não exige licença, e faça o job falhar com segredo achado.",
+      "refs": [
+        { "std": "SSDF", "id": "PO.3.3" },
+        { "std": "SSDF", "id": "PW.9.1" }
+      ],
+      "origin": ["L-A04", "L-A05"]
+    },
+    {
+      "id": "CORE-004",
+      "title": "Auditoria de dependências no CI bloqueia severidade alta ou crítica",
+      "summary": "O pipeline audita as dependências de produção (npm audit, pip-audit, osv-scanner ou equivalente) e falha em alerta alto ou crítico, sem atalhos como '|| true'.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "respond"],
+      "check": { "type": "automated", "id": "repo.ci.dep-audit" },
+      "enforcement": "hard",
+      "rationale": "Uma auditoria que nunca falha dá falsa segurança. Dependências com vulnerabilidade conhecida chegam à produção sem ninguém perceber.",
+      "remediation": "Rode a auditoria só nas dependências de produção, com limite de severidade alto, e deixe o passo falhar o pipeline. Trate os alertas ou registre risco aceito com dono e validade.",
+      "refs": [
+        { "std": "SSDF", "id": "PW.4.4" },
+        { "std": "SSDF", "id": "RV.1.1" }
+      ],
+      "origin": ["L-A09"]
+    },
+    {
+      "id": "CORE-005",
+      "title": "Atualização automática de dependências, com majors separados",
+      "summary": "Dependabot ou Renovate está configurado, agrupando minor e patch e mantendo cada atualização major em PR próprio.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "low",
+      "phase": ["build", "respond"],
+      "check": { "type": "automated", "id": "repo.deps.update-bot" },
+      "enforcement": "advisory",
+      "rationale": "Sem atualização contínua a dependência envelhece e acumula vulnerabilidades. Muitos majors juntos viram um PR impossível de revisar com segurança.",
+      "remediation": "Configure .github/dependabot.yml (ou Renovate) com grupo para minor e patch e PRs individuais para major, e revise cada PR com o CI verde.",
+      "refs": [{ "std": "SSDF", "id": "RV.1.1" }],
+      "origin": ["L-A06"]
+    },
+    {
+      "id": "CORE-006",
+      "title": "Actions e componentes do CI fixados por SHA",
+      "summary": "Toda Action do GitHub é referenciada pelo SHA de commit completo (40 caracteres), e imagens Docker por digest.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "deploy"],
+      "check": { "type": "automated", "id": "repo.ci.actions-pinned" },
+      "enforcement": "hard",
+      "rationale": "Tags e branches de Actions podem ser movidas. Um componente do CI comprometido executa com acesso ao código e aos segredos do pipeline.",
+      "remediation": "Troque 'uses: dono/acao@v4' por 'uses: dono/acao@<sha de 40 caracteres>' e mantenha o comentário com a versão. Deixe o Dependabot atualizar os SHAs.",
+      "refs": [
+        { "std": "SSDF", "id": "PO.3.2" },
+        { "std": "OpenSSF", "id": "AI-Code-Assistant-Instructions", "note": "recomenda travar a versão em SHA específico" }
+      ],
+      "origin": ["L-R06"]
+    },
+    {
+      "id": "CORE-007",
+      "title": "Verificação de certificado TLS nunca é desligada",
+      "summary": "O código não desliga a verificação de certificado TLS, nem para o banco de dados, nem para APIs.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "repo.code.tls-verification" },
+      "enforcement": "hard",
+      "rationale": "Sem validar o certificado a conexão aceita qualquer servidor, e um atacante na rota lê e altera os dados. Desligar a verificação é um atalho comum e frequentemente sugerido por IA quando surge um erro de certificado.",
+      "remediation": "Ative a verificação e forneça o CA correto quando faltar a cadeia (variável de CA ou opção de CA da biblioteca). Se a supressão for inevitável em ambiente de teste, use o comentário 'lastro-ignore tls-verification: motivo' e registre o risco.",
+      "refs": [
+        { "std": "ASVS", "id": "V12.3.2" },
+        { "std": "SSDF", "id": "PW.5.1" }
+      ],
+      "origin": ["L-A07"]
+    },
+    {
+      "id": "CORE-008",
+      "title": "Sem execução dinâmica de código nem shell com entrada externa",
+      "summary": "O código não usa eval, o construtor Function, exec, os.system nem shell ligado em chamadas que recebem dados externos.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.code.dynamic-eval" },
+      "enforcement": "hard",
+      "rationale": "Execução dinâmica transforma entrada do usuário em código ou comando (CWE-94 e CWE-78). A literatura aponta essas falhas como comuns em código gerado por IA.",
+      "remediation": "Troque por APIs seguras: chamada de processo com lista de argumentos e sem shell, parser de dados em vez de eval. Em caso inevitável, justifique com 'lastro-ignore dynamic-eval: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.5" },
+        { "std": "SSDF", "id": "PW.5.1" }
+      ],
+      "origin": ["L-R07"]
+    },
+    {
+      "id": "CORE-009",
+      "title": "Sem escrita de HTML cru no front-end",
+      "summary": "O front-end não usa innerHTML, outerHTML, insertAdjacentHTML, document.write nem equivalentes com conteúdo que não seja literal.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.code.xss-sinks" },
+      "enforcement": "soft",
+      "rationale": "Escrever HTML a partir de dados externos é a principal porta do XSS. Sem isso, a CSP estrita (sem unsafe-inline) passa a ser viável.",
+      "remediation": "Monte elementos com createElement e textContent. Atribuições de texto literal são aceitas. Para casos justificados, use 'lastro-ignore xss-sinks: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.1" },
+        { "std": "SSDF", "id": "PW.5.1" }
+      ],
+      "origin": ["L-R07"]
+    },
+    {
+      "id": "CORE-010",
+      "title": "Token do CI com permissões mínimas",
+      "summary": "Todo workflow declara o bloco permissions com o mínimo necessário (normalmente contents: read), sem write-all e sem pull_request_target.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "deploy"],
+      "check": { "type": "automated", "id": "repo.ci.permissions" },
+      "enforcement": "hard",
+      "rationale": "Sem o bloco permissions o token padrão pode ter escrita em quase tudo. Um passo comprometido passa a poder alterar o repositório. pull_request_target roda com segredos em contexto de PR externo.",
+      "remediation": "Declare 'permissions: contents: read' no topo e eleve por job, só onde preciso. Evite pull_request_target; se for indispensável, nunca faça checkout nem execute código do PR.",
+      "refs": [
+        { "std": "SSDF", "id": "PO.3.2" },
+        { "std": "SSDF", "id": "PS.1.1" }
+      ],
+      "origin": ["L-R06"]
+    },
+    {
+      "id": "CORE-011",
+      "title": "SECURITY.md com canal para reportar vulnerabilidades",
+      "summary": "Existe SECURITY.md que explica a quem e como reportar uma vulnerabilidade.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["respond"],
+      "check": { "type": "automated", "id": "repo.docs.security-md" },
+      "enforcement": "soft",
+      "rationale": "Quem encontra uma falha precisa saber a quem avisar. Sem canal, a falha vai para o público ou para ninguém.",
+      "remediation": "Crie SECURITY.md com e-mail ou formulário de contato, prazo esperado de resposta e o que está no escopo. Ative os avisos privados de vulnerabilidade da plataforma.",
+      "refs": [{ "std": "SSDF", "id": "RV.1.3" }],
+      "origin": ["L-R08"]
+    },
+    {
+      "id": "CORE-012",
+      "title": "Threat model versionado e revisado",
+      "summary": "Há THREAT-MODEL.md no repositório, com 'Última revisão: AAAA-MM-DD' dentro do prazo definido no perfil.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["design", "respond"],
+      "check": { "type": "automated", "id": "repo.docs.threat-model" },
+      "enforcement": "soft",
+      "rationale": "Sem modelo de ameaças a equipe corrige o que já viu e perde o que ninguém imaginou. O modelo deve incluir atores legítimos que abusam do sistema (usuário curioso, rede compartilhada), não só atacantes externos.",
+      "remediation": "Crie THREAT-MODEL.md com ativos, fronteiras de confiança, atores (incluindo o usuário legítimo curioso), ameaças e controles. Revise a cada feature relevante e atualize a data.",
+      "refs": [
+        { "std": "SSDF", "id": "PW.1.1" },
+        { "std": "OpenSSF", "id": "Finding-and-Fixing-Vulnerabilities-Using-AI" },
+        { "std": "AWS", "id": "agentic-ai-security/2.1", "note": "threat modeling no desenho" }
+      ],
+      "origin": ["L-R09"]
+    },
+    {
+      "id": "CORE-013",
+      "title": "Riscos aceitos com dono, aprovador e validade",
+      "summary": "Todo risco aceito está em .lastro/risks, com dono, aprovador, justificativa e data de validade futura. Risco vencido volta a contar como achado.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["respond"],
+      "check": { "type": "automated", "id": "repo.risks.valid" },
+      "enforcement": "hard",
+      "rationale": "Risco aceito sem prazo vira esquecimento permanente. Um prazo obriga a decidir de novo, com o contexto atual.",
+      "remediation": "Crie .lastro/risks/RISK-0001.json com owner, approvedBy, justification (mínimo 20 caracteres), controles compensatórios e expires. Renove ou corrija antes de vencer.",
+      "refs": [
+        { "std": "SSDF", "id": "RV.2.2" },
+        { "std": "SSDF", "id": "PO.4.1" }
+      ],
+      "origin": ["L-R10"]
+    },
+    {
+      "id": "CORE-014",
+      "title": "Proteção de branch e revisão obrigatória comprovadas",
+      "summary": "A branch de produção exige PR e revisão, e isso foi comprovado na prática: um push direto é recusado.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Em um repositório de teste ou numa branch descartável, tente um push direto para a branch protegida e confirme que é recusado. Registre o resultado, a data e o plano do repositório em .lastro/status.json, com validade de até 12 meses.",
+      "enforcement": "soft",
+      "rationale": "Em alguns planos (por exemplo, repositório privado em plano gratuito) as regras podem ser configuradas sem serem aplicadas. A tela dá a impressão de proteção que não existe.",
+      "remediation": "Use um plano que aplique as regras, ou mova o repositório. Exija PR, revisão, checks verdes e bloqueie push direto e force push para a branch de produção.",
+      "refs": [
+        { "std": "SSDF", "id": "PS.1.1" },
+        { "std": "SSDF", "id": "PO.5.1" },
+        { "std": "OpenSSF", "id": "Finding-and-Fixing-Vulnerabilities-Using-AI", "note": "o portão humano não depende da IA" }
+      ],
+      "origin": ["L-A10"]
+    },
+    {
+      "id": "CORE-015",
+      "title": "Testes de segurança rodam no CI contra banco real e descartável",
+      "summary": "O CI executa os testes (inclusive os de segurança e de autorização) contra um banco real recriado a cada execução, e o deploy depende de eles passarem.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["test", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra o workflow de CI e confirme: sobe um banco real (serviço do CI ou contêiner), roda a suíte inteira, e o deploy só ocorre depois do CI verde. Registre o link do workflow em .lastro/status.json.",
+      "enforcement": "soft",
+      "rationale": "Teste contra mock não pega erro de consulta nem de autorização. Banco compartilhado ou sujo gera falhas falsas, e a equipe aprende a ignorar o vermelho.",
+      "remediation": "Use um banco descartável por execução (serviço do GitHub Actions ou Docker), rode as migrations do zero e proíba o deploy sem CI verde.",
+      "refs": [
+        { "std": "SSDF", "id": "PW.8.2" },
+        { "std": "OpenSSF", "id": "Finding-and-Fixing-Vulnerabilities-Using-AI", "note": "o CI é o verificador de tarefas e faz parte da base confiável" }
+      ],
+      "origin": ["L-A11", "L-B08"]
+    },
+    {
+      "id": "CORE-016",
+      "title": "Trilha de auditoria protegida contra alteração",
+      "summary": "O registro de auditoria não pode ser alterado nem apagado pelo papel que a aplicação usa, e idealmente é enviado a um destino externo.",
+      "pack": "core",
+      "tier": 3,
+      "severity": "medium",
+      "phase": ["runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Confirme que o usuário do banco da aplicação só tem INSERT na tabela de auditoria (sem UPDATE ou DELETE) e que há cópia em destino externo (log da plataforma, armazenamento imutável). Registre a evidência com data.",
+      "enforcement": "advisory",
+      "rationale": "Uma auditoria que o próprio sistema (ou um invasor com a conta da aplicação) pode reescrever não serve como prova.",
+      "remediation": "Separe um papel de banco só de inserção para a auditoria, envie os eventos a um destino externo e revise o acesso a esses registros.",
+      "refs": [{ "std": "ASVS", "id": "V16.4.2" }],
+      "origin": ["L-B09"]
+    },
+    {
+      "id": "CORE-017",
+      "title": "Inventário de componentes (SBOM) por release",
+      "summary": "Cada release gera um SBOM das dependências de produção e o guarda como artefato.",
+      "pack": "core",
+      "tier": 3,
+      "severity": "low",
+      "phase": ["deploy", "respond"],
+      "check": { "type": "manual" },
+      "howToVerify": "Confirme que o pipeline gera o SBOM (CycloneDX ou SPDX) a cada release e o publica como artefato. Registre o link de um artefato recente em .lastro/status.json.",
+      "enforcement": "advisory",
+      "rationale": "Quando uma dependência é comprometida, o SBOM responde em minutos quais versões publicadas a usam.",
+      "remediation": "Adicione um passo de SBOM ao pipeline (por exemplo npm sbom com formato CycloneDX) e retenha o artefato.",
+      "refs": [
+        { "std": "SSDF", "id": "PS.3.2" },
+        { "std": "ASVS", "id": "V15.1.2" }
+      ],
+      "origin": ["L-R11"]
+    },
+    {
+      "id": "CORE-018",
+      "title": "Verificação independente de quem escreveu o código",
+      "summary": "Nenhum requisito de segurança é dado como atendido apenas pela autoavaliação de quem escreveu o código; a evidência é um teste que roda ou uma revisão por outra pessoa ou agente com contexto limpo.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["test", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para uma amostra de 5 controles marcados como atendidos, confirme que cada um aponta para um teste automático que roda no CI, ou para uma revisão feita por pessoa ou agente diferente do autor. Registre a amostra e o resultado em .lastro/status.json.",
+      "enforcement": "soft",
+      "rationale": "Quem escreveu o código tende a validar o que escreveu. Testes escritos pela mesma IA que gerou o código podem confirmar o erro de forma circular.",
+      "remediation": "Escreva à mão ao menos um teste por propriedade de segurança, use revisão em contexto limpo (outro agente de leitura apenas ou outra pessoa) e faça a evidência apontar para um teste, não para um documento.",
+      "refs": [
+        { "std": "OpenSSF", "id": "Finding-and-Fixing-Vulnerabilities-Using-AI", "note": "independência do verificador" },
+        { "std": "Microsoft", "id": "agent-governance-toolkit/ai-security-guidance" }
+      ],
+      "origin": ["L-B10"]
+    },
+    {
+      "id": "CORE-019",
+      "title": "Cada caso obrigatório do plano de testes tem um teste",
+      "summary": "Todo caso marcado como obrigatório no plano de QA tem um teste automático correspondente, com rastreabilidade entre requisito, caso e teste.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste os casos obrigatórios do plano de QA e, para cada um, aponte o arquivo e o nome do teste. Qualquer caso sem teste vira ticket. Registre a conferência com data em .lastro/status.json.",
+      "enforcement": "advisory",
+      "rationale": "Um caso obrigatório sem teste é uma promessa que ninguém verifica. Recuperação após reinício, expiração e abuso costumam ser os esquecidos.",
+      "remediation": "Escreva os testes que faltam, incluindo os casos de abuso e de recuperação, e mantenha a tabela requisito para caso para teste no próprio repositório.",
+      "refs": [
+        { "std": "SSDF", "id": "PW.8.1" },
+        { "std": "SSDF", "id": "PW.8.2" }
+      ],
+      "origin": ["L-B08"]
+    }
+  ]
+}

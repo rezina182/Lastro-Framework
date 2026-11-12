@@ -1,0 +1,4 @@
+title = "LASTRO gitleaks"
+
+[extend]
+useDefault = true

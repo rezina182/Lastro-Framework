@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 1,
+  "lessons": [
+    {
+      "id": "L-A01",
+      "source": "app-a",
+      "title": "CSP estrita quebrou o login que dependia de handlers inline",
+      "summary": "No App A (painel administrativo), ligar uma CSP sem 'unsafe-inline' em script-src-attr fez o login parar de funcionar, porque o envio do formulário dependia de um handler onsubmit inline. A correção rápida foi liberar handlers inline, deixando uma dívida registrada. Lição: a política no cabeçalho e o código precisam andar juntos; migrar handlers para addEventListener antes de apertar a política, e verificar os dois.",
+      "controls": ["WEB-001", "WEB-002"]
+    },
+    {
+      "id": "L-A02",
+      "source": "app-a",
+      "title": "Service Worker podia guardar rotas dinâmicas em cache",
+      "summary": "O Service Worker do App A podia guardar respostas de rotas dinâmicas e de saúde no cache do navegador. Foi restringido a arquivos estáticos e a limpeza do cache passou a ocorrer no logout. Lição: cache do navegador, da CDN e de Service Worker nunca cobre rotas autenticadas ou dinâmicas; a API responde com Cache-Control: no-store.",
+      "controls": ["WEB-010"]
+    },
+    {
+      "id": "L-A03",
+      "source": "app-a",
+      "title": "/health exigia autenticação e quebrava o monitoramento",
+      "summary": "O endpoint de saúde do App A passou a responder 401 depois que a autenticação foi estendida a todas as rotas. A correção foi um /health público que devolve só {status:'ok'} para anônimos, com detalhes apenas para quem está autenticado. Lição: o endpoint de saúde anônimo é mínimo, não exige login e não revela versão, host nem dependências.",
+      "controls": ["WEB-006"]
+    },
+    {
+      "id": "L-A04",
+      "source": "app-a",
+      "title": "A Action de varredura de segredos exigia licença e falhava em PR de bot",
+      "summary": "No App A a Action do Gitleaks exigia licença para organizações e falhava nos PRs do Dependabot. Foi trocada pelo binário da CLI, em versão fixa, varrendo o histórico do Git. Lição: a varredura de segredos precisa rodar de fato no CI, inclusive em PRs automáticos, e o binário baixado deve ter a versão e o checksum conferidos.",
+      "controls": ["CORE-003"]
+    },
+    {
+      "id": "L-A05",
+      "source": "app-a",
+      "title": ".env com segredos reais na máquina de desenvolvimento",
+      "summary": "O App A tinha um .env com segredos reais na pasta local. Ele nunca foi commitado, porque estava no .gitignore, mas só isso separava o segredo do repositório. Lição: .env sempre no .gitignore, nenhum segredo em arquivo solto fora do repositório, e o CI varre o histórico atrás de qualquer segredo que escape.",
+      "controls": ["CORE-001", "CORE-003"]
+    },
+    {
+      "id": "L-A06",
+      "source": "app-a",
+      "title": "Dependabot abrindo vários majors de uma vez",
+      "summary": "O App A recebeu um PR do Dependabot com cinco atualizações major juntas (framework web, hash de senha, cabeçalhos de segurança, limitador e variáveis de ambiente), difícil de revisar e arriscado. Lição: agrupar minor e patch, e trazer cada major em um PR separado.",
+      "controls": ["CORE-005"]
+    },
+    {
+      "id": "L-A07",
+      "source": "app-a",
+      "title": "Conexão com o banco sem validar o certificado",
+      "summary": "O App A conectava ao Postgres gerenciado desligando a verificação do certificado TLS. Lição: validar sempre o certificado do servidor; se faltar a cadeia, fornecer o CA correto, nunca desligar a verificação. No código, a opção que desliga a verificação deve ser barrada por varredura.",
+      "controls": ["CORE-007"]
+    },
+    {
+      "id": "L-A08",
+      "source": "app-a",
+      "title": "Cookie de sessão com nome e atributos padrão do framework",
+      "summary": "O App A usava o cookie de sessão padrão do framework, sem o prefixo __Host-. Lição: cookie de sessão com prefixo __Host-, HttpOnly, Secure e SameSite restrito, verificado de fora, nos cabeçalhos reais.",
+      "controls": ["AUTH-003"]
+    },
+    {
+      "id": "L-A09",
+      "source": "app-a",
+      "title": "Auditoria de dependências que nunca bloqueava",
+      "summary": "O CI do App A rodava a auditoria de dependências terminando com '|| true', então um alerta alto ou crítico nunca falhava o pipeline. Lição: a auditoria precisa bloquear em severidade alta ou crítica, e o check do kit procura exatamente esse atalho.",
+      "controls": ["CORE-004"]
+    },
+    {
+      "id": "L-A10",
+      "source": "app-a",
+      "title": "Proteção de branch que não era aplicada",
+      "summary": "No App A (repositório privado em plano gratuito do GitHub) as regras de proteção de branch podiam ser configuradas, mas não eram aplicadas. A configuração na tela dava a impressão de proteção que não existia. Lição: não confiar no que a tela mostra; verificar na prática se um push direto é bloqueado, e registrar a evidência com data.",
+      "controls": ["CORE-014"]
+    },
+    {
+      "id": "L-A11",
+      "source": "app-a",
+      "title": "Testes instáveis por causa de banco sujo",
+      "summary": "No App A, execuções de teste falharam em massa por causa de dados de execuções anteriores no banco local. Lição: os testes de integração rodam contra Postgres real e descartável, recriado a cada execução, tanto localmente quanto no CI, e nunca contra um banco compartilhado.",
+      "controls": ["CORE-015"]
+    },
+    {
+      "id": "L-B01",
+      "source": "app-b",
+      "title": "Limite de requisições com chave que o atacante controla",
+      "summary": "No App B (app público em tempo real), o limitador de um endpoint anônimo usava como chave um token enviado pelo próprio cliente. Variando o token, o atacante não era limitado, e cada tentativa abria uma transação no banco, com um pool pequeno. Lição: a chave do limite precisa de um componente que o atacante não controla (IP vindo do proxy de confiança), e a entrada deve ser validada de forma barata antes de abrir transação ou consumir conexão.",
+      "controls": ["WEB-011"]
+    },
+    {
+      "id": "L-B02",
+      "source": "app-b",
+      "title": "Bloqueio por IP em rede compartilhada tranca o usuário legítimo",
+      "summary": "No App B, o bloqueio por excesso de tentativas de login era por IP. Como uma turma inteira saía pelo mesmo IP da escola, um aluno errando a senha podia travar o professor. Lição: contar falhas por conta, e calibrar o limite por IP para redes com NAT, sem afogar usuários legítimos.",
+      "controls": ["AUTH-005"]
+    },
+    {
+      "id": "L-B03",
+      "source": "app-b",
+      "title": "Canal de tempo real não renova a inatividade da sessão",
+      "summary": "No App B, um canal SSE aberto por muito tempo não renovava o relógio de inatividade da sessão, e um login em outro aparelho derrubava a sessão anterior. Uma ação depois de uma espera longa falhava com 401 no meio do uso. Lição: definir o comportamento da sessão junto com conexões de longa duração, e testar o caso de uso real.",
+      "controls": ["AUTH-004"]
+    },
+    {
+      "id": "L-B04",
+      "source": "app-b",
+      "title": "Salas e sessões nunca expiravam sozinhas",
+      "summary": "No App B, o link e os tokens de participante valiam até alguém encerrar a sessão manualmente, e dados pessoais ficavam guardados sem prazo definido. Lição: sessões efêmeras expiram sozinhas, e dados pessoais têm prazo de retenção e exclusão completa.",
+      "controls": ["PII-002", "RT-003"]
+    },
+    {
+      "id": "L-B05",
+      "source": "app-b",
+      "title": "Upload sem cota podia esgotar memória e banco",
+      "summary": "No App B, o upload de imagem decodificava arquivos grandes em memória, sem cota por usuário, o que permitia esgotar a memória do servidor pequeno ou o espaço do banco. Lição: validar o tipo pelos bytes, limitar tamanho e dimensão, reprocessar a imagem e impor cota por usuário.",
+      "controls": ["UP-001", "UP-002", "UP-003"]
+    },
+    {
+      "id": "L-B06",
+      "source": "app-b",
+      "title": "O servidor decide o que o cliente pode saber e quando",
+      "summary": "No App B (quiz ao vivo), o gabarito de cada pergunta só chega ao cliente na revelação, e tempo e pontuação são calculados no servidor. A regra foi garantida no servidor e coberta por teste, nunca confiando no cliente para esconder o dado. Lição: segredo de rodada, estado e tempo ficam no servidor; o cliente só exibe o que já pode ver.",
+      "controls": ["RT-001"]
+    },
+    {
+      "id": "L-B07",
+      "source": "app-b",
+      "title": "Trilhas de terceiros na pasta do projeto, sem origem registrada",
+      "summary": "No App B, trilhas com direitos autorais apareceram na pasta do projeto durante o desenvolvimento; as de uso real foram substituídas por trilhas próprias, mas a origem e a licença não estavam registradas. Lição: todo ativo de mídia versionado precisa de origem e licença registradas, e nada sem licença fica numa pasta que o servidor entrega.",
+      "controls": ["AST-001"]
+    },
+    {
+      "id": "L-B08",
+      "source": "app-b",
+      "title": "Caso obrigatório de QA sem teste",
+      "summary": "No App B, o plano de QA listava como caso obrigatório a recuperação de uma partida após reinício do servidor, mas nenhum teste automático o cobria. Lição: cada caso obrigatório do plano de testes aponta para um teste que roda, com rastreabilidade entre requisito e teste.",
+      "controls": ["CORE-015", "CORE-019"]
+    },
+    {
+      "id": "L-B09",
+      "source": "app-b",
+      "title": "Trilha de auditoria alterável e no mesmo banco",
+      "summary": "No App B, a trilha de auditoria ficava no mesmo banco dos dados e podia ser alterada pelo mesmo papel de banco. O risco foi aceito conscientemente, com controle compensatório. Lição: a auditoria precisa de proteção contra alteração e, idealmente, de um destino fora do banco da aplicação.",
+      "controls": ["CORE-016"]
+    },
+    {
+      "id": "L-B10",
+      "source": "app-b",
+      "title": "Autoavaliação do ASVS feita por quem escreveu o código",
+      "summary": "No App B, a classificação de 253 requisitos do ASVS foi feita pelo mesmo agente que escreveu o código, e o script de cobertura só conferia que a evidência citada existia, não que ela provava o requisito. Lição: quem escreve não aprova; a evidência é um teste que roda, e a verificação independente tem contexto separado.",
+      "controls": ["CORE-018"]
+    },
+    {
+      "id": "L-B11",
+      "source": "app-b",
+      "title": "Hash de senha sem o limite de 72 bytes do bcrypt",
+      "summary": "O App B escolheu scrypt para as senhas para evitar o truncamento do bcrypt, que ignora bytes além do 72º. Lição: usar uma função de hash de senha moderna, com custo ajustado, que verifique a senha exatamente como recebida.",
+      "controls": ["AUTH-002"]
+    },
+    {
+      "id": "L-B12",
+      "source": "app-b",
+      "title": "Falhas de MFA contadas só por IP, com contador zerado pela senha",
+      "summary": "No App B, as falhas do segundo fator contavam só por IP, e acertar a senha zerava o contador da conta. Quem sabia a senha podia repetir ciclos de tentativas do código mudando de IP. Lição: contar falhas de MFA na conta e só zerar o contador depois do segundo fator concluído.",
+      "controls": ["AUTH-006"]
+    },
+    {
+      "id": "L-B13",
+      "source": "app-b",
+      "title": "Coleta mínima de dados de menores",
+      "summary": "O App B é usado por pessoas de todas as idades, inclusive crianças, e coleta apenas o primeiro nome, com aviso de privacidade na entrada. Lição: quando há dados de menores, a coleta é a mínima possível e o aviso é claro e curto.",
+      "controls": ["PII-001", "PII-004"]
+    },
+    {
+      "id": "L-B14",
+      "source": "app-b",
+      "title": "Limite de conexões menor que a capacidade da sala",
+      "summary": "No App B, o limite de canais de tempo real por IP (200) era menor que o máximo de participantes por sala (300), e os excedentes reconectavam em loop consumindo o limite. Lição: limites de conexão, de participantes e de taxa precisam ser coerentes entre si e com a capacidade do servidor.",
+      "controls": ["RT-002"]
+    },
+    {
+      "id": "L-R01",
+      "source": "research",
+      "title": "Arquivos de instrução são vetor de ataque",
+      "summary": "Pesquisas descrevem injeção via AGENTS.md no Codex, vazamento por arquivo de steering do Kiro com imagem em Markdown, e o Rules File Backdoor, com Unicode invisível em arquivos de regras do Copilot e do Cursor. Lição: tratar arquivos de instrução, skills, hooks e configuração de MCP como código não confiável: escanear caracteres ocultos, exigir revisão por dono, e conferir a integridade do que foi instalado.",
+      "controls": ["AG-002", "AG-003", "AG-006", "AG-014"]
+    },
+    {
+      "id": "L-R02",
+      "source": "research",
+      "title": "O que obriga fica fora do modelo",
+      "summary": "O guia da OpenSSF diz que o portão humano não pode depender do AGENTS.md nem de qualquer entrada da IA, e que invariantes se aplicam fora do modelo (hooks, sandbox, CI), enquanto instruções só guiam. OpenSSF e OWASP descrevem também a tríade letal (conteúdo não confiável, dados privados e comunicação externa) e a Regra de Dois. Lição: enforcement determinístico, registro das ações do agente fora do alcance dele e sandbox com rede negada por padrão.",
+      "controls": ["AG-005", "AG-009", "AG-010", "AG-011", "AG-012"]
+    },
+    {
+      "id": "L-R03",
+      "source": "research",
+      "title": "Pacotes alucinados e slopsquatting",
+      "summary": "Estudos citados pela OpenSSF mostram que cerca de 1 em 5 pacotes sugeridos por modelos de código não existe, e atacantes registram esses nomes (slopsquatting). Lição: dependências em versão exata com lockfile, e conferência de existência, idade e procedência antes de instalar qualquer pacote novo.",
+      "controls": ["CORE-002", "AG-008"]
+    },
+    {
+      "id": "L-R04",
+      "source": "research",
+      "title": "Segredos fora do alcance do agente e configuração protegida",
+      "summary": "A cadeia de exfiltração divulgada contra o Kiro (ler o .env, escrever o valor numa configuração da IDE e depois disparar uma requisição) e o caso do AGENTS.md lendo credenciais mostram o padrão. Lição: manter segredos fora do alcance do agente, bloquear leitura de segredo e escrita em configuração de IDE, MCP, tarefas e hooks, e proibir hooks com rede.",
+      "controls": ["CORE-001", "AG-001", "AG-006", "AG-007"]
+    },
+    {
+      "id": "L-R05",
+      "source": "research",
+      "title": "Regra em texto rende pouco sem verificação",
+      "summary": "O benchmark do Project CodeGuard mostrou que um prompt de uma linha pedindo código seguro achou menos vulnerabilidades do que o conjunto de regras, nos dois modelos testados, e as regras custaram bem mais tokens. Lição: o valor está em verificar com prova; manter as instruções sempre ativas curtas e investir em checks determinísticos.",
+      "controls": ["AG-004"]
+    },
+    {
+      "id": "L-R06",
+      "source": "research",
+      "title": "Actions por tag são mutáveis e o token padrão é amplo",
+      "summary": "O guia da OpenSSF recomenda fixar versões de Actions por SHA e dar ao CI só as permissões necessárias. Tags podem ser movidas; um token com escrita amplia o estrago de qualquer workflow comprometido. Lição: SHA de commit nas Actions e bloco permissions mínimo em cada workflow.",
+      "controls": ["CORE-006", "CORE-010"]
+    },
+    {
+      "id": "L-R07",
+      "source": "research",
+      "title": "Código gerado por IA repete padrões de injeção",
+      "summary": "A literatura citada pela OpenSSF (inclusive o relatório da Wiz) aponta injeção de código (CWE-94) e de comando (CWE-78) como falhas comuns em código gerado por IA, e a Microsoft recomenda testes de segurança escritos à mão, porque testes gerados pela IA tendem a validar o código gerado pela IA de forma circular. Lição: barrar padrões perigosos por varredura e exigir revisão humana e testes independentes nas áreas sensíveis.",
+      "controls": ["CORE-008", "CORE-009", "AG-013"]
+    },
+    {
+      "id": "L-R08",
+      "source": "research",
+      "title": "Sem canal de reporte, a vulnerabilidade não chega",
+      "summary": "O SSDF do NIST (tarefa RV.1.3) pede uma política de divulgação e correção de vulnerabilidades. Sem SECURITY.md ou equivalente, quem acha uma falha não sabe a quem avisar. Lição: manter um SECURITY.md com canal de contato claro.",
+      "controls": ["CORE-011"]
+    },
+    {
+      "id": "L-R09",
+      "source": "research",
+      "title": "Threat model versionado melhora a busca por falhas",
+      "summary": "O guia da OpenSSF sobre achar e corrigir vulnerabilidades com IA recomenda manter o threat model no repositório, e os dados que ele cita mostram que modelos bem documentados elevaram bastante a proporção de achados explorados de verdade. A AWS recomenda fazer o threat modeling no desenho. Lição: THREAT-MODEL.md versionado, com data da última revisão e revisão periódica.",
+      "controls": ["CORE-012"]
+    },
+    {
+      "id": "L-R10",
+      "source": "research",
+      "title": "Ninguém registra risco aceito com dono e validade",
+      "summary": "Nos sete projetos de governança de SDLC com IA que lemos, nenhum tinha um registro de riscos aceitos com dono e validade obrigatória. O mais próximo era uma lista de exceções sem prazo. Lição: risco aceito exige dono, aprovador, justificativa e validade; vencido, volta a contar como achado.",
+      "controls": ["CORE-013"]
+    },
+    {
+      "id": "L-R11",
+      "source": "research",
+      "title": "Inventário de componentes por versão publicada",
+      "summary": "O SSDF (PS.3.2) e a OpenSSF recomendam manter um inventário de componentes (SBOM) por versão publicada, para responder rápido quando uma dependência é comprometida. Lição: gerar o SBOM a cada release e guardá-lo como artefato.",
+      "controls": ["CORE-017"]
+    },
+    {
+      "id": "L-R12",
+      "source": "research",
+      "title": "Requisitos do ASVS 5.0 de nível 1 e 2 aplicáveis a qualquer app web",
+      "summary": "Vários controles vêm direto do ASVS 5.0 (cabeçalhos, HSTS, erros genéricos, arquivos sensíveis, TRACE e CORS, MFA, encerramento de sessões, logs sem dados sensíveis) e valem como linha de base para qualquer aplicação web. Lição: usar o ASVS como fonte, citar apenas os IDs e escrever o texto próprio.",
+      "controls": ["WEB-003", "WEB-004", "WEB-005", "WEB-007", "WEB-008", "WEB-009", "AUTH-001", "AUTH-007", "PII-003"]
+    }
+  ]
+}

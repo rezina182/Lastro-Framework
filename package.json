@@ -1,0 +1,23 @@
+{
+  "name": "lastro-framework",
+  "version": "0.1.0",
+  "description": "LASTRO: ciclo de vida seguro para desenvolvimento assistido por IA. Catálogo de controles e verificador sem dependências.",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Renato do Nascimento Junior",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rezina182/Lastro-Framework.git"
+  },
+  "bin": {
+    "lastro": "verifier/bin/lastro.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"verifier/test/**/*.test.js\"",
+    "check": "node verifier/bin/lastro.js check --allow-incomplete",
+    "catalog:validate": "node verifier/bin/lastro.js catalog validate"
+  }
+}

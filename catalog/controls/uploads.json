@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "pack": "uploads",
+  "controls": [
+    {
+      "id": "UP-001",
+      "title": "Tipo do arquivo conferido pelo conteúdo e reprocessado",
+      "summary": "O tipo do arquivo enviado é decidido pelos bytes, não pelo nome nem pelo Content-Type informado, e imagens são reprocessadas para descartar conteúdo embutido.",
+      "pack": "uploads",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Envie um arquivo com extensão de imagem e conteúdo diferente, e um arquivo com dados anexados ao final. Confirme que o primeiro é recusado e que o segundo sai limpo após o reprocessamento. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Nome e cabeçalho são controlados por quem envia. Conteúdo embutido pode atacar quem abre o arquivo depois.",
+      "remediation": "Detecte o tipo pelos bytes, aceite uma lista curta de tipos e regrave a imagem com uma biblioteca confiável antes de guardar.",
+      "refs": [
+        { "std": "ASVS", "id": "V5.2.2" },
+        { "std": "ASVS", "id": "V5.4.1" }
+      ],
+      "origin": ["L-B05"]
+    },
+    {
+      "id": "UP-002",
+      "title": "Limites de tamanho, dimensão e memória no upload",
+      "summary": "O servidor recusa arquivos acima de um tamanho máximo e imagens acima de uma dimensão máxima antes de decodificá-las por inteiro, respeitando a memória disponível.",
+      "pack": "uploads",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Envie um arquivo maior que o limite e uma imagem com dimensões enormes e pouco peso. Confirme recusa rápida, sem pico de memória. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Uma imagem pequena em bytes pode ocupar gigabytes ao ser decodificada. Servidores pequenos caem com poucos envios assim.",
+      "remediation": "Leia o cabeçalho para obter as dimensões antes de decodificar, limite o corpo da requisição e defina um teto de pixels.",
+      "refs": [
+        { "std": "ASVS", "id": "V5.1.1" },
+        { "std": "ASVS", "id": "V5.2.6" }
+      ],
+      "origin": ["L-B05"]
+    },
+    {
+      "id": "UP-003",
+      "title": "Cota de armazenamento por usuário",
+      "summary": "Cada usuário tem uma cota de quantidade e de espaço para uploads, aplicada no servidor.",
+      "pack": "uploads",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Com uma conta de teste, envie arquivos até passar da cota e confirme que o servidor recusa o próximo. Confirme que a exclusão devolve espaço. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem cota, uma única conta pode ocupar o banco ou o disco inteiro e gerar custo ou indisponibilidade.",
+      "remediation": "Conte o espaço usado por usuário, recuse acima do limite com mensagem clara e monitore o consumo total.",
+      "refs": [{ "std": "ASVS", "id": "V2.4.1" }],
+      "origin": ["L-B05"]
+    }
+  ]
+}

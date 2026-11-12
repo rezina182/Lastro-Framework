@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "pack": "assets",
+  "controls": [
+    {
+      "id": "AST-001",
+      "title": "Origem e licença registradas para cada ativo de mídia",
+      "summary": "Todo arquivo de mídia versionado (áudio, imagem, fonte, vídeo) consta em .lastro/assets.json com origem, licença e quem atestou.",
+      "pack": "assets",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "deploy"],
+      "check": { "type": "automated", "id": "repo.assets.provenance" },
+      "enforcement": "hard",
+      "rationale": "Ativo sem licença conhecida é risco jurídico e de reputação, e fica fácil de esquecer dentro de uma pasta que o servidor entrega.",
+      "remediation": "Registre cada arquivo em .lastro/assets.json com origem e licença, ou remova o arquivo do repositório.",
+      "refs": [{ "std": "SSDF", "id": "PS.3.2", "note": "informações de procedência dos componentes" }],
+      "origin": ["L-B07"]
+    }
+  ]
+}

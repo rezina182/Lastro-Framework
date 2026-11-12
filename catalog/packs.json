@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "0.1.0",
+  "packs": {
+    "core": {
+      "title": "Base: cadeia de suprimentos, segredos, CI e desenvolvimento assistido por IA",
+      "requires": []
+    },
+    "web": {
+      "title": "Aplicação web: cabeçalhos, CSP, erros, métodos e caminhos sensíveis",
+      "requires": ["webApp"]
+    },
+    "auth": {
+      "title": "Autenticação e sessão",
+      "requires": ["hasAuth"]
+    },
+    "pii": {
+      "title": "Dados pessoais: coleta mínima, retenção e logs",
+      "requires": ["personalData"]
+    },
+    "realtime": {
+      "title": "Tempo real: WebSocket, SSE e limites de conexão",
+      "requires": ["realtime"]
+    },
+    "uploads": {
+      "title": "Upload de arquivos",
+      "requires": ["uploads"]
+    },
+    "assets": {
+      "title": "Ativos de mídia: origem e licença",
+      "requires": ["thirdPartyAssets"]
+    },
+    "agent": {
+      "title": "Agente de código: arquivos de instrução, hooks e orçamento de contexto",
+      "requires": ["aiCodingAgents"]
+    }
+  }
+}

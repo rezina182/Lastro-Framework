@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "pack": "pii",
+  "controls": [
+    {
+      "id": "PII-001",
+      "title": "Coleta mínima de dados pessoais",
+      "summary": "Só se coleta o dado pessoal estritamente necessário à função (por exemplo, um primeiro nome em vez de nome completo e e-mail), e a interface orienta o usuário a não informar mais do que isso.",
+      "pack": "pii",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["design"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste todos os campos coletados e, para cada um, justifique a necessidade. Corte o que não é indispensável. Confirme o texto de orientação na interface. Registre com data em .lastro/status.json.",
+      "enforcement": "soft",
+      "rationale": "O dado que não existe não vaza. A minimização reduz o impacto de qualquer incidente e a obrigação legal de proteger.",
+      "remediation": "Revise o formulário campo a campo, prefira identificadores sem relação com a pessoa e evite combinar dados que, juntos, identificam.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.7.2" },
+        { "std": "ASVS", "id": "V14.1.1" }
+      ],
+      "origin": ["L-B13"]
+    },
+    {
+      "id": "PII-002",
+      "title": "Retenção definida e exclusão completa",
+      "summary": "Cada tipo de dado pessoal tem prazo de retenção documentado, exclusão automática ou manual comprovada, e a exclusão apaga tudo que se refere à pessoa ou à sessão.",
+      "pack": "pii",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["design", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Crie dados de teste, execute a exclusão pelo caminho normal e confirme no banco que nenhuma tabela ainda guarda dados da pessoa. Confirme o prazo documentado e o job que o aplica. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Dados sem prazo se acumulam e ampliam o dano de um vazamento. A exclusão parcial deixa rastros.",
+      "remediation": "Documente o prazo por categoria, agende a limpeza, use exclusão em cascata e teste que não sobra nada. Dê ao titular uma forma de pedir a exclusão.",
+      "refs": [
+        { "std": "ASVS", "id": "V14.2.7" },
+        { "std": "ASVS", "id": "V14.1.2" }
+      ],
+      "origin": ["L-B04"]
+    },
+    {
+      "id": "PII-003",
+      "title": "Sem dados pessoais nem segredos nos logs",
+      "summary": "Logs de aplicação e de auditoria não guardam senhas, tokens, nomes de usuários finais nem IP puro, e os valores vindos da requisição são tratados contra injeção de log.",
+      "pack": "pii",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Execute os fluxos principais com dados de teste reconhecíveis e procure esses valores nos logs. Confirme que IPs aparecem como hash e que quebras de linha são escapadas. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Logs costumam ter retenção longa e acesso amplo. Dado pessoal ou token ali é vazamento esperando acontecer.",
+      "remediation": "Registre identificadores opacos, aplique hash com sal rotativo ao IP, escape os valores e defina a retenção dos logs.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.2.5" },
+        { "std": "ASVS", "id": "V16.4.1" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "PII-004",
+      "title": "Aviso de privacidade claro quando há dados de menores",
+      "summary": "Quando a aplicação é usada por crianças ou adolescentes, a tela de entrada traz um aviso curto e simples sobre o dado coletado, a finalidade e o prazo.",
+      "pack": "pii",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design"],
+      "appliesIf": ["minorsData"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra a tela de entrada como um usuário comum e confirme que o aviso aparece antes da coleta, em linguagem simples. Registre com data. Se houver tratamento em escala, peça revisão jurídica do texto.",
+      "enforcement": "soft",
+      "rationale": "Dados de menores têm proteção reforçada na legislação, e o responsável precisa conseguir entender o que acontece com o dado.",
+      "remediation": "Escreva um aviso de poucas linhas, evite coletar dados que identifiquem a criança e documente a base legal com apoio jurídico quando o uso for amplo.",
+      "refs": [{ "std": "ASVS", "id": "V14.1.2" }],
+      "origin": ["L-B13"]
+    }
+  ]
+}

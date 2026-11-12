@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "pack": "web",
+  "controls": [
+    {
+      "id": "WEB-001",
+      "title": "CSP sem 'unsafe-inline' nem 'unsafe-eval' em scripts",
+      "summary": "A resposta HTML traz uma Content-Security-Policy cujo script-src não permite 'unsafe-inline' nem 'unsafe-eval' (a menos que use nonce ou hash), nem curingas.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.csp.script" },
+      "enforcement": "hard",
+      "rationale": "A CSP limita o estrago de um XSS. Com 'unsafe-inline' ela deixa de proteger contra o ataque mais comum. Mas apertar a política sem migrar o código quebra a aplicação (por exemplo, formulários que dependem de onsubmit inline).",
+      "remediation": "Migre os handlers inline (onclick, onsubmit) e os scripts inline para arquivos externos com addEventListener, e só depois remova 'unsafe-inline'. Se a migração demorar, registre a dívida como risco aceito com validade; o achado sobre script-src-attr acompanha a dívida.",
+      "refs": [{ "std": "ASVS", "id": "V3.4.3" }],
+      "origin": ["L-A01"]
+    },
+    {
+      "id": "WEB-002",
+      "title": "CSP com diretivas complementares",
+      "summary": "A CSP define object-src 'none', base-uri 'none', frame-ancestors (ou X-Frame-Options) e form-action.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.csp.complementary" },
+      "enforcement": "soft",
+      "rationale": "Sem object-src e base-uri restritos, a CSP pode ser contornada por plugins ou por injeção de <base>. Sem frame-ancestors a página pode ser embutida em outra para clickjacking.",
+      "remediation": "Adicione object-src 'none'; base-uri 'none'; frame-ancestors 'none' (ou 'self' se precisar de iframe próprio); form-action 'self'.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.4.3" },
+        { "std": "ASVS", "id": "V3.4.6" }
+      ],
+      "origin": ["L-A01"]
+    },
+    {
+      "id": "WEB-003",
+      "title": "HSTS com validade de pelo menos um ano",
+      "summary": "Respostas por HTTPS trazem Strict-Transport-Security com max-age de ao menos 31536000 segundos e includeSubDomains.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "automated", "id": "http.hsts" },
+      "enforcement": "soft",
+      "rationale": "Sem HSTS o navegador pode ser rebaixado para HTTP em uma rede hostil, e o primeiro acesso fica exposto.",
+      "remediation": "Envie 'Strict-Transport-Security: max-age=31536000; includeSubDomains'. Considere a lista de preload só depois de garantir HTTPS em todos os subdomínios.",
+      "refs": [{ "std": "ASVS", "id": "V3.4.1" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-004",
+      "title": "Cabeçalhos de segurança básicos",
+      "summary": "As respostas trazem X-Content-Type-Options: nosniff, Referrer-Policy e Permissions-Policy.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.headers.basic" },
+      "enforcement": "soft",
+      "rationale": "nosniff evita que o navegador reinterprete um arquivo enviado como script. Referrer-Policy e Permissions-Policy reduzem vazamento de dados e uso indevido de recursos do navegador.",
+      "remediation": "Configure o framework ou o proxy para enviar nosniff, 'Referrer-Policy: no-referrer' (ou strict-origin-when-cross-origin) e uma Permissions-Policy que negue o que a aplicação não usa.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.4.4" },
+        { "std": "ASVS", "id": "V3.4.5" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-005",
+      "title": "Sem divulgação da tecnologia e da versão",
+      "summary": "As respostas não trazem X-Powered-By nem Server com número de versão.",
+      "pack": "web",
+      "tier": 2,
+      "severity": "low",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "automated", "id": "http.disclosure" },
+      "enforcement": "advisory",
+      "rationale": "Anunciar framework e versão ajuda o atacante a escolher exploits sem esforço.",
+      "remediation": "Desligue X-Powered-By (no Express, app.disable('x-powered-by')) e configure o servidor ou o proxy para ocultar a versão.",
+      "refs": [{ "std": "ASVS", "id": "V13.4.6" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-006",
+      "title": "/health anônimo mínimo e sem exigir login",
+      "summary": "O endpoint de saúde responde sem autenticação e devolve apenas {status:'ok'}, sem versão, host, memória nem estado das dependências.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["runtime"],
+      "check": { "type": "automated", "id": "http.health.minimal" },
+      "enforcement": "soft",
+      "rationale": "Detalhes internos num endpoint público orientam ataques. Exigir login no /health quebra o monitoramento externo e a hospedagem.",
+      "remediation": "Responda 200 com {\"status\":\"ok\"} antes da autenticação. Detalhes ficam em rota separada, protegida, para quem está autenticado.",
+      "refs": [{ "std": "ASVS", "id": "V13.4.6" }],
+      "origin": ["L-A03"]
+    },
+    {
+      "id": "WEB-007",
+      "title": "Erros genéricos, sem stack trace nem caminhos internos",
+      "summary": "Rotas inexistentes, entradas malformadas e falhas internas devolvem mensagem genérica, sem stack trace, SQL, caminhos do servidor ou página de depuração.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.errors.generic" },
+      "enforcement": "soft",
+      "rationale": "Mensagens detalhadas revelam a estrutura interna e aceleram a exploração de qualquer outra falha.",
+      "remediation": "Instale um tratador global de erros que registre o detalhe no log e devolva mensagem genérica. Desligue o modo de depuração em produção e personalize a página 404.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.5.1" },
+        { "std": "ASVS", "id": "V13.4.2" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-008",
+      "title": "Arquivos sensíveis não são servidos",
+      "summary": ".env, .git, package.json, código-fonte do servidor, Dockerfile e dumps de banco não são acessíveis pela web.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "critical",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "automated", "id": "http.paths.sensitive" },
+      "enforcement": "hard",
+      "rationale": "Um .env ou .git exposto entrega segredos e todo o código. É uma das falhas mais antigas e mais exploradas por varreduras automáticas.",
+      "remediation": "Sirva apenas a pasta pública (public/), com dotfiles ignorados, e nunca a raiz do projeto. Remova dumps e backups do servidor e rotacione qualquer segredo que tenha ficado exposto.",
+      "refs": [{ "std": "ASVS", "id": "V13.4.1" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-009",
+      "title": "Métodos HTTP e CORS restritos",
+      "summary": "O método TRACE não é suportado, e o CORS não reflete qualquer Origin com credenciais, nem aceita Origin 'null' ou '*' com credenciais.",
+      "pack": "web",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.methods.cors" },
+      "enforcement": "soft",
+      "rationale": "TRACE pode vazar cabeçalhos. CORS permissivo com credenciais deixa outro site ler dados do usuário autenticado.",
+      "remediation": "Desabilite TRACE no servidor ou no proxy, e responda Access-Control-Allow-Origin com valores fixos de uma lista permitida. Esta verificação é ativa: rode com --active e apenas contra o que for seu.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.4.4" },
+        { "std": "ASVS", "id": "V3.4.2" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-010",
+      "title": "Cache nunca guarda rotas dinâmicas ou autenticadas",
+      "summary": "Respostas de API e de páginas autenticadas saem com Cache-Control: no-store, e o Service Worker e a CDN só cacheiam arquivos estáticos.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "No navegador, abra DevTools, aba Application, Cache Storage, e confirme que só há arquivos estáticos. Com curl -I numa rota de API autenticada, confirme Cache-Control: no-store. Revise o código do Service Worker e a regra de cache da CDN. Registre com data em .lastro/status.json.",
+      "enforcement": "soft",
+      "rationale": "Cache de resposta autenticada pode servir dados velhos ou de outro usuário, e continua no navegador depois do logout.",
+      "remediation": "Marque a API com no-store, restrinja o Service Worker a uma lista de arquivos estáticos, limpe caches no logout (Clear-Site-Data) e exclua /api da regra de cache da CDN.",
+      "refs": [
+        { "std": "ASVS", "id": "V14.3.2" },
+        { "std": "ASVS", "id": "V14.2.5" },
+        { "std": "ASVS", "id": "V14.3.1" }
+      ],
+      "origin": ["L-A02"]
+    },
+    {
+      "id": "WEB-011",
+      "title": "Limitador de requisições com chave que o atacante não controla",
+      "summary": "O limite de requisições usa uma chave confiável (IP vindo do proxy de confiança, conta autenticada), nunca um valor enviado pelo cliente, e a entrada é validada de forma barata antes de abrir transação ou usar uma conexão do pool.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["design", "build"],
+      "check": { "type": "manual" },
+      "howToVerify": "Revise cada limitador: qual é a chave? Se ela vem de cabeçalho, corpo ou token enviado pelo cliente, o atacante varia a chave e escapa do limite. Teste enviando 200 requisições com tokens diferentes e inválidos e confirme que o servidor limita e não esgota o pool de conexões. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Um limitador cuja chave o atacante escolhe não limita ninguém. Se cada tentativa inválida ainda abre transação no banco, um fluxo de requisições falsas esgota o pool e derruba o serviço para todos.",
+      "remediation": "Combine uma chave que o atacante não controla (IP real atrás do proxy configurado) com o limite por conta. Valide formato e existência com uma consulta leve antes de abrir transação, e limite o tamanho da tabela do limitador em memória.",
+      "refs": [
+        { "std": "ASVS", "id": "V2.4.1" },
+        { "std": "ASVS", "id": "V15.3.4" }
+      ],
+      "origin": ["L-B01"]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+LASTRO Framework
+Copyright 2026 Renato do Nascimento Junior
+
+Este produto inclui software desenvolvido para o projeto LASTRO.
+Código: Apache License 2.0 (arquivo LICENSE).
+Documentação (README, ARCHITECTURE, docs/ e arquivos .md): CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/), salvo indicação em contrário.
+
+Referências a padrões de terceiros (OWASP ASVS, NIST SSDF e outros) citam apenas
+identificadores e links. Os textos desses padrões pertencem aos seus autores.

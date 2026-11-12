@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "pack": "realtime",
+  "controls": [
+    {
+      "id": "RT-001",
+      "title": "Estado, tempo e segredos de rodada ficam no servidor",
+      "summary": "O servidor calcula tempo, pontuação e estado, e só envia ao cliente o que ele já pode ver. Segredos de rodada (como um gabarito) não trafegam antes da hora liberada.",
+      "pack": "realtime",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["design", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra o painel de rede do navegador durante uma rodada e confirme que nenhuma mensagem antes da revelação contém o segredo. Confirme que há teste automatizado cobrindo essa regra e que o tempo vem do relógio do servidor. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Qualquer dado enviado ao cliente pode ser lido e qualquer cálculo feito no cliente pode ser forjado. Esconder na interface não protege.",
+      "remediation": "Mova o cálculo para o servidor, filtre as mensagens por papel e fase da rodada, e escreva um teste que falha se o segredo aparecer antes da revelação.",
+      "refs": [{ "std": "ASVS", "id": "V13.1.2", "note": "relacionado a limites de recursos do canal" }],
+      "origin": ["L-B06"]
+    },
+    {
+      "id": "RT-002",
+      "title": "Limites de conexão coerentes com a capacidade",
+      "summary": "Os limites de conexões por origem, de participantes por sala e de taxa de mensagens são coerentes entre si e com o que o servidor aguenta.",
+      "pack": "realtime",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste os limites e confirme que o limite por origem comporta o máximo de participantes legítimos de uma sala atrás do mesmo IP. Rode um teste de carga na capacidade máxima prevista e registre o resultado com data.",
+      "enforcement": "soft",
+      "rationale": "Um limite menor que a capacidade derruba usuários legítimos, e um limite maior que o servidor suporta permite esgotar recursos.",
+      "remediation": "Alinhe os números em um único lugar de configuração, derive um do outro quando possível e cubra a relação com um teste.",
+      "refs": [{ "std": "ASVS", "id": "V13.1.2" }],
+      "origin": ["L-B14"]
+    },
+    {
+      "id": "RT-003",
+      "title": "Salas e sessões efêmeras expiram sozinhas",
+      "summary": "Links, tokens de participante e salas têm validade definida e expiram sem depender de ação manual. O que expira deixa de funcionar de fato no servidor.",
+      "pack": "realtime",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Crie uma sala de teste, aguarde ou avance o relógio do teste até o prazo e confirme que o link e os tokens são recusados. Confirme o job que remove os dados. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Acessos sem validade viram credenciais permanentes e os dados da sala ficam guardados sem necessidade.",
+      "remediation": "Defina o prazo por tipo de sessão, valide a expiração em toda requisição e agende a limpeza dos dados associados.",
+      "refs": [
+        { "std": "ASVS", "id": "V7.1.1" },
+        { "std": "ASVS", "id": "V14.2.7" }
+      ],
+      "origin": ["L-B04"]
+    }
+  ]
+}

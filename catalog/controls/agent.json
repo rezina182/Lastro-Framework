@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "pack": "agent",
+  "controls": [
+    {
+      "id": "AG-001",
+      "title": "Segredos fora do alcance do agente de código",
+      "summary": "O agente não consegue ler arquivos de segredo (.env, chaves, credenciais) do ambiente onde trabalha. Segredos reais ficam em um cofre ou no ambiente de execução, não na pasta do projeto.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "critical",
+      "phase": ["build"],
+      "check": { "type": "manual" },
+      "howToVerify": "Peça ao agente, numa sessão de teste, para ler o arquivo de segredos e confirme que a leitura é bloqueada por mecanismo (permissão, sandbox ou hook), não por instrução. Confirme que a pasta local só tem valores de teste. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Cadeias de ataque publicadas contra agentes começam lendo um segredo local. Se o agente não alcança o segredo, a cadeia perde o primeiro elo.",
+      "remediation": "Mova segredos reais para fora da pasta do projeto, use valores de teste no desenvolvimento e bloqueie leitura de arquivos de segredo por permissão do ambiente.",
+      "refs": [
+        { "std": "OWASP-AST10", "id": "AST04" },
+        { "std": "ASVS", "id": "V13.3.1" }
+      ],
+      "origin": ["L-R04"]
+    },
+    {
+      "id": "AG-002",
+      "title": "Arquivos de instrução sem caracteres ocultos",
+      "summary": "Arquivos de instrução, regras, skills e hooks não contêm caracteres Unicode invisíveis ou de controle de direção que escondam texto do revisor.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "automated", "id": "repo.agent.hidden-unicode" },
+      "enforcement": "hard",
+      "rationale": "Texto invisível em arquivos de regras já foi usado para instruir o agente sem que a pessoa perceba. A leitura humana não encontra o que não se vê.",
+      "remediation": "Remova os caracteres indicados no relatório e confira a origem do arquivo, pois a presença deles raramente é acidental.",
+      "refs": [
+        { "std": "OWASP-AST10", "id": "AST04" },
+        { "std": "Pillar", "id": "Rules File Backdoor" }
+      ],
+      "origin": ["L-R01"]
+    },
+    {
+      "id": "AG-003",
+      "title": "Arquivos de instrução com dono de revisão",
+      "summary": "O CODEOWNERS cobre os arquivos de instrução, regras, skills, hooks e configuração de MCP, de modo que mudanças neles exijam revisão do dono.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "deploy"],
+      "check": { "type": "automated", "id": "repo.agent.codeowners" },
+      "enforcement": "soft",
+      "rationale": "Arquivos de instrução definem o que o agente faz. Mudar um deles sem revisão equivale a mudar código sem revisão.",
+      "remediation": "Adicione ao CODEOWNERS as pastas e arquivos de instrução com o responsável e ative a revisão obrigatória na proteção de branch.",
+      "refs": [
+        { "std": "OWASP-AST10", "id": "AST02" },
+        { "std": "Google-SAA", "id": "p73" }
+      ],
+      "origin": ["L-R01"]
+    },
+    {
+      "id": "AG-004",
+      "title": "Orçamento de contexto das instruções sempre ativas",
+      "summary": "O conjunto de instruções carregado em toda sessão fica abaixo de um limite de tamanho, e o detalhe vai para arquivos carregados sob demanda.",
+      "pack": "agent",
+      "tier": 2,
+      "severity": "low",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.agent.budget" },
+      "enforcement": "advisory",
+      "rationale": "Instruções longas gastam contexto e custam caro, e o benchmark do Project CodeGuard mostrou ganho pequeno de regras em texto sobre um prompt curto.",
+      "remediation": "Reduza as instruções sempre ativas ao essencial e mova o resto para arquivos ativados por tipo de arquivo ou por pedido.",
+      "refs": [{ "std": "CodeGuard", "id": "benchmark" }],
+      "origin": ["L-R05"]
+    },
+    {
+      "id": "AG-005",
+      "title": "Hooks de bloqueio falham fechado e têm teste",
+      "summary": "Hooks e verificações que barram ações do agente bloqueiam quando falham ou expiram, e têm teste que prova o bloqueio.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada hook de bloqueio, provoque um erro dentro dele e confirme que a ação é bloqueada. Confirme que existe teste automatizado desse comportamento. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Um portão que abre quando quebra deixa de ser portão. Só um mecanismo que falha fechado dá garantia.",
+      "remediation": "Faça o hook negar por padrão em qualquer erro, adicione timeout com negação e cubra com teste.",
+      "refs": [
+        { "std": "OWASP-SAA", "id": "hooks fail-closed" },
+        { "std": "OpenSSF", "id": "AI instructions guide" }
+      ],
+      "origin": ["L-R02"]
+    },
+    {
+      "id": "AG-006",
+      "title": "Hooks sem acesso à rede",
+      "summary": "Hooks e scripts de configuração do agente não fazem requisições de rede nem executam conteúdo baixado.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "automated", "id": "repo.agent.hooks-offline" },
+      "enforcement": "hard",
+      "rationale": "Um hook com rede pode enviar segredos para fora ou baixar código novo a cada execução, e roda com os poderes do agente.",
+      "remediation": "Remova chamadas de rede dos hooks. Se a verificação precisa de dado externo, faça no CI, fora do alcance do agente.",
+      "refs": [
+        { "std": "OWASP-AST10", "id": "AST05" },
+        { "std": "Kiro", "id": "hooks" }
+      ],
+      "origin": ["L-R01", "L-R04"]
+    },
+    {
+      "id": "AG-007",
+      "title": "O agente não altera a própria configuração",
+      "summary": "O agente não tem permissão de escrita em configuração de IDE, MCP, tarefas, hooks e arquivos de instrução sem aprovação humana por mecanismo.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "critical",
+      "phase": ["build"],
+      "check": { "type": "manual" },
+      "howToVerify": "Numa sessão de teste, peça ao agente para editar um arquivo de configuração protegido e confirme que a escrita pede aprovação ou é bloqueada. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Divulgações de falhas em ferramentas de código mostram agentes escrevendo configuração para obter execução de comandos. Quem muda as próprias regras escapa dos limites.",
+      "remediation": "Proteja por permissão os caminhos de configuração e exija aprovação humana nas mudanças.",
+      "refs": [
+        { "std": "CVE", "id": "CVE-2026-10591" },
+        { "std": "OWASP-AST10", "id": "AST05" }
+      ],
+      "origin": ["L-R04"]
+    },
+    {
+      "id": "AG-008",
+      "title": "Dependência nova conferida antes de instalar",
+      "summary": "Antes de adicionar um pacote sugerido pelo agente, a pessoa confere que ele existe, sua idade, seus mantenedores e sua procedência.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Pegue as dependências adicionadas nos últimos PRs e confirme que cada uma tem registro da conferência (existência, idade, mantenedor, repositório) na descrição do PR. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Modelos sugerem nomes de pacotes que não existem, e atacantes registram esses nomes com código malicioso.",
+      "remediation": "Inclua no modelo de PR um item de conferência de dependência nova e use versão exata com lockfile.",
+      "refs": [{ "std": "OpenSSF", "id": "AI instructions guide", "note": "slopsquatting" }],
+      "origin": ["L-R03"]
+    },
+    {
+      "id": "AG-009",
+      "title": "Push em branch protegida exige aprovação humana por mecanismo",
+      "summary": "O agente não consegue fazer push em branch protegida nem fazer merge sem aprovação humana, garantido pela plataforma e não por instrução.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Com as credenciais que o agente usa, tente um push direto na branch protegida e confirme que a plataforma recusa. Registre a evidência com data.",
+      "enforcement": "soft",
+      "rationale": "Uma instrução pode ser ignorada ou sobrescrita por conteúdo malicioso. Só o mecanismo fora do modelo garante o portão.",
+      "remediation": "Ative proteção de branch com revisão obrigatória, use credenciais do agente sem permissão de push direto e confirme na prática.",
+      "refs": [{ "std": "OpenSSF", "id": "AI instructions guide" }],
+      "origin": ["L-R02"]
+    },
+    {
+      "id": "AG-010",
+      "title": "Sandbox do agente com rede negada por padrão",
+      "summary": "O agente roda em ambiente isolado, com acesso à rede negado por padrão e liberado apenas para destinos necessários e conhecidos.",
+      "pack": "agent",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["build"],
+      "check": { "type": "manual" },
+      "howToVerify": "No ambiente do agente, tente acessar um destino não listado e confirme que a conexão é negada. Liste os destinos liberados e a justificativa de cada um. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem saída para a rede, a exfiltração de dados por um agente comprometido fica muito mais difícil.",
+      "remediation": "Use um contêiner ou sandbox com lista de destinos permitidos e revise a lista periodicamente.",
+      "refs": [{ "std": "OpenSSF", "id": "AI instructions guide" }],
+      "origin": ["L-R02"]
+    },
+    {
+      "id": "AG-011",
+      "title": "Registro das ações do agente fora do alcance dele",
+      "summary": "As ações do agente (comandos, leituras e escritas relevantes) são registradas em um destino que ele não consegue alterar nem apagar.",
+      "pack": "agent",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "respond"],
+      "check": { "type": "manual" },
+      "howToVerify": "Execute uma sessão de teste, localize o registro das ações e confirme que o agente, com suas permissões, não consegue editá-lo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem registro íntegro não há como investigar um incidente nem provar o que o agente fez.",
+      "remediation": "Envie o registro a um destino somente de acréscimo e restrinja a escrita a outra identidade.",
+      "refs": [{ "std": "NIST-SP-800-218A", "id": "PO.5.3" }],
+      "origin": ["L-R02"]
+    },
+    {
+      "id": "AG-012",
+      "title": "Regra de Dois em cada fluxo do agente",
+      "summary": "Cada fluxo do agente combina no máximo duas entre três propriedades: processar conteúdo não confiável, acessar dados privados e se comunicar externamente.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["design"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste os fluxos do agente e, para cada um, marque quais das três propriedades ele tem. Qualquer fluxo com as três precisa de aprovação humana por mecanismo ou de redesenho. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Quando as três propriedades se juntam, conteúdo malicioso consegue fazer o agente ler dado privado e enviá-lo para fora.",
+      "remediation": "Separe o fluxo em etapas com agentes distintos ou exija aprovação humana na etapa que fecha a combinação.",
+      "refs": [
+        { "std": "Google-SAA", "id": "p34" },
+        { "std": "OpenSSF", "id": "LFEL1012" }
+      ],
+      "origin": ["L-R02"]
+    },
+    {
+      "id": "AG-013",
+      "title": "Revisão humana e testes de segurança escritos à mão",
+      "summary": "Código gerado por IA em áreas sensíveis passa por revisão humana, e há testes de segurança escritos ou revisados por uma pessoa, não só gerados pela IA.",
+      "pack": "agent",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Escolha os últimos PRs que tocaram autenticação, autorização, entrada de usuário ou criptografia. Confirme revisão humana registrada e ao menos um teste de segurança com autoria humana. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Testes gerados pela mesma IA que gerou o código tendem a confirmar o que o código já faz, inclusive o erro.",
+      "remediation": "Defina as áreas sensíveis, exija revisão por pessoa nelas e escreva à mão os testes de abuso e de limite.",
+      "refs": [{ "std": "Microsoft", "id": "agent-governance-toolkit" }],
+      "origin": ["L-R07"]
+    },
+    {
+      "id": "AG-014",
+      "title": "Integridade do kit de instruções instalado",
+      "summary": "O kit de regras, skills e hooks instalado vem de uma versão conhecida, com hash ou commit fixado e conferido, e mudanças locais aparecem na revisão.",
+      "pack": "agent",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Compare os arquivos instalados com a versão publicada do kit pelo hash ou pelo commit fixado. Confirme que atualizações passam por PR revisado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Um kit adulterado ou trocado na origem passa a instruir o agente com conteúdo do atacante.",
+      "remediation": "Fixe a versão por commit ou hash, atualize por PR e verifique a diferença antes de aceitar.",
+      "refs": [
+        { "std": "OWASP-AST10", "id": "AST01" },
+        { "std": "OWASP-AST10", "id": "AST07" }
+      ],
+      "origin": ["L-R01"]
+    }
+  ]
+}
