@@ -7,7 +7,7 @@ const { parseDate } = require('./util');
 
 const FLAGS = [
   'webApp', 'hasAuth', 'anonymousUsers', 'realtime', 'uploads', 'personalData',
-  'minorsData', 'thirdPartyAssets', 'aiCodingAgents', 'publicInternet',
+  'minorsData', 'thirdPartyAssets', 'aiCodingAgents', 'publicInternet', 'federatedLogin',
 ];
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 const PHASES = ['design', 'build', 'test', 'deploy', 'runtime', 'respond'];
@@ -107,7 +107,9 @@ function validateControl(c, where) {
     c.refs.forEach((r, i) => {
       const w = `${where}.refs[${i}]`;
       if (!isObj(r)) return errs.push(`${w}: deve ser objeto`);
-      checkKeys(r, ['std', 'id'], ['note'], w, errs);
+      checkKeys(r, ['std', 'id'], ['note', 'covers'], w, errs);
+      if (r.covers !== undefined) oneOf(r.covers, ['full', 'partial'], `${w}.covers`, errs);
+      if (r.covers !== undefined && r.std !== 'ASVS') errs.push(`${w}.covers: só vale para referências ASVS`);
       text(r.std, `${w}.std`, errs, 40);
       text(r.id, `${w}.id`, errs, 80);
       if (r.note !== undefined) text(r.note, `${w}.note`, errs, 240);

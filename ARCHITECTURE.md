@@ -47,7 +47,9 @@ Pacotes: `core`, `web`, `auth`, `pii`, `realtime`, `uploads`, `assets`, `agent`.
 - Toda referência `ASVS` de um controle precisa existir no mapa (validação offline do catálogo).
 - `lastro asvs` calcula a cobertura por capítulo até o nível pedido: requisitos citados por verificação automática, só por controle manual, sem controle e não aplicáveis.
 - Com `--state`, o comando roda o `check` e mostra, por requisito, se os controles ligados estão verificados, com falha, sem prova ou fora do perfil.
-- Limite atual: "citado" não distingue cobertura total de parcial. O número é um teto.
+- Cada referência ASVS de um controle pode declarar `covers`: `full` (o teste do `howToVerify` prova o requisito inteiro) ou `partial`. Sem o campo, a referência é "não classificada" e não conta como cobertura inteira.
+- Com `--state`, um requisito só aparece como verificado se um controle com `covers: full` está verificado e nenhum controle ligado a ele falhou.
+- Limite atual: só V6 e V7 estão classificados, e a classificação foi feita pelo autor do kit. Falta revisão independente.
 
 ## Estados de um controle
 

@@ -10,7 +10,7 @@ test('o catálogo carrega e passa na validação cruzada', () => {
   const cat = loadCatalog();
   const errors = validateCatalog(cat, new Set(registry.keys()));
   assert.deepEqual(errors, []);
-  assert.equal(cat.controls.length, 62);
+  assert.equal(cat.controls.length, 80);
   assert.equal(cat.lessons.length, 37);
 });
 

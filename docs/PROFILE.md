@@ -11,6 +11,7 @@ Descreve a aplicação. Os flags decidem quais pacotes e controles se aplicam.
 | `uploads` | pacote `uploads` | aceita arquivos enviados por usuários |
 | `thirdPartyAssets` | pacote `assets` | versiona mídia (áudio, imagem, fonte, vídeo) |
 | `aiCodingAgents` | pacote `agent` | agentes de IA escrevem ou alteram código |
+| `federatedLogin` | `AUTH-020` e `AUTH-021` | o login usa provedor de identidade externo (OIDC, SAML, SSO) |
 | `anonymousUsers` | reservado | há usuários sem conta |
 | `minorsData` | `PII-004` | há dados de crianças ou adolescentes |
 | `publicInternet` | prioridade do backlog | a aplicação é acessível pela internet |

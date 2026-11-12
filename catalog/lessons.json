@@ -90,14 +90,14 @@
       "source": "app-b",
       "title": "Bloqueio por IP em rede compartilhada tranca o usuário legítimo",
       "summary": "No App B, o bloqueio por excesso de tentativas de login era por IP. Como uma turma inteira saía pelo mesmo IP da escola, um aluno errando a senha podia travar o professor. Lição: contar falhas por conta, e calibrar o limite por IP para redes com NAT, sem afogar usuários legítimos.",
-      "controls": ["AUTH-005"]
+      "controls": ["AUTH-005", "AUTH-016"]
     },
     {
       "id": "L-B03",
       "source": "app-b",
       "title": "Canal de tempo real não renova a inatividade da sessão",
       "summary": "No App B, um canal SSE aberto por muito tempo não renovava o relógio de inatividade da sessão, e um login em outro aparelho derrubava a sessão anterior. Uma ação depois de uma espera longa falhava com 401 no meio do uso. Lição: definir o comportamento da sessão junto com conexões de longa duração, e testar o caso de uso real.",
-      "controls": ["AUTH-004"]
+      "controls": ["AUTH-004", "AUTH-024"]
     },
     {
       "id": "L-B04",
@@ -160,7 +160,7 @@
       "source": "app-b",
       "title": "Falhas de MFA contadas só por IP, com contador zerado pela senha",
       "summary": "No App B, as falhas do segundo fator contavam só por IP, e acertar a senha zerava o contador da conta. Quem sabia a senha podia repetir ciclos de tentativas do código mudando de IP. Lição: contar falhas de MFA na conta e só zerar o contador depois do segundo fator concluído.",
-      "controls": ["AUTH-006"]
+      "controls": ["AUTH-006", "AUTH-017"]
     },
     {
       "id": "L-B13",
@@ -257,8 +257,8 @@
       "id": "L-R12",
       "source": "research",
       "title": "Requisitos do ASVS 5.0 de nível 1 e 2 aplicáveis a qualquer app web",
-      "summary": "Vários controles vêm direto do ASVS 5.0 (cabeçalhos, HSTS, erros genéricos, arquivos sensíveis, TRACE e CORS, MFA, encerramento de sessões, logs sem dados sensíveis) e valem como linha de base para qualquer aplicação web. Lição: usar o ASVS como fonte, citar apenas os IDs e escrever o texto próprio.",
-      "controls": ["WEB-003", "WEB-004", "WEB-005", "WEB-007", "WEB-008", "WEB-009", "AUTH-001", "AUTH-007", "PII-003"]
+      "summary": "Vários controles vêm direto do ASVS 5.0 (cabeçalhos, HSTS, erros genéricos, arquivos sensíveis, TRACE e CORS, política de senha, MFA, recuperação de conta, sessões e seu encerramento, logs sem dados sensíveis) e valem como linha de base para qualquer aplicação web. Lição: usar o ASVS como fonte, citar apenas os IDs e escrever o texto próprio.",
+      "controls": ["WEB-003", "WEB-004", "WEB-005", "WEB-007", "WEB-008", "WEB-009", "AUTH-001", "AUTH-007", "AUTH-008", "AUTH-009", "AUTH-010", "AUTH-011", "AUTH-012", "AUTH-013", "AUTH-014", "AUTH-015", "AUTH-016", "AUTH-017", "AUTH-018", "AUTH-019", "AUTH-020", "AUTH-021", "AUTH-022", "AUTH-023", "AUTH-024", "AUTH-025", "PII-003"]
     }
   ]
 }

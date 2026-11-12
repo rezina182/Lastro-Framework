@@ -135,12 +135,28 @@ function citations(controls) {
  * "Citado" significa que algum controle referencia o requisito. Não significa que o controle o cobre por inteiro.
  * Com `states` (id do controle → estado do último check), mostra também o que está verificado, falhando ou sem prova.
  */
+function refOf(control, id) {
+  return (control.refs || []).find((r) => r.std === 'ASVS' && r.id === id);
+}
+
+/** Profundidade da citação: "full" se algum controle cobre por inteiro; "partial" se classificado como parcial; senão "unclassified". */
+function depthOf(controls, id) {
+  const ds = controls.map((c) => (refOf(c, id) || {}).covers);
+  if (ds.includes('full')) return 'full';
+  if (ds.includes('partial')) return 'partial';
+  return 'unclassified';
+}
+
 function coverage(controls, map, { level = 2, states = null } = {}) {
   const idx = citations(controls);
   const byChapter = {};
   const totals = blank();
   function blank() {
-    return { total: 0, automated: 0, manual: 0, none: 0, notApplicable: 0, verified: 0, failed: 0, unverified: 0, outOfProfile: 0 };
+    return {
+      total: 0, automated: 0, manual: 0, none: 0, notApplicable: 0,
+      full: 0, partial: 0, unclassified: 0,
+      verified: 0, failed: 0, unverified: 0, outOfProfile: 0,
+    };
   }
   const uncited = [];
   for (const id of Object.keys(map.requirements).sort(compareIds)) {
@@ -153,12 +169,16 @@ function coverage(controls, map, { level = 2, states = null } = {}) {
     if (cs.length === 0) { b.none += 1; totals.none += 1; uncited.push(id); continue; }
     const kind = cs.some((c) => c.check.type === 'automated') ? 'automated' : 'manual';
     b[kind] += 1; totals[kind] += 1;
+    const depth = depthOf(cs, id);
+    b[depth] += 1; totals[depth] += 1;
     if (states) {
       const live = cs.filter((c) => states.has(c.id) && states.get(c.id) !== 'not_applicable');
       let st;
+      // Verificado exige um controle que cobre o requisito por inteiro e está verificado, sem nenhuma falha entre os ligados.
+      const fullVerified = live.some((c) => (refOf(c, id) || {}).covers === 'full' && states.get(c.id) === 'verified');
       if (live.length === 0) st = 'outOfProfile';
       else if (live.some((c) => states.get(c.id) === 'failed')) st = 'failed';
-      else if (live.every((c) => states.get(c.id) === 'verified')) st = 'verified';
+      else if (fullVerified) st = 'verified';
       else st = 'unverified';
       b[st] += 1; totals[st] += 1;
     }
@@ -176,24 +196,26 @@ function formatCoverage(cov) {
   out.push(`ASVS ${cov.version} | nível alvo L${cov.level} (acumulado) | ${t.total} requisitos`);
   const cited = t.automated + t.manual;
   out.push(`Citados por algum controle: ${cited} (${pct(cited, t.total)}) | por verificação automática: ${t.automated} | só por controle manual: ${t.manual} | sem controle: ${t.none} | não se aplicam: ${t.notApplicable}`);
+  out.push(`Profundidade: coberto por inteiro ${t.full} (${pct(t.full, t.total)}) | parcial ${t.partial} | ainda não classificado ${t.unclassified}`);
   if (cov.withState) {
     out.push(`Estado no projeto: verificados ${t.verified} (${pct(t.verified, t.total)}) | com falha ${t.failed} | sem prova ${t.unverified} | fora do perfil ${t.outOfProfile} | sem controle ${t.none}`);
   }
   out.push('');
-  const head = ['Cap', 'Nome', 'Total', 'Auto', 'Manual', 'Sem', 'N/A'];
+  const head = ['Cap', 'Nome', 'Total', 'Auto', 'Manual', 'Sem', 'N/A', 'Inteiro', 'Parcial', 'N/class'];
   if (cov.withState) head.push('Verif', 'Falha', 'S/prova', 'Fora');
   const rows = [head];
   for (const ch of Object.keys(cov.byChapter).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))) {
     const b = cov.byChapter[ch];
-    const r = [ch, b.name, b.total, b.automated, b.manual, b.none, b.notApplicable];
+    const r = [ch, b.name, b.total, b.automated, b.manual, b.none, b.notApplicable, b.full, b.partial, b.unclassified];
     if (cov.withState) r.push(b.verified, b.failed, b.unverified, b.outOfProfile);
     rows.push(r.map(String));
   }
   const w = head.map((_, i) => Math.max(...rows.map((r) => String(r[i]).length)));
   for (const r of rows) out.push(r.map((c, i) => (i === 1 ? String(c).padEnd(w[i]) : String(c).padStart(w[i]))).join('  '));
   out.push('');
-  out.push('Atenção: "citado" não é "coberto por inteiro". A v0.1 ainda não separa cobertura total de parcial,');
-  out.push('então estes números são um teto, não um atestado de conformidade.');
+  out.push('Atenção: "citado" não é "coberto por inteiro". Só os capítulos já classificados distinguem cobertura inteira de');
+  out.push('parcial; nos demais, "não classificado" quer dizer que a referência existe, mas ninguém avaliou o quanto ela cobre.');
+  out.push('Estes números medem progresso do kit, não conformidade da aplicação.');
   return out.join('\n');
 }
 

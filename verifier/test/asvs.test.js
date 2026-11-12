@@ -87,8 +87,8 @@ test('o catálogo real não tem referência ASVS fora do mapa', () => {
   assert.deepEqual(validateCatalog(cat, new Set(registry.keys())), []);
 });
 
-function fakeControl(id, type, ids) {
-  return { id, check: { type }, refs: ids.map((x) => ({ std: 'ASVS', id: x })) };
+function fakeControl(id, type, ids, covers) {
+  return { id, check: { type }, refs: ids.map((x) => ({ std: 'ASVS', id: x, ...(covers ? { covers } : {}) })) };
 }
 
 test('coverage: separa automático, só manual, sem controle e não se aplica; respeita o nível', () => {
@@ -111,9 +111,9 @@ test('coverage: separa automático, só manual, sem controle e não se aplica; r
 test('coverage com estado: falha vence, verificado exige todos verificados, fora do perfil à parte', () => {
   const map = A.buildMap({ 'V1.1.1': 1, 'V1.1.2': 1, 'V1.1.3': 1, 'V1.1.4': 1 }, null);
   const controls = [
-    fakeControl('A', 'automated', ['V1.1.1']), fakeControl('B', 'automated', ['V1.1.1']),
-    fakeControl('C', 'manual', ['V1.1.2']),
-    fakeControl('D', 'manual', ['V1.1.3']),
+    fakeControl('A', 'automated', ['V1.1.1'], 'full'), fakeControl('B', 'automated', ['V1.1.1'], 'full'),
+    fakeControl('C', 'manual', ['V1.1.2'], 'full'),
+    fakeControl('D', 'manual', ['V1.1.3'], 'full'),
   ];
   const states = new Map([['A', 'verified'], ['B', 'failed'], ['C', 'unverified'], ['D', 'not_applicable']]);
   const t = A.coverage(controls, map, { level: 1, states }).totals;
@@ -122,8 +122,54 @@ test('coverage com estado: falha vence, verificado exige todos verificados, fora
   assert.equal(t.outOfProfile, 1);
   assert.equal(t.verified, 0);
   assert.equal(t.none, 1);
-  const ok = A.coverage([fakeControl('A', 'automated', ['V1.1.1'])], map, { level: 1, states: new Map([['A', 'verified']]) });
+  const ok = A.coverage([fakeControl('A', 'automated', ['V1.1.1'], 'full')], map, { level: 1, states: new Map([['A', 'verified']]) });
   assert.equal(ok.totals.verified, 1);
+});
+
+test('coverage: controle verificado que cobre só em parte ou sem classificação não verifica o requisito', () => {
+  const map = A.buildMap({ 'V1.1.1': 1, 'V1.1.2': 1 }, null);
+  const controls = [fakeControl('P', 'manual', ['V1.1.1'], 'partial'), fakeControl('U', 'manual', ['V1.1.2'])];
+  const t = A.coverage(controls, map, { level: 1, states: new Map([['P', 'verified'], ['U', 'verified']]) }).totals;
+  assert.equal(t.verified, 0);
+  assert.equal(t.unverified, 2);
+  assert.equal(t.partial, 1);
+  assert.equal(t.unclassified, 1);
+  assert.equal(t.full, 0);
+});
+
+test('coverage: a melhor profundidade entre os controles vence', () => {
+  const map = A.buildMap({ 'V1.1.1': 1 }, null);
+  const controls = [fakeControl('P', 'manual', ['V1.1.1'], 'partial'), fakeControl('F', 'manual', ['V1.1.1'], 'full')];
+  assert.equal(A.coverage(controls, map, { level: 1 }).totals.full, 1);
+});
+
+test('V6 (autenticação) e V7 (sessão) estão totalmente classificados até L2, sem requisito sem controle', () => {
+  const cat = loadCatalog();
+  const cov = A.coverage(cat.controls, cat.asvsMap, { level: 2 });
+  for (const ch of ['V6', 'V7']) {
+    const b = cov.byChapter[ch];
+    assert.equal(b.none, 0, `${ch} tem requisito sem controle`);
+    assert.equal(b.unclassified, 0, `${ch} tem requisito não classificado`);
+    assert.equal(b.partial, 0, `${ch} tem requisito só parcial`);
+    assert.equal(b.full, b.total, `${ch} não está inteiro`);
+  }
+  assert.equal(cov.byChapter.V6.total, 35);
+  assert.equal(cov.byChapter.V7.total, 18);
+});
+
+test('o schema aceita covers full/partial só em referência ASVS', () => {
+  const cat = loadCatalog();
+  const base = cat.byId.get('AUTH-008');
+  assert.deepEqual(schema.validateControl(base, 'x'), []);
+  const bad = { ...base, refs: [{ std: 'ASVS', id: 'V6.2.1', covers: 'tudo' }] };
+  assert.ok(schema.validateControl(bad, 'x').some((e) => e.includes('covers')));
+  const other = { ...base, refs: [{ std: 'NIST', id: 'PO.1.1', covers: 'full' }] };
+  assert.ok(schema.validateControl(other, 'x').some((e) => e.includes('só vale para')));
+});
+
+test('controles que cobrem requisitos federados só se aplicam com federatedLogin', () => {
+  const cat = loadCatalog();
+  for (const id of ['AUTH-020', 'AUTH-021']) assert.deepEqual(cat.byId.get(id).appliesIf, ['federatedLogin']);
 });
 
 test('formatCoverage mostra o aviso de que citado não é coberto por inteiro', () => {

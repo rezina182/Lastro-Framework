@@ -4,7 +4,7 @@
 
 Um framework neutro de ciclo de vida seguro para desenvolvimento assistido por IA. Ele junta três coisas:
 
-1. Um **catálogo de controles** (62 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
+1. Um **catálogo de controles** (80 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
 2. Um **verificador sem dependências** (Node) que checa o repositório e, opcionalmente, a aplicação em execução, e dá um veredito.
 3. Um **processo**: modelo de ameaças, adoção em aplicações existentes (análise de lacunas, backlog P0 a P3) e registro de risco aceito com dono e validade.
 
@@ -58,7 +58,7 @@ Mais detalhes em [ARCHITECTURE.md](ARCHITECTURE.md), [docs/PRINCIPLES.md](docs/P
 - As verificações de código são varreduras por padrão de texto (heurísticas). Elas encontram o comum e não substituem revisão nem análise estática completa.
 - A v0.1 lê workflows do GitHub Actions. Outros CIs ficam como `unverified` até haver atestação.
 - Referências a padrões citam apenas IDs e links. Conferência automática dos IDs contra as fontes oficiais está no [roadmap](docs/ROADMAP.md).
-- Cobertura do ASVS: na v0.1, 41 dos 253 requisitos até L2 (16%) são citados por algum controle, e "citado" não significa "coberto por inteiro". O comando `lastro asvs` mostra o número atual por capítulo; ele é a medida de progresso, não um atestado.
+- Cobertura do ASVS (até L2, 253 requisitos): 85 (34%) são citados por algum controle e 53 (21%) estão classificados como cobertos por inteiro. Os 53 são todos de V6 (autenticação) e V7 (sessão), os dois primeiros capítulos classificados; nos demais, a referência existe mas ainda não foi avaliada. Esses 53 são controles manuais e a classificação foi feita pelo autor do kit, sem revisão independente (a lição L-B10: quem escreve não aprova). `lastro asvs` mostra o número atual por capítulo; ele mede o progresso do kit, não a conformidade de uma aplicação.
 - Alinhado a padrões não é o mesmo que em conformidade com eles. O LASTRO não certifica nada.
 
 ## Testes

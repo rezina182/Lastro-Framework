@@ -11,7 +11,8 @@
     "minorsData": false,
     "thirdPartyAssets": false,
     "aiCodingAgents": true,
-    "publicInternet": false
+    "publicInternet": false,
+    "federatedLogin": false
   },
   "scan": {
     "excludePrefixes": ["verifier/test/"]
