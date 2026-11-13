@@ -15,7 +15,7 @@
       "rationale": "Um segredo commitado fica no histórico para sempre e vira credencial vazada. Em desenvolvimento com IA o risco cresce: o agente lê o .env do disco e pode copiar o valor para código, teste, exemplo ou mensagem de commit.",
       "remediation": "Coloque .env* no .gitignore (mantendo .env.example sem valores), tire o arquivo do índice (git rm --cached), rotacione qualquer segredo que já tenha sido commitado e guarde segredos em cofre ou gerenciador de senhas, nunca em arquivo solto.",
       "refs": [
-        { "std": "ASVS", "id": "V13.3.1" },
+        { "std": "ASVS", "id": "V13.3.1", "covers": "partial", "note": "só arquivos de ambiente e chaves no repositório; ver CORE-022" },
         { "std": "SSDF", "id": "PW.9.1", "note": "o exemplo sobre segredos embutidos aparece no rascunho da v1.2" }
       ],
       "origin": ["L-A05", "L-R04"]
@@ -284,7 +284,7 @@
       "enforcement": "advisory",
       "rationale": "Uma auditoria que o próprio sistema (ou um invasor com a conta da aplicação) pode reescrever não serve como prova.",
       "remediation": "Separe um papel de banco só de inserção para a auditoria, envie os eventos a um destino externo e revise o acesso a esses registros.",
-      "refs": [{ "std": "ASVS", "id": "V16.4.2" }],
+      "refs": [{ "std": "ASVS", "id": "V16.4.2", "covers": "partial", "note": "só a trilha de auditoria, não todos os logs" }],
       "origin": ["L-B09"]
     },
     {
@@ -343,6 +343,179 @@
         { "std": "SSDF", "id": "PW.8.2" }
       ],
       "origin": ["L-B08"]
+    },
+    {
+      "id": "CORE-020",
+      "title": "Comunicações do sistema documentadas e restritas por lista de permissão",
+      "summary": "Todas as comunicações da aplicação (serviços externos e casos em que o usuário informa um destino) estão documentadas, e as conexões de saída do servidor só alcançam destinos de uma lista de permissão.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["design", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Confira que a documentação lista todos os serviços externos e os recursos em que o usuário informa URL ou endereço. (2) Faça a aplicação tentar acessar um destino fora da lista, por exemplo pela função de importar por URL, e confirme a recusa. (3) Confirme a regra de saída no servidor, no firewall ou na camada de aplicação. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem lista de destinos permitidos, uma falha de SSRF ou um componente comprometido consegue falar com qualquer sistema, inclusive a rede interna.",
+      "remediation": "Documente cada comunicação, bloqueie a saída por padrão e libere só os destinos necessários, validando também as URLs informadas pelo usuário.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V13.2.4", "covers": "full" },
+        { "std": "ASVS", "id": "V13.2.5", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-021",
+      "title": "Autenticação entre componentes com credencial própria, mínima e não padrão",
+      "summary": "Comunicações entre componentes do backend (APIs, middleware, banco) são autenticadas com contas de serviço individuais, tokens de curta duração ou certificados, com privilégio mínimo, e sem credenciais padrão nem senhas ou chaves fixas de conta compartilhada privilegiada.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["design", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste cada conexão entre componentes (aplicação para banco, fila, outros serviços) e confirme, para cada uma: conta própria de serviço (não compartilhada), mecanismo (token curto, certificado ou conta dedicada), permissões mínimas (a conta do banco da aplicação não é administradora) e que não é credencial padrão. Tente admin/admin e root/root. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Credenciais compartilhadas e privilegiadas transformam qualquer componente comprometido em acesso total.",
+      "remediation": "Crie uma conta por serviço com o mínimo de privilégio, prefira tokens curtos ou certificados e troque qualquer credencial de fábrica.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V13.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V13.2.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-022",
+      "title": "Segredos em cofre ou ambiente, fora do código e dos artefatos, com privilégio mínimo",
+      "summary": "Segredos do backend (senhas, chaves, integrações, sementes de tokens) são criados, guardados, acessados e destruídos por uma solução de gerenciamento de segredos, não aparecem no código nem nos artefatos de build, e o acesso a eles segue privilégio mínimo.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Procure segredos no código, no histórico do Git e nos artefatos publicados (imagem, pacote) com o scanner do CI e uma busca manual. (2) Confirme que existe uma solução de gestão de segredos (cofre ou o gerenciador de segredos da plataforma) que cria, guarda, controla o acesso e destrói ou revoga os segredos, quem pode lê-los e que cada serviço acessa só os seus. (3) Confirme o procedimento de rotação e de revogação. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Segredo no código ou no artefato vaza junto com ele. Segredo acessível a todos transforma qualquer acesso em acesso a tudo.",
+      "remediation": "Use cofre ou o gerenciador de segredos da plataforma, injete por ambiente em tempo de execução, separe permissões por serviço e rotacione em caso de suspeita.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V13.3.2", "covers": "full" }
+      ],
+      "origin": ["L-A05", "L-R12"]
+    },
+    {
+      "id": "CORE-023",
+      "title": "Inventário de logs documentado e destinos conhecidos",
+      "summary": "Existe um inventário dos registros por camada da pilha: eventos registrados, formato, onde ficam, como são usados, quem acessa e por quanto tempo são mantidos. A aplicação só grava ou envia logs para os destinos desse inventário.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra o inventário e confirme os itens. Liste os destinos reais de log (arquivos, serviços, coletores) na configuração e confirme que todos estão no inventário e que nada vai a um destino não documentado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Log que ninguém sabe que existe vaza dado e não ajuda na investigação. O inventário é o ponto de partida para proteger e reter os registros.",
+      "remediation": "Escreva o inventário, inclua o prazo de retenção e o controle de acesso, e revise a cada novo componente.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V16.2.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-024",
+      "title": "Registros com metadados completos, horário em UTC e formato correlacionável",
+      "summary": "Cada registro diz quando, onde, quem e o quê; os relógios dos componentes estão sincronizados e o horário usa UTC (ou fuso explícito); e o formato é legível e correlacionável pelo processador de logs.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Gere um evento de segurança de teste e localize-o no log: confirme data e hora, origem (serviço e host), identificação do usuário e descrição do evento. Confirme UTC ou fuso explícito e a fonte de tempo sincronizada em cada componente. Confirme que o coletor consegue interpretar e correlacionar os registros (formato estruturado, como JSON). Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem quem, quando e onde, e sem relógios alinhados, não dá para reconstruir a linha do tempo de um incidente.",
+      "remediation": "Adote log estruturado com campos padronizados, horário UTC e sincronização de relógio (NTP) em todos os componentes.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V16.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V16.2.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-025",
+      "title": "Eventos de segurança registrados",
+      "summary": "São registrados: toda operação de autenticação (sucesso e falha, com o tipo ou os fatores usados), falhas de autorização, os eventos de segurança definidos na documentação, tentativas de burlar controles (validação, regras de negócio, antiautomação) e erros inesperados ou falhas de controles (como erro de TLS no backend).",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Em ambiente de teste execute: login correto e errado com cada fator (senha, TOTP, passkey), confirmando que o registro mostra o método ou os fatores e o resultado nos dois casos; acesso negado a recurso de outro usuário; tentativa de burlar uma regra de negócio (repetir um passo ou pular uma etapa); entrada inválida em massa; excesso de requisições; e uma falha de conexão TLS com o banco. Confira também cada evento da lista de eventos de segurança da documentação. Para cada caso, localize o registro correspondente no log e confirme os metadados. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "O que não é registrado não é detectado nem investigado. Ataques de força bruta e de acesso indevido aparecem primeiro nesses eventos.",
+      "remediation": "Defina a lista de eventos de segurança, registre-os em um ponto central e escreva testes que provam que o evento aparece no log.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V16.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V16.3.3", "covers": "full" },
+        { "std": "ASVS", "id": "V16.3.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-026",
+      "title": "Logs enviados com segurança para um sistema separado",
+      "summary": "Os logs são transmitidos de forma segura para um sistema logicamente separado, para análise, detecção e alerta, de modo que, se a aplicação for invadida, os registros não sejam comprometidos.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Confirme o destino separado e o canal seguro (TLS). Com uma conta de aplicação de teste, tente apagar ou alterar registros já enviados e confirme que não é possível. Verifique que um alerta de teste chega a quem deve. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Quem invade o servidor apaga o log local. Uma cópia fora do alcance preserva a prova e permite alertar.",
+      "remediation": "Envie os logs a um coletor externo com permissão só de acréscimo e configure alertas para os eventos críticos.",
+      "refs": [{ "std": "ASVS", "id": "V16.4.3", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-027",
+      "title": "Falha segura e degradação controlada",
+      "summary": "A aplicação continua operando com segurança quando um recurso externo falha (por exemplo, com circuit breaker ou degradação controlada) e falha de forma segura em exceções, sem condições em que uma transação é processada apesar de erro de validação.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Derrube ou deixe lento cada recurso externo (banco, fila, API) em ambiente de teste e confirme que a aplicação degrada de forma controlada e não expõe dados. Provoque exceções dentro de rotinas de validação e autorização e confirme que a requisição é negada (falha fechada), e não processada. Cubra com testes automatizados. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Falhar aberto (aceitar a operação quando a checagem quebra) transforma um erro em bypass de segurança.",
+      "remediation": "Negue por padrão em qualquer exceção de validação ou autorização, use tempos limites e circuit breakers e teste os caminhos de erro.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.5.2", "covers": "full" },
+        { "std": "ASVS", "id": "V16.5.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-028",
+      "title": "Logs sem dados sensíveis e protegidos contra injeção de log",
+      "summary": "O que pode ser registrado depende do nível de proteção do dado: credenciais e dados de pagamento nunca entram no log, e tokens de sessão só aparecem com hash ou máscara. Todos os componentes de log codificam os valores para impedir injeção de log.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Execute os fluxos de login, cadastro e pagamento com valores reconhecíveis (senha, token, cartão de teste) e procure-os nos logs: nenhum deve aparecer em texto puro. Envie valores com quebra de linha e caracteres de controle em campos que vão ao log e confirme que saem codificados, sem criar linhas falsas. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Logs têm retenção longa e acesso amplo. Um segredo ali vaza por outro caminho, e um log forjado engana a investigação.",
+      "remediation": "Defina uma política de campos proibidos e mascarados, aplique-a no ponto central de log e codifique os valores vindos da requisição.",
+      "refs": [
+        { "std": "ASVS", "id": "V16.2.5", "covers": "full" },
+        { "std": "ASVS", "id": "V16.4.1", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }

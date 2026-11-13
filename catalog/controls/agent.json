@@ -17,7 +17,7 @@
       "remediation": "Mova segredos reais para fora da pasta do projeto, use valores de teste no desenvolvimento e bloqueie leitura de arquivos de segredo por permissão do ambiente.",
       "refs": [
         { "std": "OWASP-AST10", "id": "AST04" },
-        { "std": "ASVS", "id": "V13.3.1" }
+        { "std": "ASVS", "id": "V13.3.1", "covers": "partial", "note": "recorte do agente de código; ver CORE-022" }
       ],
       "origin": ["L-R04"]
     },

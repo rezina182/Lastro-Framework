@@ -34,7 +34,7 @@
       "source": "app-a",
       "title": ".env com segredos reais na máquina de desenvolvimento",
       "summary": "O App A tinha um .env com segredos reais na pasta local. Ele nunca foi commitado, porque estava no .gitignore, mas só isso separava o segredo do repositório. Lição: .env sempre no .gitignore, nenhum segredo em arquivo solto fora do repositório, e o CI varre o histórico atrás de qualquer segredo que escape.",
-      "controls": ["CORE-001", "CORE-003"]
+      "controls": ["CORE-001", "CORE-003", "CORE-022"]
     },
     {
       "id": "L-A06",
@@ -258,7 +258,7 @@
       "source": "research",
       "title": "Requisitos do ASVS 5.0 de nível 1 e 2 aplicáveis a qualquer app web",
       "summary": "Vários controles vêm direto do ASVS 5.0 (cabeçalhos, HSTS, erros genéricos, arquivos sensíveis, TRACE e CORS, política de senha, MFA, recuperação de conta, sessões e seu encerramento, logs sem dados sensíveis) e valem como linha de base para qualquer aplicação web. Lição: usar o ASVS como fonte, citar apenas os IDs e escrever o texto próprio.",
-      "controls": ["WEB-003", "WEB-004", "WEB-005", "WEB-007", "WEB-008", "WEB-009", "AUTH-001", "AUTH-007", "AUTH-008", "AUTH-009", "AUTH-010", "AUTH-011", "AUTH-012", "AUTH-013", "AUTH-014", "AUTH-015", "AUTH-016", "AUTH-017", "AUTH-018", "AUTH-019", "AUTH-020", "AUTH-021", "AUTH-022", "AUTH-023", "AUTH-024", "AUTH-025", "PII-003"]
+      "controls": ["WEB-003", "WEB-004", "WEB-005", "WEB-007", "WEB-008", "WEB-009", "AUTH-001", "AUTH-007", "AUTH-008", "AUTH-009", "AUTH-010", "AUTH-011", "AUTH-012", "AUTH-013", "AUTH-014", "AUTH-015", "AUTH-016", "AUTH-017", "AUTH-018", "AUTH-019", "AUTH-020", "AUTH-021", "AUTH-022", "AUTH-023", "AUTH-024", "AUTH-025", "AUTH-026", "AUTH-027", "AUTH-028", "AUTH-029", "WEB-012", "WEB-013", "WEB-014", "WEB-015", "WEB-016", "UP-004", "UP-005", "UP-006", "UP-007", "CORE-020", "CORE-021", "CORE-022", "CORE-023", "CORE-024", "CORE-025", "CORE-026", "CORE-027", "CORE-028", "PII-003"]
     }
   ]
 }

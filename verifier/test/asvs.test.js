@@ -157,6 +157,27 @@ test('V6 (autenticação) e V7 (sessão) estão totalmente classificados até L2
   assert.equal(cov.byChapter.V7.total, 18);
 });
 
+test('V3, V5, V8, V13 e V16 estão classificados até L2: nenhum requisito sem controle nem sem classificação', () => {
+  const cat = loadCatalog();
+  const cov = A.coverage(cat.controls, cat.asvsMap, { level: 2 });
+  const expected = { V3: 19, V5: 9, V8: 7, V13: 13, V16: 16 };
+  for (const [ch, total] of Object.entries(expected)) {
+    const b = cov.byChapter[ch];
+    assert.equal(b.total, total, `${ch}: total`);
+    assert.equal(b.none, 0, `${ch} tem requisito sem controle: ${cov.uncited.filter((id) => id.startsWith(`${ch}.`)).join(', ')}`);
+    assert.equal(b.unclassified, 0, `${ch} tem requisito não classificado`);
+    assert.equal(b.full + b.partial, total, `${ch}: full+partial`);
+  }
+});
+
+test('sondas automáticas que só amostram a página inicial nunca são marcadas como cobertura inteira', () => {
+  const cat = loadCatalog();
+  for (const id of ['WEB-001', 'WEB-002', 'WEB-003', 'WEB-004', 'WEB-007', 'WEB-008', 'WEB-009', 'AUTH-003']) {
+    const c = cat.byId.get(id);
+    for (const r of c.refs.filter((x) => x.std === 'ASVS')) assert.notEqual(r.covers, 'full', `${id} ${r.id}`);
+  }
+});
+
 test('o schema aceita covers full/partial só em referência ASVS', () => {
   const cat = loadCatalog();
   const base = cat.byId.get('AUTH-008');

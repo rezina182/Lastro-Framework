@@ -54,8 +54,8 @@
       "rationale": "Logs costumam ter retenção longa e acesso amplo. Dado pessoal ou token ali é vazamento esperando acontecer.",
       "remediation": "Registre identificadores opacos, aplique hash com sal rotativo ao IP, escape os valores e defina a retenção dos logs.",
       "refs": [
-        { "std": "ASVS", "id": "V16.2.5" },
-        { "std": "ASVS", "id": "V16.4.1" }
+        { "std": "ASVS", "id": "V16.2.5", "covers": "partial", "note": "foco em dado pessoal; a regra geral está em CORE-028" },
+        { "std": "ASVS", "id": "V16.4.1", "covers": "partial", "note": "foco em dado pessoal; a regra geral está em CORE-028" }
       ],
       "origin": ["L-R12"]
     },

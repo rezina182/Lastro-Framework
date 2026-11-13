@@ -5,19 +5,18 @@
     {
       "id": "UP-001",
       "title": "Tipo do arquivo conferido pelo conteúdo e reprocessado",
-      "summary": "O tipo do arquivo enviado é decidido pelos bytes, não pelo nome nem pelo Content-Type informado, e imagens são reprocessadas para descartar conteúdo embutido.",
+      "summary": "O tipo do arquivo enviado é decidido pelos bytes, não pelo nome nem pelo Content-Type informado, e imagens são reprocessadas para descartar conteúdo embutido. A extensão precisa estar entre as permitidas e o conteúdo precisa corresponder a ela, inclusive dentro de pacotes compactados.",
       "pack": "uploads",
       "tier": 1,
       "severity": "high",
       "phase": ["build", "test"],
       "check": { "type": "manual" },
-      "howToVerify": "Envie um arquivo com extensão de imagem e conteúdo diferente, e um arquivo com dados anexados ao final. Confirme que o primeiro é recusado e que o segundo sai limpo após o reprocessamento. Registre com data.",
+      "howToVerify": "Envie um arquivo com extensão de imagem e conteúdo diferente, e um arquivo com dados anexados ao final. Confirme que o primeiro é recusado e que o segundo sai limpo após o reprocessamento. Envie também um arquivo com extensão fora da lista permitida e, se pacotes compactados são aceitos, um pacote com um arquivo cujo conteúdo não combina com a extensão, e confirme a recusa. Registre com data.",
       "enforcement": "soft",
       "rationale": "Nome e cabeçalho são controlados por quem envia. Conteúdo embutido pode atacar quem abre o arquivo depois.",
       "remediation": "Detecte o tipo pelos bytes, aceite uma lista curta de tipos e regrave a imagem com uma biblioteca confiável antes de guardar.",
       "refs": [
-        { "std": "ASVS", "id": "V5.2.2" },
-        { "std": "ASVS", "id": "V5.4.1" }
+        { "std": "ASVS", "id": "V5.2.2", "covers": "partial", "note": "só imagens e pacotes compactados; em L2 vale para todos os arquivos aceitos (PDF, docx etc. ainda sem teste)" }
       ],
       "origin": ["L-B05"]
     },
@@ -35,7 +34,8 @@
       "rationale": "Uma imagem pequena em bytes pode ocupar gigabytes ao ser decodificada. Servidores pequenos caem com poucos envios assim.",
       "remediation": "Leia o cabeçalho para obter as dimensões antes de decodificar, limite o corpo da requisição e defina um teto de pixels.",
       "refs": [
-        { "std": "ASVS", "id": "V5.1.1" },
+        { "std": "ASVS", "id": "V5.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V5.1.1", "covers": "partial", "note": "só o limite de tamanho; a documentação completa está em UP-004" },
         { "std": "ASVS", "id": "V5.2.6" }
       ],
       "origin": ["L-B05"]
@@ -55,6 +55,77 @@
       "remediation": "Conte o espaço usado por usuário, recuse acima do limite com mensagem clara e monitore o consumo total.",
       "refs": [{ "std": "ASVS", "id": "V2.4.1" }],
       "origin": ["L-B05"]
+    },
+    {
+      "id": "UP-004",
+      "title": "Documentação de cada upload: tipos, extensões, tamanho e tratamento de arquivo malicioso",
+      "summary": "Para cada funcionalidade de upload, a documentação define os tipos e as extensões permitidos, o tamanho máximo (inclusive descompactado) e o que a aplicação faz ao detectar um arquivo malicioso.",
+      "pack": "uploads",
+      "tier": 2,
+      "severity": "low",
+      "phase": ["design"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada funcionalidade de upload, abra a documentação e confirme tipos, extensões, tamanho máximo (inclusive descompactado) e o comportamento diante de arquivo malicioso. Compare com o comportamento real enviando um arquivo de cada tipo permitido e um de tipo proibido. Registre com data.",
+      "enforcement": "advisory",
+      "rationale": "Sem regra escrita, cada upload acaba com limites diferentes e ninguém sabe o que deveria acontecer diante de um arquivo suspeito.",
+      "remediation": "Escreva uma tabela por upload (tipos, extensões, tamanho, tratamento) e use-a como base dos testes de UP-001 e UP-002.",
+      "refs": [{ "std": "ASVS", "id": "V5.1.1", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "UP-005",
+      "title": "Arquivos enviados nunca executam no servidor e os caminhos vêm de dados internos",
+      "summary": "Arquivos enviados ou gerados a partir de entrada não confiável e guardados em pasta pública não são executados como código no servidor, e os caminhos de arquivo são montados com dados internos, não com nomes enviados pelo usuário.",
+      "pack": "uploads",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Envie um arquivo com conteúdo de script de servidor (por exemplo .php, .js, .jsp) e peça-o direto por URL: ele deve ser entregue como dado ou recusado, nunca executado. (2) Envie nomes como ../../x, nomes com byte nulo e uma URL no lugar do nome, e confirme que o arquivo é guardado com nome interno e que nada é criado fora da pasta prevista. (3) No código, confirme que o caminho vem de um identificador interno. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Arquivo executável em pasta pública vira controle remoto do servidor. Nome de arquivo escolhido pelo usuário permite sair da pasta (path traversal) e forçar leitura ou requisições internas.",
+      "remediation": "Guarde arquivos fora da raiz de execução, com nome gerado pelo servidor, sirva-os como dado com o tipo correto e valide qualquer metadado de nome que precise ser usado.",
+      "refs": [
+        { "std": "ASVS", "id": "V5.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V5.3.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "UP-006",
+      "title": "Arquivos compactados verificados antes de descompactar",
+      "summary": "Arquivos compactados (zip, gz, docx, odt) têm o tamanho descompactado total e o número de arquivos conferidos contra limites antes da descompactação.",
+      "pack": "uploads",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Se a aplicação aceita arquivos compactados, envie um zip com muito conteúdo repetido (bomba de descompressão) e outro com milhares de arquivos pequenos, e confirme a recusa antes de ocupar memória ou disco. Se não aceita, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Um arquivo pequeno pode se expandir em gigabytes e derrubar o servidor. Documentos como docx e odt também são pacotes compactados.",
+      "remediation": "Leia o tamanho declarado e o número de entradas antes de extrair, limite a razão de expansão e interrompa a extração ao passar do teto.",
+      "refs": [{ "std": "ASVS", "id": "V5.2.3", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "UP-007",
+      "title": "Download seguro: nomes de arquivo tratados e varredura de arquivos não confiáveis",
+      "summary": "Nomes de arquivo enviados pelo usuário são validados ou ignorados, o servidor define o nome no Content-Disposition com codificação segura, e arquivos de fontes não confiáveis passam por antivírus antes de serem servidos.",
+      "pack": "uploads",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Envie um arquivo com nome contendo aspas, quebra de linha e caracteres não ASCII e baixe-o: o cabeçalho Content-Disposition deve estar codificado (RFC 6266), sem injeção de cabeçalho. (2) Passe um nome de arquivo por parâmetro de URL ou JSON na rota de download e confirme que é ignorado ou validado. (3) Envie o arquivo de teste EICAR e confirme que é detectado e não é servido. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Nomes mal tratados permitem injeção de cabeçalhos e confusão de tipo, e arquivos não verificados podem espalhar código malicioso para outros usuários.",
+      "remediation": "Defina o nome no servidor, codifique-o conforme a RFC 6266, ignore nomes vindos de parâmetros e varra arquivos de origem não confiável antes de servir.",
+      "refs": [
+        { "std": "ASVS", "id": "V5.4.1", "covers": "full" },
+        { "std": "ASVS", "id": "V5.4.2", "covers": "full" },
+        { "std": "ASVS", "id": "V5.4.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }

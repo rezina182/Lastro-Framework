@@ -14,7 +14,7 @@
       "enforcement": "hard",
       "rationale": "A CSP limita o estrago de um XSS. Com 'unsafe-inline' ela deixa de proteger contra o ataque mais comum. Mas apertar a política sem migrar o código quebra a aplicação (por exemplo, formulários que dependem de onsubmit inline).",
       "remediation": "Migre os handlers inline (onclick, onsubmit) e os scripts inline para arquivos externos com addEventListener, e só depois remova 'unsafe-inline'. Se a migração demorar, registre a dívida como risco aceito com validade; o achado sobre script-src-attr acompanha a dívida.",
-      "refs": [{ "std": "ASVS", "id": "V3.4.3" }],
+      "refs": [{ "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "só script-src; as diretivas complementares estão em WEB-002; a sonda amostra a página inicial" }],
       "origin": ["L-A01"]
     },
     {
@@ -30,8 +30,8 @@
       "rationale": "Sem object-src e base-uri restritos, a CSP pode ser contornada por plugins ou por injeção de <base>. Sem frame-ancestors a página pode ser embutida em outra para clickjacking.",
       "remediation": "Adicione object-src 'none'; base-uri 'none'; frame-ancestors 'none' (ou 'self' se precisar de iframe próprio); form-action 'self'.",
       "refs": [
-        { "std": "ASVS", "id": "V3.4.3" },
-        { "std": "ASVS", "id": "V3.4.6" }
+        { "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "object-src e base-uri; a sonda não confere lista, nonce ou hash e amostra a página inicial" },
+        { "std": "ASVS", "id": "V3.4.6", "covers": "partial", "note": "aceita X-Frame-Options como alternativa e amostra a página inicial" }
       ],
       "origin": ["L-A01"]
     },
@@ -47,7 +47,7 @@
       "enforcement": "soft",
       "rationale": "Sem HSTS o navegador pode ser rebaixado para HTTP em uma rede hostil, e o primeiro acesso fica exposto.",
       "remediation": "Envie 'Strict-Transport-Security: max-age=31536000; includeSubDomains'. Considere a lista de preload só depois de garantir HTTPS em todos os subdomínios.",
-      "refs": [{ "std": "ASVS", "id": "V3.4.1" }],
+      "refs": [{ "std": "ASVS", "id": "V3.4.1", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" }],
       "origin": ["L-R12"]
     },
     {
@@ -63,8 +63,8 @@
       "rationale": "nosniff evita que o navegador reinterprete um arquivo enviado como script. Referrer-Policy e Permissions-Policy reduzem vazamento de dados e uso indevido de recursos do navegador.",
       "remediation": "Configure o framework ou o proxy para enviar nosniff, 'Referrer-Policy: no-referrer' (ou strict-origin-when-cross-origin) e uma Permissions-Policy que negue o que a aplicação não usa.",
       "refs": [
-        { "std": "ASVS", "id": "V3.4.4" },
-        { "std": "ASVS", "id": "V3.4.5" }
+        { "std": "ASVS", "id": "V3.4.4", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" },
+        { "std": "ASVS", "id": "V3.4.5", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" }
       ],
       "origin": ["L-R12"]
     },
@@ -111,8 +111,8 @@
       "rationale": "Mensagens detalhadas revelam a estrutura interna e aceleram a exploração de qualquer outra falha.",
       "remediation": "Instale um tratador global de erros que registre o detalhe no log e devolva mensagem genérica. Desligue o modo de depuração em produção e personalize a página 404.",
       "refs": [
-        { "std": "ASVS", "id": "V16.5.1" },
-        { "std": "ASVS", "id": "V13.4.2" }
+        { "std": "ASVS", "id": "V16.5.1", "covers": "partial", "note": "a sonda provoca poucos erros; não alcança falhas internas" },
+        { "std": "ASVS", "id": "V13.4.2", "covers": "partial", "note": "detecta sinais de depuração nas respostas, não confere a configuração de todos os componentes" }
       ],
       "origin": ["L-R12"]
     },
@@ -128,7 +128,7 @@
       "enforcement": "hard",
       "rationale": "Um .env ou .git exposto entrega segredos e todo o código. É uma das falhas mais antigas e mais exploradas por varreduras automáticas.",
       "remediation": "Sirva apenas a pasta pública (public/), com dotfiles ignorados, e nunca a raiz do projeto. Remova dumps e backups do servidor e rotacione qualquer segredo que tenha ficado exposto.",
-      "refs": [{ "std": "ASVS", "id": "V13.4.1" }],
+      "refs": [{ "std": "ASVS", "id": "V13.4.1", "covers": "partial", "note": "testa o acesso externo; o acesso pela própria aplicação não é conferido" }],
       "origin": ["L-R12"]
     },
     {
@@ -144,8 +144,8 @@
       "rationale": "TRACE pode vazar cabeçalhos. CORS permissivo com credenciais deixa outro site ler dados do usuário autenticado.",
       "remediation": "Desabilite TRACE no servidor ou no proxy, e responda Access-Control-Allow-Origin com valores fixos de uma lista permitida. Esta verificação é ativa: rode com --active e apenas contra o que for seu.",
       "refs": [
-        { "std": "ASVS", "id": "V13.4.4" },
-        { "std": "ASVS", "id": "V3.4.2" }
+        { "std": "ASVS", "id": "V13.4.4", "covers": "partial", "note": "só detecta TRACE que devolve a requisição, na página inicial" },
+        { "std": "ASVS", "id": "V3.4.2", "covers": "partial", "note": "detecta Origin refletida; não avalia o uso de * com dados sensíveis" }
       ],
       "origin": ["L-R12"]
     },
@@ -187,6 +187,102 @@
         { "std": "ASVS", "id": "V15.3.4" }
       ],
       "origin": ["L-B01"]
+    },
+    {
+      "id": "WEB-012",
+      "title": "Conteúdo exibido no contexto certo e texto renderizado com segurança",
+      "summary": "Respostas de API, arquivos enviados por usuários e outros recursos não são interpretados pelo navegador no contexto errado (por exemplo, abertos direto como página), e o conteúdo destinado a texto é inserido com funções seguras, como textContent.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Abra direto no navegador uma rota de API e um arquivo enviado por usuário e confirme que não são renderizados como página: há Content-Disposition attachment, a diretiva sandbox da CSP ou bloqueio por Sec-Fetch-*. (2) Envie uma marcação HTML (como <img src=x onerror=alert(1)>) por cada campo de texto e confirme que aparece como texto, sem executar. (3) No front-end, confirme textContent ou createTextNode para texto. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Quando o navegador interpreta no contexto errado um arquivo ou uma resposta controlados por terceiros, o resultado é script rodando na origem da aplicação.",
+      "remediation": "Sirva uploads com attachment ou CSP sandbox, bloqueie acesso direto a APIs por Sec-Fetch-*, e use textContent ou createTextNode em vez de HTML para dados de usuário.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V3.2.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-013",
+      "title": "Proteção contra requisição forjada entre origens (CSRF)",
+      "summary": "Funções sensíveis só aceitam requisições vindas da própria aplicação (token anti-CSRF validado ou cabeçalho extra que o CORS simples não permite) e usam métodos HTTP apropriados (POST, PUT, PATCH, DELETE), nunca GET ou HEAD.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Com a sessão aberta, de uma página em outra origem (um formulário local serve), tente executar cada ação sensível: (1) sem o token anti-CSRF ou sem o cabeçalho extra, a ação é recusada; (2) se a defesa depende do preflight do CORS, tente chamar com tipo de conteúdo simples (form-urlencoded, text/plain) e confirme a recusa; (3) liste as rotas GET e confirme que nenhuma altera estado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem defesa, qualquer site que o usuário visite pode disparar ações na aplicação usando a sessão aberta dele.",
+      "remediation": "Use token anti-CSRF por sessão ou cabeçalho personalizado validado no servidor, SameSite nos cookies como camada extra, e restrinja GET e HEAD a leitura.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.5.1", "covers": "full" },
+        { "std": "ASVS", "id": "V3.5.2", "covers": "full" },
+        { "std": "ASVS", "id": "V3.5.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-014",
+      "title": "Separação de origens: hostnames próprios e mensagens entre janelas validadas",
+      "summary": "Aplicações distintas ficam em hostnames diferentes para aproveitar a política de mesma origem, e mensagens recebidas por postMessage são descartadas se a origem não é confiável ou se a sintaxe é inválida.",
+      "pack": "web",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "build"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste as aplicações e confirme que cada uma tem hostname próprio (e não caminhos diferentes no mesmo host). Se o código usa postMessage, envie mensagens de uma origem não listada e outra com formato inválido, e confirme que são ignoradas. Se não usa, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Aplicações no mesmo hostname compartilham cookies e armazenamento. Uma falha em uma expõe as outras. Mensagens entre janelas sem checagem de origem permitem que qualquer página fale com a aplicação.",
+      "remediation": "Hospede cada aplicação em seu subdomínio, valide event.origin contra uma lista fixa e o formato da mensagem antes de agir.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.5.4", "covers": "full" },
+        { "std": "ASVS", "id": "V3.5.5", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-015",
+      "title": "Tecnologias do cliente suportadas e redirecionamentos só para destinos permitidos",
+      "summary": "O front-end usa apenas tecnologias ainda suportadas e seguras (sem Flash, ActiveX, applets e semelhantes), e redirecionamentos automáticos para outro domínio só ocorrem para destinos em lista de permissão.",
+      "pack": "web",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Inspecione o front-end e as dependências e confirme que não há plugins ou tecnologias descontinuadas. Teste cada redirecionamento (parâmetros como next, redirect, url, return) com um destino externo não listado e confirme a recusa ou o desvio para uma página interna. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Tecnologias abandonadas não recebem correções de segurança. Redirecionamento aberto serve de isca para phishing com o domínio da aplicação.",
+      "remediation": "Remova tecnologias descontinuadas, aceite apenas caminhos internos ou destinos de uma lista fixa nos redirecionamentos e ignore o resto.",
+      "refs": [
+        { "std": "ASVS", "id": "V3.7.1", "covers": "full" },
+        { "std": "ASVS", "id": "V3.7.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-016",
+      "title": "Sem listagem de diretório, documentação interna nem monitoramento expostos",
+      "summary": "O servidor não lista diretórios, e a documentação de APIs internas e os endpoints de monitoramento só estão acessíveis a quem deve.",
+      "pack": "web",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Acesse pastas públicas sem arquivo de índice e confirme que não há listagem. Tente os caminhos comuns de documentação e monitoramento (como /docs, /swagger, /openapi.json, /metrics, /actuator, /debug) sem autenticação e confirme 401, 403 ou 404. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Listagens e painéis esquecidos entregam a estrutura da aplicação e, às vezes, métricas e dados internos.",
+      "remediation": "Desligue a listagem de diretórios, proteja ou remova a documentação interna e restrinja os endpoints de monitoramento à rede interna ou a quem estiver autenticado.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.4.3", "covers": "full" },
+        { "std": "ASVS", "id": "V13.4.5", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }
