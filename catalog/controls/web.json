@@ -14,7 +14,7 @@
       "enforcement": "hard",
       "rationale": "A CSP limita o estrago de um XSS. Com 'unsafe-inline' ela deixa de proteger contra o ataque mais comum. Mas apertar a política sem migrar o código quebra a aplicação (por exemplo, formulários que dependem de onsubmit inline).",
       "remediation": "Migre os handlers inline (onclick, onsubmit) e os scripts inline para arquivos externos com addEventListener, e só depois remova 'unsafe-inline'. Se a migração demorar, registre a dívida como risco aceito com validade; o achado sobre script-src-attr acompanha a dívida.",
-      "refs": [{ "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "só script-src; as diretivas complementares estão em WEB-002; a sonda amostra a página inicial" }],
+      "refs": [{ "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "só script-src; as diretivas complementares estão em WEB-002; a sonda amostra página, erro, saúde e rotas do perfil, não todas as respostas" }],
       "origin": ["L-A01"]
     },
     {
@@ -30,8 +30,8 @@
       "rationale": "Sem object-src e base-uri restritos, a CSP pode ser contornada por plugins ou por injeção de <base>. Sem frame-ancestors a página pode ser embutida em outra para clickjacking.",
       "remediation": "Adicione object-src 'none'; base-uri 'none'; frame-ancestors 'none' (ou 'self' se precisar de iframe próprio); form-action 'self'.",
       "refs": [
-        { "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "object-src e base-uri; a sonda não confere lista, nonce ou hash e amostra a página inicial" },
-        { "std": "ASVS", "id": "V3.4.6", "covers": "partial", "note": "aceita X-Frame-Options como alternativa e amostra a página inicial" }
+        { "std": "ASVS", "id": "V3.4.3", "covers": "partial", "note": "object-src e base-uri; a sonda não confere lista, nonce ou hash e amostra página, erro, saúde e rotas do perfil, não todas as respostas" },
+        { "std": "ASVS", "id": "V3.4.6", "covers": "partial", "note": "aceita X-Frame-Options como alternativa e amostra página, erro, saúde e rotas do perfil, não todas as respostas" }
       ],
       "origin": ["L-A01"]
     },
@@ -47,7 +47,7 @@
       "enforcement": "soft",
       "rationale": "Sem HSTS o navegador pode ser rebaixado para HTTP em uma rede hostil, e o primeiro acesso fica exposto.",
       "remediation": "Envie 'Strict-Transport-Security: max-age=31536000; includeSubDomains'. Considere a lista de preload só depois de garantir HTTPS em todos os subdomínios.",
-      "refs": [{ "std": "ASVS", "id": "V3.4.1", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" }],
+      "refs": [{ "std": "ASVS", "id": "V3.4.1", "covers": "partial", "note": "a sonda amostra página, erro, saúde e rotas do perfil, não todas as respostas" }],
       "origin": ["L-R12"]
     },
     {
@@ -63,8 +63,8 @@
       "rationale": "nosniff evita que o navegador reinterprete um arquivo enviado como script. Referrer-Policy e Permissions-Policy reduzem vazamento de dados e uso indevido de recursos do navegador.",
       "remediation": "Configure o framework ou o proxy para enviar nosniff, 'Referrer-Policy: no-referrer' (ou strict-origin-when-cross-origin) e uma Permissions-Policy que negue o que a aplicação não usa.",
       "refs": [
-        { "std": "ASVS", "id": "V3.4.4", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" },
-        { "std": "ASVS", "id": "V3.4.5", "covers": "partial", "note": "a sonda amostra a página inicial, não todas as respostas" }
+        { "std": "ASVS", "id": "V3.4.4", "covers": "partial", "note": "a sonda amostra página, erro, saúde e rotas do perfil, não todas as respostas" },
+        { "std": "ASVS", "id": "V3.4.5", "covers": "partial", "note": "a sonda amostra página, erro, saúde e rotas do perfil, não todas as respostas" }
       ],
       "origin": ["L-R12"]
     },

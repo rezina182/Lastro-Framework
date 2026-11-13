@@ -11,6 +11,13 @@
 - Threat model estruturado (ameaça com ID, ativo, ASVS e controles) gerando tickets com o que mudar, como, a prova e a origem.
 - Autoaplicação completa: atestações e backlog do próprio repositório.
 
+## Verificações automáticas (em andamento)
+
+1. Feito: amostragem de várias respostas nas sondas de cabeçalho.
+2. Sonda de TLS (versões, cifras, certificado, HTTP sem criptografia) para V12.
+3. Varreduras estáticas novas (SQL por concatenação, aleatoriedade e hash fracos, segredos no código, rotas sem checagem de autorização) para V1, V8, V11 e V13.
+4. Aplicar o kit em um app real e comparar com o que o ASVS já corrigiu nele.
+
 ## Depois
 
 - Exportar regras no formato do Project CodeGuard.

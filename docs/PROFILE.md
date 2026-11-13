@@ -25,13 +25,14 @@ O pacote `core` sempre se aplica.
 ```json
 {
   "urls": { "staging": "https://...", "production": "https://..." },
-  "paths": { "health": "/health", "login": "/login" },
+  "paths": { "health": "/health", "login": "/login", "api": "/api/status", "static": "/app.js" },
   "thresholds": { "hstsMinSeconds": 31536000, "threatModelMaxAgeDays": 180, "alwaysOnInstructionBytes": 8192 },
   "scan": { "excludePrefixes": ["fixtures/", "vendor-local/"] },
   "agent": { "instructionPaths": ["docs/agent/"] }
 }
 ```
 
+- `paths.api` e `paths.static` indicam uma rota de API e um arquivo estático reais. As sondas de cabeçalho (CSP, HSTS, nosniff, Referrer-Policy, frame-ancestors) também as consultam, além da página inicial, de um erro 404, da rota de saúde e do login. Sem elas, a amostra fica menor. A amostra reduz o ponto cego de cabeçalhos presentes só na home, mas não prova "todas as respostas".
 - `scan.excludePrefixes` tira pastas das varreduras de código e de mídia. Use só para fixtures de teste e código de terceiros. Cada exclusão é um ponto cego.
 - `agent.instructionPaths` acrescenta pastas à lista de arquivos de instrução.
 - Campo desconhecido é recusado, para evitar erro de digitação silencioso.

@@ -32,14 +32,39 @@ async function pageOrFail(ctx) {
   return { page };
 }
 
-async function cspScript(ctx) {
-  const { early, page } = await pageOrFail(ctx);
-  if (early) return early;
-  const raw = page.headers['content-security-policy'];
-  if (!raw) {
-    const ro = page.headers['content-security-policy-report-only'] ? ' (existe apenas em modo relatório)' : '';
-    return failed([{ severity: 'high', key: 'csp-missing', message: `Content-Security-Policy ausente${ro}.` }]);
+const PROBE_404 = '/__lastro_probe_404__';
+
+const isHtml = (res) => /html/i.test(String((res && res.headers && res.headers['content-type']) || ''));
+
+/**
+ * Amostra respostas de tipos diferentes: página inicial, erro 404, saúde e as rotas declaradas no perfil
+ * (paths.login, paths.api, paths.static). Cabeçalhos de segurança costumam existir na página inicial e faltar
+ * no erro, na API e nos arquivos estáticos. A amostra reduz esse ponto cego, mas nunca prova "todas as respostas".
+ */
+async function sampleResponses(ctx) {
+  const paths = (ctx.profile && ctx.profile.paths) || {};
+  const plan = [
+    { kind: 'página', path: '/', opts: { maxRedirects: 3 } },
+    { kind: 'erro 404', path: PROBE_404, opts: {} },
+    { kind: 'saúde', path: paths.health || '/health', opts: {} },
+  ];
+  if (paths.login) plan.push({ kind: 'login', path: paths.login, opts: { maxRedirects: 3 } });
+  if (paths.api) plan.push({ kind: 'api', path: paths.api, opts: {} });
+  if (paths.static) plan.push({ kind: 'estático', path: paths.static, opts: {} });
+  const seen = new Set();
+  const out = [];
+  for (const s of plan) {
+    if (seen.has(s.path)) continue;
+    seen.add(s.path);
+    const res = await ctx.fetch(s.path, s.opts);
+    if (res.ok) out.push({ kind: s.kind, path: s.path, res });
   }
+  return out;
+}
+
+const sampleNote = (samples) => `Amostra: ${samples.map((s) => `${s.kind} (${s.path})`).join(', ')}. Não prova "todas as respostas".`;
+
+function scriptPolicyFindings(raw) {
   const d = parseCsp(raw);
   const src = lower(d['script-src'] || d['default-src']);
   const findings = [];
@@ -59,7 +84,34 @@ async function cspScript(ctx) {
   if (attr.includes("'unsafe-inline'")) findings.push({ severity: 'medium', key: 'csp-attr-unsafe-inline', message: "script-src-attr permite handlers inline (dívida a migrar para addEventListener)." });
   const style = lower(d['style-src'] || d['default-src']);
   if (style.includes("'unsafe-inline'")) findings.push({ severity: 'low', key: 'csp-style-unsafe-inline', message: "style-src permite 'unsafe-inline'." });
-  return failed(findings);
+  return findings;
+}
+
+async function cspScript(ctx) {
+  const { early, page } = await pageOrFail(ctx);
+  if (early) return early;
+  const raw = page.headers['content-security-policy'];
+  if (!raw) {
+    const ro = page.headers['content-security-policy-report-only'] ? ' (existe apenas em modo relatório)' : '';
+    return failed([{ severity: 'high', key: 'csp-missing', message: `Content-Security-Policy ausente${ro}.` }]);
+  }
+  const findings = scriptPolicyFindings(raw);
+  const keys = new Set(findings.map((f) => f.key));
+  // Outras respostas HTML (login, erro com página) também precisam da política.
+  const samples = await sampleResponses(ctx);
+  for (const s of samples.filter((x) => x.path !== '/' && isHtml(x.res))) {
+    const other = s.res.headers['content-security-policy'];
+    if (!other) {
+      findings.push({ severity: 'high', key: `csp-missing:${s.kind}`, location: s.path, message: `Content-Security-Policy ausente na resposta HTML de ${s.kind} (${s.path}).` });
+      continue;
+    }
+    for (const f of scriptPolicyFindings(other)) {
+      if (keys.has(f.key)) continue;
+      keys.add(f.key);
+      findings.push({ ...f, location: s.path, message: `${f.message} (resposta de ${s.kind}, ${s.path})` });
+    }
+  }
+  return failed(findings, [sampleNote(samples)]);
 }
 
 async function cspComplementary(ctx) {
@@ -67,16 +119,35 @@ async function cspComplementary(ctx) {
   if (early) return early;
   const raw = page.headers['content-security-policy'];
   if (!raw) return failed([{ severity: 'medium', key: 'csp-missing', message: 'Content-Security-Policy ausente: as diretivas complementares não existem.' }]);
-  const d = parseCsp(raw);
+  const samples = await sampleResponses(ctx);
   const findings = [];
-  const objectNone = lower(d['object-src']).includes("'none'") || (!d['object-src'] && lower(d['default-src']).includes("'none'"));
-  if (!objectNone) findings.push({ severity: 'medium', key: 'csp-object-src', message: "object-src não é 'none'." });
-  if (!d['base-uri']) findings.push({ severity: 'medium', key: 'csp-base-uri', message: "Falta a diretiva base-uri (o ASVS V3.4.3 pede 'none')." });
-  else if (!lower(d['base-uri']).includes("'none'")) findings.push({ severity: 'low', key: 'csp-base-uri-not-none', message: "base-uri não é 'none' (o ASVS V3.4.3 pede 'none')." });
-  const xfo = String(page.headers['x-frame-options'] || '').toLowerCase();
-  if (!d['frame-ancestors'] && !/^(deny|sameorigin)$/.test(xfo)) findings.push({ severity: 'medium', key: 'csp-frame-ancestors', message: 'Falta frame-ancestors (ou X-Frame-Options): risco de clickjacking.' });
-  if (!d['form-action']) findings.push({ severity: 'low', key: 'csp-form-action', message: 'Falta a diretiva form-action.' });
-  return failed(findings);
+  const seen = new Set();
+  const add = (f, s) => {
+    const key = s.kind === 'página' ? f.key : `${f.key}:${s.kind}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    findings.push({ ...f, key, location: s.path, message: s.kind === 'página' ? f.message : `${f.message} (resposta de ${s.kind}, ${s.path})` });
+  };
+  for (const s of samples) {
+    const h = s.res.headers;
+    const rawS = h['content-security-policy'];
+    const d = parseCsp(rawS);
+    // Diretivas de documento só valem para respostas HTML; frame-ancestors vale para qualquer resposta.
+    if (isHtml(s.res) || s === samples[0]) {
+      if (!rawS) {
+        add({ severity: 'medium', key: 'csp-missing', message: 'Content-Security-Policy ausente na resposta HTML.' }, s);
+      } else {
+        const objectNone = lower(d['object-src']).includes("'none'") || (!d['object-src'] && lower(d['default-src']).includes("'none'"));
+        if (!objectNone) add({ severity: 'medium', key: 'csp-object-src', message: "object-src não é 'none'." }, s);
+        if (!d['base-uri']) add({ severity: 'medium', key: 'csp-base-uri', message: "Falta a diretiva base-uri (o ASVS V3.4.3 pede 'none')." }, s);
+        else if (!lower(d['base-uri']).includes("'none'")) add({ severity: 'low', key: 'csp-base-uri-not-none', message: "base-uri não é 'none' (o ASVS V3.4.3 pede 'none')." }, s);
+        if (!d['form-action']) add({ severity: 'low', key: 'csp-form-action', message: 'Falta a diretiva form-action.' }, s);
+      }
+    }
+    const xfo = String(h['x-frame-options'] || '').toLowerCase();
+    if (!d['frame-ancestors'] && !/^(deny|sameorigin)$/.test(xfo)) add({ severity: 'medium', key: 'csp-frame-ancestors', message: 'Falta frame-ancestors (ou X-Frame-Options): risco de clickjacking.' }, s);
+  }
+  return failed(findings, [sampleNote(samples)]);
 }
 
 async function hsts(ctx) {
@@ -88,26 +159,43 @@ async function hsts(ctx) {
     if (local) return notApplicable('Ambiente local em http: HSTS não se aplica.');
     return failed([{ severity: 'high', key: 'http-plain', message: 'A aplicação é servida por http sem TLS.' }]);
   }
-  const h = page.headers['strict-transport-security'];
-  if (!h) return failed([{ severity: 'medium', key: 'hsts-missing', message: 'Strict-Transport-Security ausente.' }]);
-  const m = /max-age\s*=\s*(\d+)/i.exec(h);
   const min = ctx.thresholds.hstsMinSeconds;
-  if (!m || Number(m[1]) < min) return failed([{ severity: 'medium', key: 'hsts-short', message: `HSTS com max-age menor que ${min} segundos (o ASVS V3.4.1 pede ao menos 1 ano).` }]);
-  if (!/includesubdomains/i.test(h)) return failed([{ severity: 'low', key: 'hsts-subdomains', message: 'HSTS sem includeSubDomains (o ASVS V3.4.1 pede subdomínios a partir do L2).' }]);
-  return verified();
+  const samples = await sampleResponses(ctx);
+  const findings = [];
+  for (const s of samples) {
+    const h = s.res.headers['strict-transport-security'];
+    const where = s.kind === 'página' ? '' : ` (resposta de ${s.kind}, ${s.path})`;
+    const base = { location: s.path };
+    if (!h) {
+      findings.push({ ...base, severity: 'medium', key: `hsts-missing:${s.kind}`, message: `Strict-Transport-Security ausente${where}.` });
+      continue;
+    }
+    const m = /max-age\s*=\s*(\d+)/i.exec(h);
+    if (!m || Number(m[1]) < min) findings.push({ ...base, severity: 'medium', key: `hsts-short:${s.kind}`, message: `HSTS com max-age menor que ${min} segundos${where} (o ASVS V3.4.1 pede ao menos 1 ano).` });
+    else if (!/includesubdomains/i.test(h)) findings.push({ ...base, severity: 'low', key: `hsts-subdomains:${s.kind}`, message: `HSTS sem includeSubDomains${where} (o ASVS V3.4.1 pede subdomínios a partir do L2).` });
+  }
+  return failed(findings, [sampleNote(samples)]);
 }
 
 async function headersBasic(ctx) {
   const { early, page } = await pageOrFail(ctx);
   if (early) return early;
-  const h = page.headers;
+  const samples = await sampleResponses(ctx);
   const findings = [];
-  if (String(h['x-content-type-options'] || '').toLowerCase() !== 'nosniff') findings.push({ severity: 'medium', key: 'nosniff', message: 'X-Content-Type-Options: nosniff ausente.' });
-  const ref = String(h['referrer-policy'] || '').toLowerCase();
-  if (!ref) findings.push({ severity: 'low', key: 'referrer-missing', message: 'Referrer-Policy ausente.' });
-  else if (ref === 'unsafe-url') findings.push({ severity: 'low', key: 'referrer-unsafe', message: 'Referrer-Policy: unsafe-url.' });
-  if (!h['permissions-policy']) findings.push({ severity: 'low', key: 'permissions-policy', message: 'Permissions-Policy ausente.' });
-  return failed(findings);
+  for (const s of samples) {
+    const h = s.res.headers;
+    const where = s.kind === 'página' ? '' : ` (resposta de ${s.kind}, ${s.path})`;
+    const base = { location: s.path };
+    // nosniff vale para toda resposta; Referrer-Policy e Permissions-Policy fazem sentido em documentos HTML.
+    if (String(h['x-content-type-options'] || '').toLowerCase() !== 'nosniff') findings.push({ ...base, severity: 'medium', key: `nosniff:${s.kind}`, message: `X-Content-Type-Options: nosniff ausente${where}.` });
+    if (s.kind === 'página' || isHtml(s.res)) {
+      const ref = String(h['referrer-policy'] || '').toLowerCase();
+      if (!ref) findings.push({ ...base, severity: 'low', key: `referrer-missing:${s.kind}`, message: `Referrer-Policy ausente${where}.` });
+      else if (ref === 'unsafe-url') findings.push({ ...base, severity: 'low', key: `referrer-unsafe:${s.kind}`, message: `Referrer-Policy: unsafe-url${where}.` });
+      if (!h['permissions-policy']) findings.push({ ...base, severity: 'low', key: `permissions-policy:${s.kind}`, message: `Permissions-Policy ausente${where}.` });
+    }
+  }
+  return failed(findings, [sampleNote(samples)]);
 }
 
 async function disclosure(ctx) {

@@ -206,7 +206,7 @@ function validateProfile(p) {
   if (p.paths !== undefined) {
     if (!isObj(p.paths)) errs.push('profile.paths: deve ser objeto');
     else {
-      checkKeys(p.paths, [], ['health', 'login'], 'profile.paths', errs);
+      checkKeys(p.paths, [], ['health', 'login', 'api', 'static'], 'profile.paths', errs);
       for (const [k, v] of Object.entries(p.paths)) if (typeof v !== 'string' || !v.startsWith('/')) errs.push(`profile.paths.${k}: deve começar com /`);
     }
   }
