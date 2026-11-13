@@ -163,9 +163,9 @@
       "rationale": "Cache de resposta autenticada pode servir dados velhos ou de outro usuário, e continua no navegador depois do logout.",
       "remediation": "Marque a API com no-store, restrinja o Service Worker a uma lista de arquivos estáticos, limpe caches no logout (Clear-Site-Data) e exclua /api da regra de cache da CDN.",
       "refs": [
-        { "std": "ASVS", "id": "V14.3.2" },
+        { "std": "ASVS", "id": "V14.3.2", "covers": "full" },
         { "std": "ASVS", "id": "V14.2.5" },
-        { "std": "ASVS", "id": "V14.3.1" }
+        { "std": "ASVS", "id": "V14.3.1", "covers": "partial", "note": "o teste não cobre a limpeza de dados no cliente; ver WEB-021" }
       ],
       "origin": ["L-A02"]
     },
@@ -184,7 +184,7 @@
       "remediation": "Combine uma chave que o atacante não controla (IP real atrás do proxy configurado) com o limite por conta. Valide formato e existência com uma consulta leve antes de abrir transação, e limite o tamanho da tabela do limitador em memória.",
       "refs": [
         { "std": "ASVS", "id": "V2.4.1", "covers": "partial", "note": "foco na chave do limitador; ver WEB-017" },
-        { "std": "ASVS", "id": "V15.3.4" }
+        { "std": "ASVS", "id": "V15.3.4", "covers": "partial", "note": "só a chave do limitador; ver CORE-057" }
       ],
       "origin": ["L-B01"]
     },
@@ -354,6 +354,26 @@
       "refs": [
         { "std": "ASVS", "id": "V4.3.1", "covers": "full" },
         { "std": "ASVS", "id": "V4.3.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-021",
+      "title": "Dados no cliente: limpeza no logout, anticache e nada sensível no armazenamento do navegador",
+      "summary": "Ao encerrar a sessão, os dados autenticados são apagados do cliente (DOM, armazenamento, cache), inclusive quando o servidor está indisponível. Respostas autenticadas saem com cabeçalhos anticache suficientes e o armazenamento do navegador não guarda dado sensível além do token de sessão.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Entre, abra áreas autenticadas, saia e confirme que os dados autenticados não ficam no DOM, no armazenamento do navegador nem no cache, também quando o servidor está indisponível no momento do logout (limpeza feita pelo cliente). (2) Confira Clear-Site-Data e Cache-Control: no-store nas respostas autenticadas. (3) Inspecione localStorage, sessionStorage, IndexedDB e cookies e confirme que o único dado sensível ali é o token de sessão. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Em computador compartilhado, o botão voltar ou o cache mostram dados de quem saiu. Dados sensíveis no armazenamento do navegador ficam à mercê de qualquer script.",
+      "remediation": "Envie Clear-Site-Data no logout, limpe também no cliente, marque respostas privadas com no-store e guarde no navegador só o necessário.",
+      "refs": [
+        { "std": "ASVS", "id": "V14.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V14.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V14.3.3", "covers": "full" }
       ],
       "origin": ["L-R12"]
     }

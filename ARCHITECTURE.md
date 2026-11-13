@@ -49,7 +49,7 @@ Pacotes: `core`, `web`, `auth`, `pii`, `realtime`, `uploads`, `assets`, `agent`.
 - Com `--state`, o comando roda o `check` e mostra, por requisito, se os controles ligados estão verificados, com falha, sem prova ou fora do perfil.
 - Cada referência ASVS de um controle pode declarar `covers`: `full` (o teste do `howToVerify` prova o requisito inteiro) ou `partial`. Sem o campo, a referência é "não classificada" e não conta como cobertura inteira.
 - Com `--state`, um requisito só aparece como verificado se um controle com `covers: full` está verificado e nenhum controle ligado a ele falhou.
-- Limite atual: dez capítulos estão classificados (V1 a V8, V13, V16). A classificação foi feita pelo autor do kit e revisada por um agente separado; falta revisão humana. Sondas automáticas que amostram só a página inicial ficam como `partial`.
+- Limite atual: os 17 capítulos estão classificados até L2. A classificação foi feita pelo autor do kit e revisada por um agente separado; falta revisão humana. Sondas automáticas que amostram só a página inicial ficam como `partial`.
 
 ## Estados de um controle
 

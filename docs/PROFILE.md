@@ -12,6 +12,8 @@ Descreve a aplicação. Os flags decidem quais pacotes e controles se aplicam.
 | `thirdPartyAssets` | pacote `assets` | versiona mídia (áudio, imagem, fonte, vídeo) |
 | `aiCodingAgents` | pacote `agent` | agentes de IA escrevem ou alteram código |
 | `federatedLogin` | `AUTH-020` e `AUTH-021` | o login usa provedor de identidade externo (OIDC, SAML, SSO) |
+| `tokenAuth` | `AUTH-030`, `AUTH-031`, `AUTH-034` | a aplicação emite ou valida tokens autocontidos (JWT e semelhantes) ou tokens de acesso OAuth |
+| `oauthProvider` | `AUTH-035` a `AUTH-039` | a aplicação atua como servidor de autorização OAuth ou provedor OpenID |
 | `anonymousUsers` | reservado | há usuários sem conta |
 | `minorsData` | `PII-004` | há dados de crianças ou adolescentes |
 | `publicInternet` | prioridade do backlog | a aplicação é acessível pela internet |

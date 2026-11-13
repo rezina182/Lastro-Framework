@@ -4,7 +4,7 @@
 
 Um framework neutro de ciclo de vida seguro para desenvolvimento assistido por IA. Ele junta três coisas:
 
-1. Um **catálogo de controles** (80 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
+1. Um **catálogo de controles** (150 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
 2. Um **verificador sem dependências** (Node) que checa o repositório e, opcionalmente, a aplicação em execução, e dá um veredito.
 3. Um **processo**: modelo de ameaças, adoção em aplicações existentes (análise de lacunas, backlog P0 a P3) e registro de risco aceito com dono e validade.
 
@@ -58,7 +58,7 @@ Mais detalhes em [ARCHITECTURE.md](ARCHITECTURE.md), [docs/PRINCIPLES.md](docs/P
 - As verificações de código são varreduras por padrão de texto (heurísticas). Elas encontram o comum e não substituem revisão nem análise estática completa.
 - A v0.1 lê workflows do GitHub Actions. Outros CIs ficam como `unverified` até haver atestação.
 - Referências a padrões citam apenas IDs e links. Conferência automática dos IDs contra as fontes oficiais está no [roadmap](docs/ROADMAP.md).
-- Cobertura do ASVS (até L2, 253 requisitos): 173 (68%) são citados por algum controle, 149 (59%) estão classificados como cobertos por inteiro e 16 como parciais. Dez capítulos já foram classificados (V1 a V8, V13 e V16); nos demais, a referência existe mas ainda não foi avaliada. Quase tudo que é "inteiro" é controle manual: o kit entrega o roteiro de teste e o registro com validade, não uma sonda automática. A classificação foi feita pelo autor do kit e passou por uma revisão independente por agente (que achou exageros, corrigidos); falta ainda revisão humana. `lastro asvs` mostra o número atual por capítulo; ele mede o progresso do kit, não a conformidade de uma aplicação.
+- Cobertura do ASVS (até L2, 253 requisitos): todos (253, 100%) têm controle, 237 (94%) estão classificados como cobertos por inteiro e 16 como parciais. Os 17 capítulos estão classificados até L2; os 92 requisitos exclusivos do L3 ainda não são meta do kit. Quase tudo que é "inteiro" é controle manual: o kit entrega o roteiro de teste e o registro com validade, não uma sonda automática. A classificação foi feita pelo autor do kit e passou por uma revisão independente por agente (que achou exageros, corrigidos); falta ainda revisão humana. `lastro asvs` mostra o número atual por capítulo; ele mede o progresso do kit, não a conformidade de uma aplicação.
 - Alinhado a padrões não é o mesmo que em conformidade com eles. O LASTRO não certifica nada.
 
 ## Testes

@@ -157,10 +157,14 @@ test('V6 (autenticação) e V7 (sessão) estão totalmente classificados até L2
   assert.equal(cov.byChapter.V7.total, 18);
 });
 
-test('V1 a V8, V13 e V16 estão classificados até L2: nenhum requisito sem controle nem sem classificação', () => {
+test('os 17 capítulos do ASVS estão classificados até L2: nenhum requisito sem controle nem sem classificação', () => {
   const cat = loadCatalog();
   const cov = A.coverage(cat.controls, cat.asvsMap, { level: 2 });
-  const expected = { V1: 27, V2: 11, V3: 19, V4: 10, V5: 9, V8: 7, V13: 13, V16: 16 };
+  const expected = {
+    V1: 27, V2: 11, V3: 19, V4: 10, V5: 9, V8: 7, V9: 7, V10: 29, V11: 14, V12: 9, V13: 13, V14: 9, V15: 13, V16: 16, V17: 7,
+  };
+  assert.equal(cov.totals.none, 0, `requisitos sem controle: ${cov.uncited.join(', ')}`);
+  assert.equal(cov.totals.unclassified, 0);
   for (const [ch, total] of Object.entries(expected)) {
     const b = cov.byChapter[ch];
     assert.equal(b.total, total, `${ch}: total`);
@@ -190,7 +194,9 @@ test('o schema aceita covers full/partial só em referência ASVS', () => {
 
 test('controles que cobrem requisitos federados só se aplicam com federatedLogin', () => {
   const cat = loadCatalog();
-  for (const id of ['AUTH-020', 'AUTH-021']) assert.deepEqual(cat.byId.get(id).appliesIf, ['federatedLogin']);
+  for (const id of ['AUTH-020', 'AUTH-021', 'AUTH-032', 'AUTH-033']) assert.deepEqual(cat.byId.get(id).appliesIf, ['federatedLogin']);
+  for (const id of ['AUTH-030', 'AUTH-031', 'AUTH-034']) assert.deepEqual(cat.byId.get(id).appliesIf, ['tokenAuth']);
+  for (const id of ['AUTH-035', 'AUTH-036', 'AUTH-037', 'AUTH-038', 'AUTH-039']) assert.deepEqual(cat.byId.get(id).appliesIf, ['oauthProvider']);
 });
 
 test('formatCoverage mostra o aviso de que citado não é coberto por inteiro', () => {

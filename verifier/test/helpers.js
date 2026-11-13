@@ -13,7 +13,7 @@ const { registry } = require('../src/checks');
 const ALL_FALSE = {
   webApp: false, hasAuth: false, anonymousUsers: false, realtime: false, uploads: false,
   personalData: false, minorsData: false, thirdPartyAssets: false, aiCodingAgents: false, publicInternet: false,
-  federatedLogin: false,
+  federatedLogin: false, tokenAuth: false, oauthProvider: false,
 };
 
 function makeProject(files = {}) {

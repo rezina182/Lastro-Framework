@@ -7,7 +7,7 @@ const { parseDate } = require('./util');
 
 const FLAGS = [
   'webApp', 'hasAuth', 'anonymousUsers', 'realtime', 'uploads', 'personalData',
-  'minorsData', 'thirdPartyAssets', 'aiCodingAgents', 'publicInternet', 'federatedLogin',
+  'minorsData', 'thirdPartyAssets', 'aiCodingAgents', 'publicInternet', 'federatedLogin', 'tokenAuth', 'oauthProvider',
 ];
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 const PHASES = ['design', 'build', 'test', 'deploy', 'runtime', 'respond'];

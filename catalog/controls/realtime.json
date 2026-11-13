@@ -73,6 +73,47 @@
         { "std": "ASVS", "id": "V4.4.4", "covers": "full" }
       ],
       "origin": ["L-R12"]
+    },
+    {
+      "id": "RT-005",
+      "title": "WebRTC: TURN restrito e sinalização resistente a inundação e a mensagens malformadas",
+      "summary": "O serviço TURN só dá acesso a endereços IP que não são reservados para fins especiais (redes internas, broadcast, loopback, em IPv4 e IPv6), e o servidor de sinalização continua atendendo mensagens legítimas durante uma inundação (limitação de taxa) e diante de mensagens malformadas.",
+      "pack": "realtime",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Se a aplicação usa WebRTC: (1) peça ao TURN que se conecte a 127.0.0.1, a uma faixa privada (10.0.0.0/8), ao endereço de broadcast e aos equivalentes IPv6, e confirme a recusa; (2) inunde o servidor de sinalização com mensagens e confirme que a limitação de taxa preserva o atendimento legítimo; (3) envie mensagens malformadas, com inteiros extremos e tamanhos excessivos, e confirme que o servidor continua operando. Se não usa WebRTC, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Um TURN aberto vira ponte para a rede interna. Uma sinalização que cai com uma mensagem malformada ou com inundação derruba todas as chamadas.",
+      "remediation": "Bloqueie as faixas reservadas no TURN, aplique limite de taxa na sinalização e valide o formato e os tamanhos de cada mensagem antes de processar.",
+      "refs": [
+        { "std": "ASVS", "id": "V17.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V17.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V17.3.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "RT-006",
+      "title": "WebRTC: mídia com DTLS-SRTP seguro, autenticação SRTP e tolerância a pacotes malformados",
+      "summary": "A chave do certificado DTLS é gerida conforme a política de chaves, o servidor de mídia usa e aceita só cifras DTLS aprovadas e perfil de proteção seguro para o DTLS-SRTP, confere a autenticação SRTP (contra injeção de RTP) e segue processando o tráfego diante de pacotes SRTP malformados.",
+      "pack": "realtime",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Se a aplicação usa WebRTC: (1) confirme que a chave do certificado DTLS é gerida e protegida conforme a política de gestão de chaves (CORE-043); (2) confirme a configuração de cifras DTLS aprovadas e do perfil de proteção do DTLS-SRTP; (3) injete pacotes RTP sem autenticação válida e confirme que são descartados e não entram na mídia; (4) envie pacotes SRTP malformados e confirme que o servidor continua processando o tráfego legítimo. Se não usa WebRTC, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Sem autenticação SRTP, qualquer um insere áudio ou vídeo nas chamadas ou derruba o servidor de mídia. Cifras fracas no DTLS anulam a proteção do canal.",
+      "remediation": "Guarde a chave DTLS como as demais chaves, restrinja cifras e perfis aos aprovados, verifique a autenticação em cada pacote e teste com fuzzing de SRTP.",
+      "refs": [
+        { "std": "ASVS", "id": "V17.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V17.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V17.2.3", "covers": "full" },
+        { "std": "ASVS", "id": "V17.2.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }

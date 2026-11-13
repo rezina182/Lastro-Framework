@@ -121,7 +121,7 @@
       "rationale": "Sem validar o certificado a conexão aceita qualquer servidor, e um atacante na rota lê e altera os dados. Desligar a verificação é um atalho comum e frequentemente sugerido por IA quando surge um erro de certificado.",
       "remediation": "Ative a verificação e forneça o CA correto quando faltar a cadeia (variável de CA ou opção de CA da biblioteca). Se a supressão for inevitável em ambiente de teste, use o comentário 'lastro-ignore tls-verification: motivo' e registre o risco.",
       "refs": [
-        { "std": "ASVS", "id": "V12.3.2" },
+        { "std": "ASVS", "id": "V12.3.2", "covers": "partial", "note": "detecta no código as opções que desligam a verificação; ver CORE-049" },
         { "std": "SSDF", "id": "PW.5.1" }
       ],
       "origin": ["L-A07"]
@@ -303,7 +303,7 @@
       "remediation": "Adicione um passo de SBOM ao pipeline (por exemplo npm sbom com formato CycloneDX) e retenha o artefato.",
       "refs": [
         { "std": "SSDF", "id": "PS.3.2" },
-        { "std": "ASVS", "id": "V15.1.2" }
+        { "std": "ASVS", "id": "V15.1.2", "covers": "partial", "note": "só o SBOM por release; a origem confiável dos componentes está em CORE-053" }
       ],
       "origin": ["L-R11"]
     },
@@ -787,6 +787,315 @@
         { "std": "ASVS", "id": "V2.3.2", "covers": "full" },
         { "std": "ASVS", "id": "V2.3.3", "covers": "full" },
         { "std": "ASVS", "id": "V2.3.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-043",
+      "title": "Política de gestão de chaves e inventário criptográfico",
+      "summary": "Há política documentada de gestão de chaves e de seu ciclo de vida, que evita compartilhar chaves demais, e um inventário atualizado de todas as chaves, algoritmos e certificados, com onde cada chave pode e não pode ser usada e quais dados ela pode proteger.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra a política e confirme o ciclo de vida das chaves (geração, uso, rotação, revogação, destruição) segundo um padrão como o NIST SP 800-57 e a regra de não compartilhar demais: segredo compartilhado com no máximo duas entidades e chave privada com apenas uma. Abra o inventário e confirme que lista todas as chaves, algoritmos e certificados, onde cada chave pode e não pode ser usada e que tipos de dado ela pode ou não proteger. Compare o inventário com a configuração real e procure itens fora da lista. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Chave que ninguém sabe que existe não é rotacionada nem revogada. Chave compartilhada com muitos aumenta a chance de vazar sem que se saiba por onde.",
+      "remediation": "Escreva a política e o inventário, atribua um responsável por chave e revise a cada mudança de componente ou fornecedor.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V11.1.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-044",
+      "title": "Bibliotecas criptográficas validadas, 128 bits de segurança e agilidade criptográfica",
+      "summary": "A criptografia usa implementações validadas (bibliotecas e aceleração por hardware), toda primitiva tem ao menos 128 bits de segurança, e a aplicação permite trocar algoritmos, tamanhos de chave, chaves e senhas e recifrar dados sem reescrever o código.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "build"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Liste as bibliotecas e instruções de hardware usadas em criptografia e confirme que são implementações validadas e mantidas, sem criptografia escrita à mão. (2) Em ambiente de teste, troque por configuração um algoritmo, um tamanho de chave e uma chave, e recifre dados de teste, confirmando que isso não exige reescrever o código. (3) Para cada primitiva, confirme ao menos 128 bits de segurança (por exemplo ECC de 256 bits ou RSA de 3072 bits). Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Criptografia caseira quase sempre tem falha. Algoritmos envelhecem e, sem agilidade, trocar um que foi quebrado vira um projeto de meses.",
+      "remediation": "Use bibliotecas reconhecidas, centralize algoritmos e parâmetros em configuração e guarde junto do dado cifrado qual algoritmo e qual chave o protegem.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V11.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V11.2.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-045",
+      "title": "Cifras e modos aprovados, com proteção de integridade",
+      "summary": "Não se usam modos inseguros (como ECB) nem preenchimentos fracos (como PKCS#1 v1.5), só cifras e modos aprovados (como AES-GCM), e o dado cifrado é protegido contra alteração por cifra autenticada ou por cifra combinada com MAC.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Procure no código modos inseguros (ECB) e preenchimentos fracos (PKCS#1 v1.5 em cifra) e confirme que não existem. (2) Liste as cifras e modos em uso e confirme que são aprovados (por exemplo AES-GCM). (3) Altere um byte de um dado cifrado e confirme que a decifragem falha, o que mostra cifra autenticada ou cifra combinada com MAC. Se a aplicação não cifra dados, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Modos inseguros vazam padrões do texto, e dado cifrado sem integridade pode ser alterado sem que ninguém perceba.",
+      "remediation": "Use AES-GCM ou ChaCha20-Poly1305 por biblioteca, nunca implemente modo de operação por conta própria e guarde nonce e etiqueta de autenticação junto do dado.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V11.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V11.3.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-046",
+      "title": "Funções de hash e de derivação de chave aprovadas",
+      "summary": "Só funções de hash aprovadas são usadas em assinaturas, HMAC, derivação de chave e geração de bits aleatórios (MD5 nunca), com saída de ao menos 256 bits quando se exige resistência a colisão, e chaves derivadas de senha usam KDF aprovada com custo adequado.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Procure funções de hash no código e confirme que só as aprovadas são usadas em assinaturas, HMAC, derivação de chave e geração de bits aleatórios; MD5 e SHA-1 não aparecem para fim criptográfico. (2) Em assinaturas e verificações de integridade, confirme saída de pelo menos 256 bits quando se exige resistência a colisão (128 bits quando basta resistência à segunda pré-imagem). (3) Onde uma chave é derivada de uma senha, confirme KDF aprovada (Argon2id, scrypt ou PBKDF2 com iterações atuais) e os parâmetros de custo documentados. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Hashes quebrados permitem forjar assinaturas e verificações de integridade. Chaves derivadas de senha sem custo caem por força bruta.",
+      "remediation": "Troque MD5 e SHA-1 por SHA-256 ou superior, use HMAC com chave e derive chaves de senha com Argon2id, scrypt ou PBKDF2 com parâmetros atuais.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.4.1", "covers": "full" },
+        { "std": "ASVS", "id": "V11.4.3", "covers": "full" },
+        { "std": "ASVS", "id": "V11.4.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-047",
+      "title": "Aleatoriedade segura e geração de chaves com algoritmos aprovados",
+      "summary": "Todo número ou texto aleatório que precisa ser imprevisível vem de gerador criptograficamente seguro (CSPRNG) com ao menos 128 bits de entropia (UUID não vale), e a geração de chaves e de assinaturas usa só algoritmos e modos aprovados que não geram chaves vulneráveis.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Procure a geração de tokens, identificadores, códigos e segredos e confirme o uso de CSPRNG com pelo menos 128 bits de entropia; UUID não serve como segredo. (2) Procure geradores comuns, como Math.random e rand(), em usos que devem ser imprevisíveis e confirme que não existem. (3) Para geração de chaves e de assinaturas, confirme algoritmos e modos aprovados e bibliotecas que não geram chaves vulneráveis a ataques conhecidos (por exemplo RSA fraco). Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Valor previsível deixa de ser segredo: tokens, códigos e chaves gerados com aleatoriedade fraca podem ser adivinhados ou reproduzidos.",
+      "remediation": "Use o gerador seguro do sistema (crypto.randomBytes, secrets, SecureRandom) com pelo menos 16 bytes e gere chaves por bibliotecas aprovadas.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.5.1", "covers": "full" },
+        { "std": "ASVS", "id": "V11.6.1", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-048",
+      "title": "TLS externo: versões e cifras recomendadas, certificado público e sem retorno ao texto puro",
+      "summary": "Os serviços acessados por clientes só habilitam as versões recomendadas do TLS (1.2 e 1.3, com a mais nova preferida) e as cifras recomendadas (as mais fortes preferidas), usam certificado de autoridade publicamente confiável e não retornam a comunicação sem criptografia.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Rode um verificador de TLS (como testssl.sh ou sslyze) no endereço público e confirme: só TLS 1.2 e 1.3 habilitados, com o mais novo preferido, e só cifras recomendadas, as mais fortes primeiro. (2) Tente conectar por HTTP simples em cada serviço ou host externo (site, painel, webhooks, WebSocket) e confirme que não há resposta de conteúdo sem criptografia: páginas de navegador podem apenas redirecionar, e APIs devem recusar. (3) Confirme que o certificado é emitido por autoridade publicamente confiável e está válido. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Versões antigas do TLS e cifras fracas têm ataques conhecidos. Um retorno silencioso a HTTP anula a criptografia.",
+      "remediation": "Desative SSL e TLS 1.0 e 1.1, use a configuração recomendada pelo fornecedor da plataforma, renove os certificados automaticamente e recuse HTTP nas APIs.",
+      "refs": [
+        { "std": "ASVS", "id": "V12.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V12.1.2", "covers": "full" },
+        { "std": "ASVS", "id": "V12.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V12.2.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-049",
+      "title": "TLS entre serviços: tudo criptografado, certificados validados e confiáveis, mTLS conferido",
+      "summary": "Todas as conexões de entrada e saída (banco, monitoramento, administração, SSH, middleware, APIs de parceiros e serviços internos) usam TLS ou protocolo equivalente sem retorno a modo inseguro, os clientes TLS validam o certificado, certificados internos são confiáveis só a CAs específicas, e certificados de cliente mTLS são validados antes de usar a identidade.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["deploy", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Liste todas as conexões de entrada e de saída e confirme TLS em todas, sem retorno a modo inseguro. (2) Aponte cada cliente de saída (banco, APIs de parceiros, serviços internos) para um servidor com certificado expirado, outro autoassinado e outro com nome errado, e confirme que a conexão é recusada; confirme também que a validação não está desligada no código (veja CORE-007). (3) Entre serviços internos, confirme criptografia e certificados confiáveis: com CA interna ou autoassinado, o consumidor confia apenas naquela CA ou certificado específico. (4) Se usa mTLS, apresente um certificado não confiável e confirme a recusa antes de usar a identidade. Se não usa mTLS, registre 'não aplicável' para este item. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "A rede interna não é confiável por definição. Conexão sem criptografia ou com certificado não validado expõe dados e credenciais a qualquer um que alcance o tráfego.",
+      "remediation": "Ative TLS em todos os pontos, valide certificados e restrinja a confiança às CAs internas necessárias, nunca à confiança irrestrita.",
+      "refs": [
+        { "std": "ASVS", "id": "V12.1.3", "covers": "full" },
+        { "std": "ASVS", "id": "V12.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V12.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V12.3.3", "covers": "full" },
+        { "std": "ASVS", "id": "V12.3.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-050",
+      "title": "Dados sensíveis classificados e requisitos de proteção por nível",
+      "summary": "Todo dado sensível criado ou tratado está identificado e classificado em níveis de proteção (inclusive o que está só codificado, como Base64 e o conteúdo de um JWT), considerando a legislação aplicável, e cada nível tem requisitos documentados de proteção.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Abra o inventário de dados sensíveis e confirme que inclui dados apenas codificados (Base64, conteúdo de JWT) e que cada tipo tem um nível de proteção que considera a legislação aplicável. (2) Abra os requisitos de cada nível e confirme que tratam de criptografia, integridade, retenção, o que pode ser registrado em log, acesso aos logs, criptografia no banco e tecnologias de privacidade. Compare três tipos de dado com o que o sistema realmente faz. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Não se protege o que não se identificou. Sem níveis definidos, cada equipe decide por conta própria e os dados mais sensíveis acabam com a mesma proteção dos comuns.",
+      "remediation": "Faça o inventário de dados, atribua um nível de proteção a cada tipo e escreva, por nível, as exigências de criptografia, retenção, log e acesso.",
+      "refs": [
+        { "std": "ASVS", "id": "V14.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V14.1.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-051",
+      "title": "Dado sensível fora da URL, do cache de servidor e de terceiros",
+      "summary": "Dado sensível só trafega no corpo ou nos cabeçalhos (nunca na URL ou na query), não fica em cache de balanceadores e caches da aplicação (ou é apagado depois do uso) e não é enviado a terceiros não confiáveis, como rastreadores.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Percorra os fluxos e confirme, nos registros do servidor e no navegador, que nenhuma URL ou query string contém chave de API, token de sessão ou outro dado sensível. (2) Confirme que balanceadores e caches da aplicação não guardam respostas com dado sensível, ou que o apagam depois do uso. (3) Inspecione as requisições para terceiros (analytics, rastreadores, fontes) e confirme que nenhum dado definido como sensível sai para eles. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "URLs ficam em histórico, logs e cabeçalhos Referer. Cache compartilhado pode servir dado de um usuário a outro. Terceiros recebem o que o navegador mandar.",
+      "remediation": "Envie dado sensível no corpo, marque respostas privadas como não armazenáveis, remova rastreadores desnecessários e filtre o que vai a terceiros.",
+      "refs": [
+        { "std": "ASVS", "id": "V14.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V14.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V14.2.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-052",
+      "title": "Controles de proteção de dados implementados como documentado",
+      "summary": "Os controles definidos para cada nível de proteção (criptografia, integridade, retenção, log, acesso aos logs, privacidade) estão implementados como a documentação diz.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["test", "runtime"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada nível de proteção documentado em CORE-050 (todos eles, com ao menos um tipo de dado de cada categoria), verifique na prática cada controle: dado cifrado no banco quando exigido, integridade conferida, prazo de retenção aplicado, campos que não devem ir ao log ausentes dos logs, acesso aos logs restrito e tecnologias de privacidade previstas em uso (como pseudonimização ou minimização). Registre os achados e a data.",
+      "enforcement": "soft",
+      "rationale": "Documento sem verificação é intenção. É na conferência prática que se descobre o dado que deveria estar cifrado e não está.",
+      "remediation": "Transforme cada exigência documentada em teste ou em checagem periódica e corrija as diferenças encontradas.",
+      "refs": [{ "std": "ASVS", "id": "V14.2.4", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-053",
+      "title": "Componentes de terceiros: prazos de correção, inventário e origem confiável",
+      "summary": "A documentação define prazos de correção por risco para componentes vulneráveis e para atualização geral, nenhum componente ultrapassa esses prazos, e há inventário (SBOM) dos componentes de terceiros, vindos de repositórios pré-definidos, confiáveis e mantidos.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "respond"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Abra a documentação e confirme os prazos de correção por risco para componentes com vulnerabilidade e para atualizações em geral. (2) Rode a auditoria de dependências e confirme que nenhum componente ultrapassa o prazo documentado. (3) Confirme que o SBOM está atualizado e que os componentes vêm de repositórios pré-definidos, confiáveis e mantidos (configuração do gerenciador de pacotes). Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Vulnerabilidades conhecidas em dependências são a via de ataque mais barata. Sem prazo, o conserto depende da boa vontade do momento.",
+      "remediation": "Defina prazos (por exemplo, crítica em 7 dias, alta em 30), automatize alertas, gere o SBOM por release e fixe os repositórios de origem.",
+      "refs": [
+        { "std": "ASVS", "id": "V15.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V15.1.2", "covers": "full" },
+        { "std": "ASVS", "id": "V15.2.1", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-054",
+      "title": "Funções caras documentadas e defesas contra perda de disponibilidade",
+      "summary": "A documentação identifica as funções demoradas ou que consomem muitos recursos, diz como evitar perda de disponibilidade e respostas que passam do tempo limite do consumidor, e as defesas (processamento assíncrono, filas, limite de processos paralelos) estão implementadas.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Abra a documentação e confirme que lista as funções demoradas ou que consomem muitos recursos e as defesas previstas (processamento assíncrono, filas, limite de processos paralelos por usuário e global). (2) Dispare cada função em volume e confirme que as defesas documentadas funcionam e que o serviço continua respondendo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Uma única função cara, chamada em paralelo, derruba o serviço para todos. O ataque nem precisa ser sofisticado.",
+      "remediation": "Mova trabalho pesado para filas, limite a concorrência por usuário e globalmente, defina tempos limites e documente cada decisão.",
+      "refs": [
+        { "std": "ASVS", "id": "V15.1.3", "covers": "full" },
+        { "std": "ASVS", "id": "V15.2.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-055",
+      "title": "Produção só com o que é necessário",
+      "summary": "O ambiente de produção só inclui o que a aplicação precisa para funcionar e não expõe código de teste, exemplos nem funcionalidade de desenvolvimento.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["deploy"],
+      "check": { "type": "manual" },
+      "howToVerify": "Compare a produção com o código: procure rotas de teste, exemplos, páginas de depuração, contas de teste e código de desenvolvimento publicado, e confirme que a imagem ou o pacote de produção só inclui o necessário. Tente acessar esses itens em produção. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Código de teste e exemplos esquecidos costumam ignorar autenticação e dar acesso a dados reais.",
+      "remediation": "Separe dependências de desenvolvimento, exclua testes e exemplos da imagem final e revise a lista de rotas publicadas a cada release.",
+      "refs": [{ "std": "ASVS", "id": "V15.2.3", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-056",
+      "title": "Devolver só os campos necessários e bloquear atribuição em massa",
+      "summary": "Cada resposta devolve só o subconjunto de campos necessário do objeto, e cada rota de criação ou edição aceita apenas os campos permitidos para aquela ação, impedindo atribuição em massa.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Compare a resposta de cada rota com o que a tela precisa e confirme que só os campos necessários são devolvidos (sem objeto inteiro, hash de senha ou campos internos). (2) Na criação e na edição, envie campos extras e confirme que não são gravados (lista de campos permitidos por rota). Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Devolver o objeto inteiro vaza campos internos, e aceitar o corpo inteiro deixa o usuário alterar o que não devia, como papel e saldo.",
+      "remediation": "Monte a resposta com uma lista explícita de campos e valide a entrada com um esquema por rota, descartando o que não está nele.",
+      "refs": [
+        { "std": "ASVS", "id": "V15.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V15.3.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-057",
+      "title": "Chamadas externas sem seguir redirecionamentos e IP original confiável",
+      "summary": "Quando o backend chama URLs externas, não segue redirecionamentos a menos que isso seja a função pretendida, e todos os componentes intermediários repassam o IP original por campos confiáveis, usados em logs e decisões de segurança como limite de taxa.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Em cada chamada a URL externa pelo backend, faça o destino responder com redirecionamento e confirme que não é seguido, a menos que seja a funcionalidade pretendida. (2) Envie X-Forwarded-For e X-Real-IP forjados e confirme que logs e decisões de segurança, como o limite de taxa, usam o IP original definido por componentes confiáveis, não o enviado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Redirecionamento seguido às cegas contorna a lista de destinos permitidos. IP forjado engana o limite de taxa e a investigação.",
+      "remediation": "Desative o seguimento automático de redirecionamentos, valide cada salto e configure o proxy para sobrescrever os cabeçalhos de IP e a aplicação para confiar só nele.",
+      "refs": [
+        { "std": "ASVS", "id": "V15.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V15.3.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-058",
+      "title": "Tipos estritos, proteção contra poluição de protótipo e de parâmetros",
+      "summary": "O código garante o tipo das variáveis e usa comparações estritas, evita poluição de protótipo em JavaScript (por exemplo, com Map ou Set em vez de objetos literais) e se defende da poluição de parâmetros HTTP.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Revise comparações e conversões e confirme tipo verificado e comparação estrita (===, tipos explícitos). Envie '0', 0, [] e true onde se espera número ou texto e confirme a recusa. (2) Em JavaScript, envie __proto__, constructor e prototype em objetos que são mesclados e confirme que o protótipo não é alterado. (3) Envie o mesmo parâmetro repetido (a=1&a=2) em query, corpo e cabeçalho, e confirme comportamento definido e seguro. Se o projeto não usa JavaScript, registre 'não aplicável' para o item 2. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Confusão de tipos e poluição de protótipo e de parâmetros transformam entrada comum em desvio de lógica, às vezes em execução de código.",
+      "remediation": "Valide tipos na borda, use comparação estrita, prefira Map e Object.create(null) para dados externos e escolha explicitamente qual ocorrência do parâmetro vale.",
+      "refs": [
+        { "std": "ASVS", "id": "V15.3.5", "covers": "full" },
+        { "std": "ASVS", "id": "V15.3.6", "covers": "full" },
+        { "std": "ASVS", "id": "V15.3.7", "covers": "full" }
       ],
       "origin": ["L-R12"]
     }

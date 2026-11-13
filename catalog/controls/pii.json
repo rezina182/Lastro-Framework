@@ -17,7 +17,7 @@
       "remediation": "Revise o formulário campo a campo, prefira identificadores sem relação com a pessoa e evite combinar dados que, juntos, identificam.",
       "refs": [
         { "std": "ASVS", "id": "V11.7.2" },
-        { "std": "ASVS", "id": "V14.1.1" }
+        { "std": "ASVS", "id": "V14.1.1", "covers": "partial", "note": "coleta mínima de dado pessoal; a classificação completa está em CORE-050" }
       ],
       "origin": ["L-B13"]
     },
@@ -36,7 +36,7 @@
       "remediation": "Documente o prazo por categoria, agende a limpeza, use exclusão em cascata e teste que não sobra nada. Dê ao titular uma forma de pedir a exclusão.",
       "refs": [
         { "std": "ASVS", "id": "V14.2.7" },
-        { "std": "ASVS", "id": "V14.1.2" }
+        { "std": "ASVS", "id": "V14.1.2", "covers": "partial", "note": "só a retenção; ver CORE-050" }
       ],
       "origin": ["L-B04"]
     },
@@ -73,7 +73,7 @@
       "enforcement": "soft",
       "rationale": "Dados de menores têm proteção reforçada na legislação, e o responsável precisa conseguir entender o que acontece com o dado.",
       "remediation": "Escreva um aviso de poucas linhas, evite coletar dados que identifiquem a criança e documente a base legal com apoio jurídico quando o uso for amplo.",
-      "refs": [{ "std": "ASVS", "id": "V14.1.2" }],
+      "refs": [{ "std": "ASVS", "id": "V14.1.2", "covers": "partial", "note": "só o aviso de privacidade; ver CORE-050" }],
       "origin": ["L-B13"]
     }
   ]

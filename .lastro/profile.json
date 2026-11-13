@@ -12,7 +12,9 @@
     "thirdPartyAssets": false,
     "aiCodingAgents": true,
     "publicInternet": false,
-    "federatedLogin": false
+    "federatedLogin": false,
+    "tokenAuth": false,
+    "oauthProvider": false
   },
   "scan": {
     "excludePrefixes": ["verifier/test/"]
