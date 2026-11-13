@@ -336,6 +336,113 @@ function xssSinks(ctx) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// CORE: SQL montado por texto, aleatoriedade e hash fracos, segredos no código
+// Varreduras por padrão de texto, linha a linha: heurísticas. Elas pegam o comum, erram para os dois lados
+// (falso positivo e falso negativo) e não substituem revisão. As palavras-chave são montadas por partes para
+// o padrão não casar com o próprio código-fonte do verificador.
+// ---------------------------------------------------------------------------------------------
+
+const JS_EXT = ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx'];
+// Só maiúsculas, que é o jeito usual de escrever SQL: evita casar com frases comuns ("select a file from ...").
+const SQL_SHAPE = '(?:SEL' + 'ECT\\b[^"\'`]*\\bFR' + 'OM|INS' + 'ERT\\s+INTO|UPD' + 'ATE\\b[^"\'`]*\\bSET|DEL' + 'ETE\\s+FR' + 'OM)';
+const QUOTE = '["\'`]';
+const NOT_QUOTE = '[^"\'`]*';
+
+const SQL_PATTERNS = [
+  {
+    id: 'js-template', ext: JS_EXT, re: new RegExp('`[^`]*\\b' + SQL_SHAPE + '[^`]*\\$\\{'),
+    skip: (line) => /\bsql\s*`/.test(line),
+    message: 'Consulta SQL montada com interpolação de texto: risco de injeção de SQL. Use parâmetros (placeholders).',
+  },
+  {
+    id: 'concat', re: new RegExp(QUOTE + NOT_QUOTE + '\\b' + SQL_SHAPE + NOT_QUOTE + QUOTE + '\\s*\\+\\s*[\\w(]'),
+    message: 'Consulta SQL montada por concatenação com variável: risco de injeção de SQL. Use parâmetros (placeholders).',
+  },
+  {
+    id: 'py-fstring', ext: ['.py'], re: new RegExp('\\bf["\'][^"\']*\\b' + SQL_SHAPE + '[^"\']*\\{'),
+    message: 'Consulta SQL montada com f-string: risco de injeção de SQL. Use parâmetros (placeholders).',
+  },
+  {
+    id: 'py-percent', ext: ['.py'], re: new RegExp('["\'][^"\']*\\b' + SQL_SHAPE + '[^"\']*["\']\\s*%\\s*[\\w(]'),
+    message: 'Consulta SQL montada com o operador % do Python: risco de injeção de SQL. Passe os valores como parâmetros do driver.',
+  },
+  {
+    id: 'py-format', ext: ['.py'], re: new RegExp('["\'][^"\']*\\b' + SQL_SHAPE + '[^"\']*["\']\\.format\\s*\\('),
+    message: 'Consulta SQL montada com str.format: risco de injeção de SQL. Use parâmetros (placeholders).',
+  },
+  {
+    id: 'php-interpolation', ext: ['.php'], re: new RegExp('"[^"]*\\b' + SQL_SHAPE + '[^"]*\\$\\w'),
+    message: 'Consulta SQL montada com variável interpolada: risco de injeção de SQL. Use consultas preparadas.',
+  },
+];
+
+function sqlConcat(ctx) {
+  return scanPatterns(ctx, 'sql-concat', SQL_PATTERNS, 'high');
+}
+
+const SECURITY_WORDS = /token|secret|passw|senha|\bkey\b|nonce|\bsalt\b|\botp\b|csrf|session|sess\w*id|\bcode\b|c[oó]digo|apikey|api_key|reset|verif|invite|convite|uuid/i;
+const onlyWithSecurityWords = (line) => !SECURITY_WORDS.test(line);
+
+const RANDOM_PATTERNS = [
+  {
+    id: 'js-math-random', ext: JS_EXT, re: /Math\.random\s*\(/, skip: onlyWithSecurityWords,
+    message: 'Gerador pseudoaleatório do navegador (Math.random) em linha que parece gerar segredo ou token: é previsível. Use crypto.randomBytes ou crypto.randomUUID.',
+  },
+  {
+    id: 'py-random', ext: ['.py'], re: /\brandom\.(?:random|randint|choice|choices|randrange|getrandbits)\s*\(/, skip: onlyWithSecurityWords,
+    message: 'Módulo random do Python em linha que parece gerar segredo ou token: é previsível. Use o módulo secrets.',
+  },
+  {
+    id: 'java-random', ext: ['.java'], re: /\bnew\s+Random\s*\(/, skip: onlyWithSecurityWords,
+    message: 'java.util.Random em linha que parece gerar segredo ou token: é previsível. Use SecureRandom.',
+  },
+  {
+    id: 'php-rand', ext: ['.php'], re: /\b(?:mt_rand|rand)\s*\(/, skip: onlyWithSecurityWords,
+    message: 'rand ou mt_rand em linha que parece gerar segredo ou token: é previsível. Use random_bytes ou random_int.',
+  },
+];
+
+function weakRandom(ctx) {
+  return scanPatterns(ctx, 'weak-random', RANDOM_PATTERNS, 'medium');
+}
+
+const WEAK_HASH_MESSAGE = 'Função de hash fraca (MD5 ou SHA-1). Para fim criptográfico use SHA-256 ou superior; para senha, Argon2id ou scrypt. Para checksum sem fim de segurança, justifique com lastro-ignore.';
+const HASH_PATTERNS = [
+  { id: 'node-hash', ext: JS_EXT, re: /create(?:Hash|Hmac)\s*\(\s*['"`](?:md5|sha-?1)['"`]/i, message: WEAK_HASH_MESSAGE },
+  { id: 'py-hashlib', ext: ['.py'], re: /hashlib\.(?:md5|sha1)\s*\(|hashlib\.new\s*\(\s*['"](?:md5|sha-?1)['"]/i, message: WEAK_HASH_MESSAGE },
+  { id: 'java-digest', ext: ['.java'], re: /MessageDigest\.getInstance\s*\(\s*"(?:MD5|SHA-?1)"/i, message: WEAK_HASH_MESSAGE },
+  { id: 'php-hash', ext: ['.php'], re: /\b(?:md5|sha1)\s*\(/, message: WEAK_HASH_MESSAGE },
+  { id: 'go-hash', ext: ['.go'], re: /"crypto\/(?:md5|sha1)"/, message: WEAK_HASH_MESSAGE },
+  { id: 'cs-hash', ext: ['.cs'], re: /\b(?:MD5|SHA1)\.Create\s*\(|new\s+(?:MD5|SHA1)CryptoServiceProvider/, message: WEAK_HASH_MESSAGE },
+  { id: 'ruby-digest', ext: ['.rb'], re: /Digest::(?:MD5|SHA1)\b/, message: WEAK_HASH_MESSAGE },
+];
+
+function weakHash(ctx) {
+  return scanPatterns(ctx, 'weak-hash', HASH_PATTERNS, 'medium');
+}
+
+const SECRET_PLACEHOLDER = /example|changeme|change-me|placeholder|your[_-]?|xxx|\*{3}|dummy|sample|todo|fake|test|<|>|\$\{|%\(|\{\{/i;
+const SECRET_FORMATS = [
+  { id: 'private-key', re: new RegExp('-----BEGIN ' + '(?:[A-Z]+ )*PRIVATE KEY-----'), severity: 'high', message: 'Bloco de chave privada no código-fonte.' },
+  { id: 'aws-key', re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/, severity: 'high', message: 'Padrão de chave de acesso da AWS no código-fonte.' },
+  { id: 'github-token', re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/, severity: 'high', message: 'Padrão de token do GitHub no código-fonte.' },
+  { id: 'slack-token', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/, severity: 'high', message: 'Padrão de token do Slack no código-fonte.' },
+  { id: 'stripe-live', re: /\bsk_live_[0-9A-Za-z]{16,}\b/, severity: 'high', message: 'Padrão de chave secreta de produção do Stripe no código-fonte.' },
+  { id: 'google-api-key', re: /\bAIza[0-9A-Za-z_-]{35}\b/, severity: 'high', message: 'Padrão de chave de API do Google no código-fonte.' },
+  {
+    id: 'generic-assignment',
+    re: /\b(?:password|passwd|pwd|senha|secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)\w*\s*[:=]\s*(["'`])([^"'`\s]{8,})\1/i,
+    severity: 'medium',
+    skip: (line, m) => !/[A-Za-z]/.test(m[2]) || !/\d/.test(m[2]) || SECRET_PLACEHOLDER.test(m[2]) || /process\.env|os\.environ|getenv|ENV\[/.test(line),
+    message: 'Valor literal atribuído a um nome que parece segredo (senha, chave, token). Leia de variável de ambiente ou de um cofre.',
+  },
+];
+
+function hardcodedSecrets(ctx) {
+  return scanPatterns(ctx, 'hardcoded-secrets', SECRET_FORMATS, 'high');
+}
+
+// ---------------------------------------------------------------------------------------------
 // ASSETS: proveniência e licença
 // ---------------------------------------------------------------------------------------------
 
@@ -562,6 +669,10 @@ module.exports = {
     'repo.code.tls-verification': tlsVerification,
     'repo.code.dynamic-eval': dynamicEval,
     'repo.code.xss-sinks': xssSinks,
+    'repo.code.sql-concat': sqlConcat,
+    'repo.code.weak-random': weakRandom,
+    'repo.code.weak-hash': weakHash,
+    'repo.code.hardcoded-secrets': hardcodedSecrets,
     'repo.assets.provenance': assetsProvenance,
     'repo.agent.hidden-unicode': hiddenUnicode,
     'repo.agent.codeowners': codeowners,

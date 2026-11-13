@@ -238,3 +238,111 @@ test('hooks-offline: hook com rede falha; hook local passa', async () => {
   await withProject({ '.kiro/hooks/a.json': '{"command":"npm test"}' }, 'repo.agent.hooks-offline', (r) => assert.equal(r.state, 'verified'));
   await withProject({ 'a.txt': 'x' }, 'repo.agent.hooks-offline', (r) => assert.equal(r.state, 'verified'));
 });
+
+// --- varreduras estáticas: SQL, aleatoriedade, hash e segredos ---------------------------------
+// As iscas são montadas por partes para o scanner de segredos do CI não acusar este arquivo de teste.
+const P = (...parts) => parts.join('');
+const SQL_SEL = P('SEL', 'ECT * FR', 'OM users WHERE id = ');
+
+test('sql-concat: concatenação, template, f-string, %, format e PHP são achados de severidade alta', async () => {
+  const casos = {
+    'a.js': `db.query("${SQL_SEL}" + req.params.id);\n`,
+    'b.ts': `db.query(\`${SQL_SEL}\${id}\`);\n`,
+    'c.py': `cur.execute(f"${SQL_SEL}{uid}")\n`,
+    'd.py': `cur.execute("${SQL_SEL}%s" % uid)\n`,
+    'e.py': `q = "${SQL_SEL}{}".format(uid)\n`,
+    'f.php': `$q = "${SQL_SEL}$id";\n`,
+  };
+  for (const [file, content] of Object.entries(casos)) {
+    await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => {
+      assert.equal(r.state, 'failed', file);
+      assert.equal(r.findings[0].severity, 'high', file);
+      assert.equal(r.findings[0].location, `${file}:1`);
+    });
+  }
+});
+
+test('sql-concat: consulta parametrizada, tag de template, texto comum, SQL partido e minúsculas não são achados', async () => {
+  const ok = {
+    'a.js': `db.query("${SQL_SEL}$1", [id]);\n`,
+    'b.js': `const r = await sql\`${SQL_SEL}\${id}\`;\n`,
+    'c.js': 'const msg = `Select a file from ${dir}`;\n',
+    'd.js': `const q = "${SQL_SEL}$1" + " AND ativo = $2";\n`,
+    'e.js': 'db.query("select * from users where id = " + id);\n',
+  };
+  for (const [file, content] of Object.entries(ok)) {
+    await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified', `${file}: ${JSON.stringify(r.findings)}`));
+  }
+  const sup = `db.query("${SQL_SEL}" + id); // lastro-ignore sql-concat: id interno vindo de enum fixo\n`;
+  await withProject({ 'a.js': sup }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'));
+});
+
+test('weak-random: só acusa quando a linha parece gerar segredo, token ou código', async () => {
+  await withProject({ 'a.js': 'const token = Math.random().toString(36);\n' }, 'repo.code.weak-random', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'medium');
+  });
+  await withProject({ 'a.py': 'token = random.choice(chars)\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'failed'));
+  await withProject({ 'a.php': '$code = mt_rand(1000, 9999);\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'failed'));
+  await withProject({ 'A.java': 'int resetCode = new Random().nextInt();\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'failed'));
+  await withProject({ 'a.js': 'const x = Math.random() * 100;\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'verified'));
+  await withProject({ 'a.py': 'token = secrets.token_hex(16)\nsalt = os.urandom(16)\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'verified'));
+  await withProject({ 'a.js': 'const token = Math.random(); // lastro-ignore weak-random: chave de animação, não é segredo\n' }, 'repo.code.weak-random', (r) => assert.equal(r.state, 'verified'));
+});
+
+test('weak-hash: MD5 e SHA-1 são achados em várias linguagens; SHA-256 não', async () => {
+  const ruins = {
+    'a.js': "crypto.createHash('md5').update(x);\n",
+    'b.js': "crypto.createHmac('sha1', key);\n",
+    'c.py': 'h = hashlib.md5(data)\n',
+    'D.java': 'MessageDigest.getInstance("SHA-1");\n',
+    'e.php': '$h = md5($senha);\n',
+    'f.go': 'import "crypto/sha1"\n',
+    'G.cs': 'using var h = MD5.Create();\n',
+    'h.rb': 'Digest::MD5.hexdigest(x)\n',
+  };
+  for (const [file, content] of Object.entries(ruins)) {
+    await withProject({ [file]: content }, 'repo.code.weak-hash', (r) => assert.equal(r.state, 'failed', file));
+  }
+  await withProject({ 'a.js': "crypto.createHash('sha256').update(x);\n", 'b.py': 'hashlib.sha256(x)\n' }, 'repo.code.weak-hash', (r) => assert.equal(r.state, 'verified'));
+  await withProject({ 'a.js': "crypto.createHash('md5').update(x); // lastro-ignore weak-hash: checksum de cache, sem fim de segurança\n" }, 'repo.code.weak-hash', (r) => assert.equal(r.state, 'verified'));
+});
+
+test('hardcoded-secrets: formatos conhecidos são alta; atribuição literal é média; placeholders e variáveis de ambiente passam', async () => {
+  const conhecidos = {
+    'a.js': `const k = \`${P('-----BEGIN ', 'RSA PRIVATE KEY-----')}\`;\n`,
+    'b.js': `const a = "${P('AKIA', 'ABCDEFGHIJKLMNOP')}";\n`,
+    'c.py': `t = "${P('ghp', '_', 'a'.repeat(36))}"\n`,
+    'd.js': `const s = "${P('sk_', 'live_', 'abcdefghijklmnopqrstuvwx')}";\n`,
+  };
+  for (const [file, content] of Object.entries(conhecidos)) {
+    await withProject({ [file]: content }, 'repo.code.hardcoded-secrets', (r) => {
+      assert.equal(r.state, 'failed', file);
+      assert.equal(r.findings[0].severity, 'high', file);
+    });
+  }
+  await withProject({ 'a.js': `${P('const pass', 'word = "Sup3r', 'Segredo99";')}\n` }, 'repo.code.hardcoded-secrets', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'medium');
+    assert.ok(!r.findings[0].message.includes('Sup3r'), 'o achado nunca repete o valor do segredo');
+  });
+  const ok = [
+    'const password = "changeme123";\n',
+    'const label = "Password1234";\n',
+    'const secret = "12345678";\n',
+    'const api_key = "<sua-chave-123>";\n',
+    'const password = process.env.DB_PASSWORD || "abc12345def";\n',
+    'const token = process.env.TOKEN;\n',
+  ];
+  for (const content of ok) {
+    await withProject({ 'a.js': content }, 'repo.code.hardcoded-secrets', (r) => assert.equal(r.state, 'verified', `${content.trim()}: ${JSON.stringify(r.findings)}`));
+  }
+  await withProject({ 'a.js': `${P('const pass', 'word = "Sup3r', 'Segredo99"; // lastro-ignore hardcoded-secrets: valor de exemplo da documentação')}\n` }, 'repo.code.hardcoded-secrets', (r) => assert.equal(r.state, 'verified'));
+});
+
+test('varreduras estáticas ignoram pastas excluídas no perfil e arquivos que não são código', async () => {
+  const profile = { schemaVersion: 1, name: 't', flags: {}, scan: { excludePrefixes: ['fixtures/'] } };
+  const sql = `db.query("${SQL_SEL}" + id);\n`;
+  await withProject({ 'fixtures/a.js': sql }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'), { profile });
+  await withProject({ 'README.md': sql, 'dados.json': '{"x": 1}\n' }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'));
+});

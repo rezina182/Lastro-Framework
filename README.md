@@ -4,7 +4,7 @@
 
 Um framework neutro de ciclo de vida seguro para desenvolvimento assistido por IA. Ele junta três coisas:
 
-1. Um **catálogo de controles** (150 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
+1. Um **catálogo de controles** (154 na v0.1) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
 2. Um **verificador sem dependências** (Node) que checa o repositório e, opcionalmente, a aplicação em execução, e dá um veredito.
 3. Um **processo**: modelo de ameaças, adoção em aplicações existentes (análise de lacunas, backlog P0 a P3) e registro de risco aceito com dono e validade.
 

@@ -15,7 +15,7 @@
 
 1. Feito: amostragem de várias respostas nas sondas de cabeçalho.
 2. Feito: trava das verificações dinâmicas (aviso, staging confirmado, intervalo e teto de requisições).
-3. Varreduras estáticas novas (SQL por concatenação, aleatoriedade e hash fracos, segredos no código, rotas sem checagem de autorização) para V1, V8, V11 e V13. Rodam em cada PR e não tocam a aplicação.
+3. Feito: varreduras estáticas de SQL por concatenação, aleatoriedade e hash fracos e segredos no código (V1, V11 e V13). Rodam em cada PR e não tocam a aplicação. Fica de fora a detecção de rotas sem checagem de autorização (V8): ela depende do framework e uma heurística de texto genérica daria falsa sensação de segurança. Entra como análise por framework (começando pelo Express), ou não entra.
 4. Aplicar o kit em um app real e comparar com o que o ASVS já corrigiu nele.
 5. Opcional: sonda de TLS e outras sondas dinâmicas, sempre atrás da mesma trava das ativas e nunca automáticas. Só se houver demanda real.
 

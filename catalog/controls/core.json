@@ -1098,6 +1098,76 @@
         { "std": "ASVS", "id": "V15.3.7", "covers": "full" }
       ],
       "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-059",
+      "title": "Sem SQL montado por concatenação ou interpolação (varredura estática)",
+      "summary": "O código não monta consultas SQL por concatenação, interpolação ou formatação de texto com variáveis. Os valores vão como parâmetros do driver ou do ORM.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "automated", "id": "repo.code.sql-concat" },
+      "enforcement": "hard",
+      "rationale": "Texto de SQL montado com dados externos é a porta da injeção de SQL. É um padrão que o código gerado por IA repete, porque funciona no teste feliz.",
+      "remediation": "Troque por consulta parametrizada (placeholders $1, ? ou nomeados) ou use o ORM. O que não pode ser parâmetro, como nome de coluna e de ordenação, deve vir de uma lista fixa. Casos justificados: 'lastro-ignore sql-concat: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.4", "covers": "partial", "note": "varredura por texto, linha a linha: não vê SQL montado em várias linhas, em outro arquivo ou com palavras em minúsculas; o roteiro completo está em CORE-031" },
+        { "std": "SSDF", "id": "PW.5.1" }
+      ],
+      "origin": ["L-R07"]
+    },
+    {
+      "id": "CORE-060",
+      "title": "Sem aleatoriedade previsível para segredos e tokens (varredura estática)",
+      "summary": "O código não usa geradores pseudoaleatórios comuns (Math.random, random do Python, Random do Java, rand do PHP) em linhas que geram tokens, códigos, senhas ou chaves.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "automated", "id": "repo.code.weak-random" },
+      "enforcement": "soft",
+      "rationale": "Valores gerados por um gerador previsível podem ser adivinhados por quem observa algumas saídas. Um token de redefinição de senha assim vira uma conta tomada.",
+      "remediation": "Use o gerador criptográfico da plataforma: crypto.randomBytes ou crypto.randomUUID (Node), secrets (Python), SecureRandom (Java), random_bytes (PHP). Se o valor não é um segredo, justifique com 'lastro-ignore weak-random: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.5.1", "covers": "partial", "note": "só olha linhas com palavras como token, secret ou code; não vê a geração feita em várias linhas; o roteiro completo está em CORE-047" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-061",
+      "title": "Sem MD5 nem SHA-1 em uso criptográfico (varredura estática)",
+      "summary": "O código não usa as funções de hash MD5 e SHA-1. Para fim criptográfico usa-se SHA-256 ou superior, e para senhas, Argon2id, scrypt ou equivalente.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "automated", "id": "repo.code.weak-hash" },
+      "enforcement": "soft",
+      "rationale": "MD5 e SHA-1 têm colisões conhecidas e são rápidos demais para proteger senhas. A varredura não distingue checksum de arquivo (aceitável) de uso criptográfico, por isso cada achado pede uma decisão.",
+      "remediation": "Troque por SHA-256 ou superior, HMAC com chave para autenticar mensagens e Argon2id ou scrypt para senhas. Para checksum sem fim de segurança, justifique com 'lastro-ignore weak-hash: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V11.4.1", "covers": "partial", "note": "detecta o uso das funções, não o propósito; o roteiro completo está em CORE-046" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-062",
+      "title": "Sem segredo literal no código-fonte (varredura estática)",
+      "summary": "O código-fonte não contém chaves privadas, chaves de acesso de provedores conhecidos nem valores literais atribuídos a nomes como senha, secret, api key ou token.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build"],
+      "check": { "type": "automated", "id": "repo.code.hardcoded-secrets" },
+      "enforcement": "hard",
+      "rationale": "Segredo no código vai para o histórico do Git, para a imagem e para a cópia de cada pessoa e de cada agente de IA. A varredura do CI (CORE-003) é a rede de proteção do histórico; esta pega o problema antes do commit.",
+      "remediation": "Tire o segredo do código, leia-o do ambiente ou de um cofre e, se já foi commitado, rotacione-o. Falsos positivos (valor de exemplo) podem ser justificados com 'lastro-ignore hardcoded-secrets: motivo'.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.3.1", "covers": "partial", "note": "só código-fonte, com formatos conhecidos e atribuições literais; o escopo completo está em CORE-022 e CORE-003" },
+        { "std": "SSDF", "id": "PW.5.1" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }
