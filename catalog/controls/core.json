@@ -139,7 +139,8 @@
       "rationale": "Execução dinâmica transforma entrada do usuário em código ou comando (CWE-94 e CWE-78). A literatura aponta essas falhas como comuns em código gerado por IA.",
       "remediation": "Troque por APIs seguras: chamada de processo com lista de argumentos e sem shell, parser de dados em vez de eval. Em caso inevitável, justifique com 'lastro-ignore dynamic-eval: motivo'.",
       "refs": [
-        { "std": "ASVS", "id": "V1.2.5" },
+        { "std": "ASVS", "id": "V1.2.5", "covers": "partial", "note": "detecta shell ligado e os.system; ver CORE-032" },
+        { "std": "ASVS", "id": "V1.3.2", "covers": "partial", "note": "detecta eval, Function e exec em linguagens comuns; ver CORE-037" },
         { "std": "SSDF", "id": "PW.5.1" }
       ],
       "origin": ["L-R07"]
@@ -157,7 +158,7 @@
       "rationale": "Escrever HTML a partir de dados externos é a principal porta do XSS. Sem isso, a CSP estrita (sem unsafe-inline) passa a ser viável.",
       "remediation": "Monte elementos com createElement e textContent. Atribuições de texto literal são aceitas. Para casos justificados, use 'lastro-ignore xss-sinks: motivo'.",
       "refs": [
-        { "std": "ASVS", "id": "V1.2.1" },
+        { "std": "ASVS", "id": "V1.2.1", "covers": "partial", "note": "detecta só atribuições como innerHTML; ver CORE-030" },
         { "std": "SSDF", "id": "PW.5.1" }
       ],
       "origin": ["L-R07"]
@@ -514,6 +515,278 @@
       "refs": [
         { "std": "ASVS", "id": "V16.2.5", "covers": "full" },
         { "std": "ASVS", "id": "V16.4.1", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-029",
+      "title": "Decodificação única e codificação de saída como último passo",
+      "summary": "A entrada é decodificada para a forma canônica uma só vez, apenas quando se espera aquele formato e antes de qualquer validação. A codificação ou o escape de saída acontece como último passo antes do interpretador de destino (ou pelo próprio interpretador).",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["design", "build"],
+      "check": { "type": "manual" },
+      "howToVerify": "Siga o caminho de uma entrada pelo código e confirme: (1) a decodificação ocorre uma vez, antes da validação, e não depois; (2) nada é decodificado em dobro (envie %2527 e &amp;lt; e confirme que o valor final tem só uma camada decodificada); (3) a codificação de saída é a última etapa antes do HTML, SQL, comando ou outro interpretador, sem transformação depois dela; (4) dado codificado em campo que não o espera (por exemplo %3Cscript%3E em um campo de texto simples) não é decodificado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Decodificar depois de validar, ou duas vezes, deixa passar o que a validação deveria barrar. Codificar cedo demais e transformar depois desfaz a proteção.",
+      "remediation": "Centralize a decodificação na borda de entrada, valide só a forma canônica e use funções de saída específicas do contexto no ponto de uso.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V1.1.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-030",
+      "title": "Saída codificada conforme o contexto: HTML, URL e JavaScript",
+      "summary": "Todo dado não confiável é codificado conforme o contexto de saída (elemento HTML, atributo, comentário, CSS, cabeçalho HTTP, XML). URLs montadas dinamicamente usam codificação adequada e só protocolos seguros, e conteúdo JavaScript e JSON dinâmicos são escapados.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Envie por cada campo de entrada valores de teste para cada contexto: <script>, ><img src=x onerror=alert(1)>, ' onmouseover=alert(1), </style>, quebra de linha em valores que vão a cabeçalho, javascript:alert(1) e data:text/html em campos de URL, e </script> dentro de dados que vão para JSON embutido na página. Envie também --><script> em valor que vai para comentário HTML, ]]> e < em respostas XML, e &, #, ? e ../ em valores que entram em query ou caminho de URL, confirmando o percent-encoding. Confirme que cada um aparece como texto inerte, sem executar nem mudar a estrutura. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "O mesmo texto é seguro em um contexto e perigoso em outro. Sem a codificação certa para cada destino, entrada do usuário vira código ou muda a estrutura do documento.",
+      "remediation": "Use o mecanismo de template com escape automático por contexto, funções de codificação de URL e de JSON para os demais casos, e aceite apenas protocolos http e https em links vindos de usuários.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V1.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V1.2.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-031",
+      "title": "Consultas ao banco parametrizadas",
+      "summary": "Toda consulta ao banco (SQL, NoSQL, HQL, Cypher, procedimentos armazenados) usa parâmetros, ORM ou proteção equivalente, e nenhum dado externo é concatenado na consulta.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "critical",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Procure no código consultas montadas por concatenação ou por template de texto com dados externos. Envie em campos de busca, filtro, ordenação e parâmetros de URL os valores ' OR '1'='1 e '; DROP TABLE x;-- e, em bancos de documentos, objetos como {$ne: null}. Confirme que são tratados como dado e não alteram a consulta, e que há teste automatizado nas rotas que filtram ou ordenam. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Injeção em banco expõe ou destrói todos os dados da aplicação. É uma das falhas mais antigas e ainda das mais danosas.",
+      "remediation": "Use consultas parametrizadas ou o ORM, valide o que não pode ser parâmetro (nomes de coluna e de ordenação) contra lista fixa e dê à aplicação uma conta de banco sem privilégio administrativo.",
+      "refs": [{ "std": "ASVS", "id": "V1.2.4", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-032",
+      "title": "Chamadas ao sistema operacional sem injeção de comando",
+      "summary": "Quando a aplicação precisa chamar o sistema operacional, usa chamadas parametrizadas (lista de argumentos, sem shell) ou codificação de linha de comando adequada ao contexto, e nenhum dado externo vira parte do comando.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Liste todos os pontos que executam processos. Em cada um, envie nos dados que alimentam o comando os valores ; id, && whoami, $(id), `id` e | cat /etc/passwd, e confirme que são tratados como argumento literal. Confirme que não há uso de shell com concatenação e rode também a verificação automática CORE-008. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Injeção de comando dá ao atacante controle do servidor. A verificação automática pega os padrões comuns, mas não todos os caminhos.",
+      "remediation": "Chame o processo com lista de argumentos e sem shell, valide os argumentos contra lista permitida e evite executar programas externos quando houver biblioteca.",
+      "refs": [{ "std": "ASVS", "id": "V1.2.5", "covers": "full" }],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-033",
+      "title": "Injeção em LDAP, XPath e JNDI",
+      "summary": "Se a aplicação usa LDAP, XPath ou JNDI, a entrada externa é parametrizada ou sanitizada, e o JNDI é configurado de forma segura contra injeção.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada tecnologia em uso: LDAP, envie *)(uid=*))(|(uid=* em campos de busca e confirme que vira texto; XPath, envie ' or '1'='1 e confirme o uso de consulta parametrizada ou pré-compilada; JNDI, confirme que o nome vem de lista fixa e que o carregamento remoto de classes está desativado. Se nenhuma está em uso, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Cada interpretador tem seus caracteres especiais. A injeção em diretório ou em consulta de nomes dá acesso a contas e, no JNDI, execução remota de código.",
+      "remediation": "Use filtros e consultas parametrizados, escape os caracteres especiais do interpretador e desative o carregamento remoto no JNDI.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.6", "covers": "full" },
+        { "std": "ASVS", "id": "V1.2.7", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.8", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-034",
+      "title": "Injeção em LaTeX, memcache, e-mail, formatação e expressões regulares",
+      "summary": "Onde existirem, processadores LaTeX rodam sem shell-escape e com lista de comandos permitidos. Conteúdo enviado ao memcache e aos sistemas de e-mail (SMTP e IMAP) é sanitizado, strings de formatação perigosas são tratadas e caracteres especiais de expressões regulares são escapados.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada recurso em uso: LaTeX, confirme shell-escape desligado e só comandos da lista; memcache, envie quebras de linha e comandos no valor e confirme que não são interpretados; e-mail, envie CRLF e cabeçalhos extras (Bcc:) em assunto e destinatário e, em buscas IMAP, aspas e CRLF nos termos, e confirme que não são injetados; formatação, envie %s %n {0} em valores usados como formato; regex, envie .* e ( em valores usados como padrão e confirme o escape. Sem nenhum desses recursos, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "São interpretadores menos lembrados, mas com o mesmo problema: dado externo que vira instrução. E-mail injetado serve para spam e phishing com o seu domínio.",
+      "remediation": "Escape ou remova os caracteres de controle de cada interpretador, use bibliotecas de e-mail que tratam cabeçalhos e nunca use entrada externa como string de formato.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.2.8", "covers": "full" },
+        { "std": "ASVS", "id": "V1.2.9", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.9", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.10", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.11", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-035",
+      "title": "Sanitização de HTML, SVG e conteúdo com linguagem de marcação",
+      "summary": "Todo HTML não confiável (editores, comentários) passa por uma biblioteca de sanitização reconhecida. SVG enviado por usuários só mantém tags e atributos seguros, e conteúdo com linguagem de marcação ou de modelo (Markdown, CSS, XSL, BBCode) é sanitizado ou desativado.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Em cada editor ou campo rico, envie <script>alert(1)</script>, <img src=x onerror=alert(1)>, <a href=javascript:alert(1)>, um SVG com <script> e <foreignObject>, um Markdown com HTML e links javascript:, e um CSS ou XSL com expressões. Confirme que o conteúdo sai inerte e que a sanitização é feita por biblioteca conhecida, não por regex próprio. Sem esses recursos, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Campos ricos aceitam marcação de propósito, e é exatamente por onde o script entra. Sanitizadores caseiros costumam ser contornados.",
+      "remediation": "Use uma biblioteca de sanitização mantida, com lista de tags e atributos permitidos, e combine com CSP estrita. Desative recursos de modelo e expressões em conteúdo de usuário.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.4", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.5", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-036",
+      "title": "SSRF e injeção de modelo (template)",
+      "summary": "Dados externos usados para chamar outro serviço são validados contra lista de protocolos, domínios, caminhos e portas, e modelos (templates) nunca são montados a partir de entrada não confiável.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Em cada função que busca uma URL informada pelo usuário (importar, pré-visualizar, webhook), envie http://127.0.0.1, http://169.254.169.254, file:///etc/passwd, gopher:// e ftp://, um domínio fora da lista, um host permitido com porta não permitida (https://host-permitido:22), um caminho fora da lista e um redirecionamento de host permitido para host interno, e confirme a recusa de todos. (2) Em cada motor de modelos, envie {{7*7}} e ${7*7} e confirme que o texto sai literal e que o modelo em si não é montado com dado externo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "SSRF usa o servidor como ponte para a rede interna e para metadados de nuvem. Injeção de modelo costuma terminar em execução de código.",
+      "remediation": "Valide a URL contra lista permitida, resolva e confira o endereço final, bloqueie faixas internas e passe sempre dados como variáveis do modelo, nunca como parte dele.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.3.6", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.7", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-037",
+      "title": "Sem execução dinâmica de código e dado perigoso sanitizado antes do uso",
+      "summary": "A aplicação evita eval e execução dinâmica equivalente (inclusive linguagens de expressão), e qualquer dado repassado a um contexto perigoso é sanitizado antes: só caracteres seguros para o contexto e limite de tamanho.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Rode a verificação automática CORE-008 e revise à mão as expressões dinâmicas que ela não alcança (linguagens de expressão, motores de regra). Nos casos inevitáveis, envie entradas com caracteres de controle, aspas e tamanho excessivo e confirme que são filtradas ou recusadas antes de chegar ao contexto perigoso. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Execução dinâmica transforma texto em código. A varredura automática cobre os padrões comuns, mas linguagens de expressão passam despercebidas.",
+      "remediation": "Troque por APIs específicas, aceite só caracteres seguros para o contexto, limite o tamanho e isole a execução quando for inevitável.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.3", "covers": "partial", "note": "só expressões dinâmicas inevitáveis; o caso geral está em CORE-041" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-038",
+      "title": "Segurança de memória em código não gerenciado",
+      "summary": "Em código sem gerenciamento de memória (C, C++, bibliotecas nativas), usa-se manipulação segura de strings e cópias, validação de sinal e intervalo contra estouro de inteiro, e liberação correta de recursos, sem ponteiros soltos.",
+      "pack": "core",
+      "tier": 2,
+      "severity": "medium",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Se há código nativo: rode análise estática e compilador com avisos máximos, ferramentas de sanitização (AddressSanitizer, UBSan) nos testes e fuzzing das entradas externas, e revise cópias de memória, aritmética de ponteiros e liberação. Se a aplicação usa só linguagens com memória gerenciada, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Erros de memória levam a execução de código e vazamento de dados. Em linguagens gerenciadas o risco é bem menor, mas bibliotecas nativas voltam a trazê-lo.",
+      "remediation": "Prefira linguagens com memória gerenciada, use as variantes seguras de cópia e de string, valide intervalos e rode sanitizadores e fuzzing no CI.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.4.1", "covers": "full" },
+        { "std": "ASVS", "id": "V1.4.2", "covers": "full" },
+        { "std": "ASVS", "id": "V1.4.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-039",
+      "title": "Desserialização e XML seguros",
+      "summary": "Parsers XML são configurados de forma restritiva (sem entidades externas), e a desserialização de dados não confiáveis usa lista de tipos permitidos, sem mecanismos reconhecidamente inseguros.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Envie um XML com entidade externa (DOCTYPE com SYSTEM apontando para um arquivo local) e confirme que não é resolvida. (2) Liste os pontos que desserializam dados externos e confirme que usam formatos simples (JSON) ou lista de tipos permitidos, sem pickle, serialização nativa de objetos ou equivalentes inseguros. (3) Envie objeto com tipo inesperado e confirme a recusa. Sem XML nem desserialização de objetos, registre a atestação com a nota 'não aplicável' e o motivo. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "XXE lê arquivos e faz requisições internas. Desserialização insegura permite executar código com um objeto montado pelo atacante.",
+      "remediation": "Desative DTD e entidades externas, prefira JSON com esquema e, se precisar desserializar objetos, aceite apenas tipos de uma lista fixa.",
+      "refs": [
+        { "std": "ASVS", "id": "V1.5.1", "covers": "full" },
+        { "std": "ASVS", "id": "V1.5.2", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-040",
+      "title": "Regras de validação e de lógica de negócio documentadas",
+      "summary": "A documentação define as regras de validação de cada tipo de dado, a consistência entre dados combinados e os limites de negócio, por usuário e globais.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["design"],
+      "check": { "type": "manual" },
+      "howToVerify": "Abra a documentação e confirme: regras de formato (e-mail, telefone, formatos internos), consistência entre campos combinados e limites de negócio por usuário e globais (itens por pedido, valor máximo). Escolha três regras e compare com o comportamento real. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Regra que não está escrita não pode ser testada. Cada tela e cada rota acabam validando de um jeito, e as brechas aparecem nas diferenças.",
+      "remediation": "Escreva as regras em um só lugar, referencie-as nos testes de CORE-041 e CORE-042 e revise a cada nova funcionalidade.",
+      "refs": [
+        { "std": "ASVS", "id": "V2.1.1", "covers": "full" },
+        { "std": "ASVS", "id": "V2.1.2", "covers": "full" },
+        { "std": "ASVS", "id": "V2.1.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-041",
+      "title": "Validação de entrada no servidor com lista de permissão",
+      "summary": "Toda entrada é validada no servidor por lista de valores, padrões e intervalos permitidos (ou contra estrutura e limites esperados), combinações de campos relacionados são conferidas, e a validação do cliente nunca é a única proteção.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "Para cada rota que recebe dados, envie tipos errados, valores fora do intervalo, campos faltando, campos extras e combinações incoerentes, e confirme a recusa pelo servidor. Chame a API sem passar pela interface e confirme que as mesmas regras valem. Onde o dado chega a um contexto perigoso (consulta, comando, modelo, caminho de arquivo, e-mail), envie caracteres fora do conjunto seguro e tamanho excessivo e confirme que são filtrados ou recusados antes. Cubra com teste automatizado. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Validar só no navegador é validar para quem é honesto. O servidor é a única fronteira que o atacante não controla.",
+      "remediation": "Use um esquema de validação por rota (lista de campos, tipos, intervalos e tamanhos), rejeite campos desconhecidos e valide as combinações de campos no servidor.",
+      "refs": [
+        { "std": "ASVS", "id": "V2.2.1", "covers": "full" },
+        { "std": "ASVS", "id": "V2.2.2", "covers": "full" },
+        { "std": "ASVS", "id": "V2.2.3", "covers": "full" },
+        { "std": "ASVS", "id": "V1.3.3", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "CORE-042",
+      "title": "Fluxos de negócio em ordem, com limites, transações e bloqueio de recursos limitados",
+      "summary": "Os fluxos de negócio só avançam na ordem prevista e sem pular etapas, os limites de negócio documentados são aplicados, as operações são atômicas (tudo ou nada) e recursos de quantidade limitada têm bloqueio contra reserva dupla.",
+      "pack": "core",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Chame direto a última etapa de um fluxo de várias etapas, sem passar pelas anteriores, e confirme a recusa. (2) Ultrapasse cada limite de negócio documentado e confirme a recusa. (3) Provoque falha no meio de uma operação e confirme que nada fica pela metade. (4) Dispare duas reservas simultâneas do mesmo recurso limitado e confirme que só uma vence. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "Falhas de lógica de negócio não aparecem em varredura: o atacante usa as funções legítimas fora de ordem, em excesso ou em paralelo.",
+      "remediation": "Guarde o estado do fluxo no servidor e valide a transição, aplique os limites no servidor, use transações e bloqueios (ou restrições únicas) no banco e escreva testes de concorrência.",
+      "refs": [
+        { "std": "ASVS", "id": "V2.3.1", "covers": "full" },
+        { "std": "ASVS", "id": "V2.3.2", "covers": "full" },
+        { "std": "ASVS", "id": "V2.3.3", "covers": "full" },
+        { "std": "ASVS", "id": "V2.3.4", "covers": "full" }
       ],
       "origin": ["L-R12"]
     }

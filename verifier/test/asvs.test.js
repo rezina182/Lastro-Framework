@@ -157,10 +157,10 @@ test('V6 (autenticação) e V7 (sessão) estão totalmente classificados até L2
   assert.equal(cov.byChapter.V7.total, 18);
 });
 
-test('V3, V5, V8, V13 e V16 estão classificados até L2: nenhum requisito sem controle nem sem classificação', () => {
+test('V1 a V8, V13 e V16 estão classificados até L2: nenhum requisito sem controle nem sem classificação', () => {
   const cat = loadCatalog();
   const cov = A.coverage(cat.controls, cat.asvsMap, { level: 2 });
-  const expected = { V3: 19, V5: 9, V8: 7, V13: 13, V16: 16 };
+  const expected = { V1: 27, V2: 11, V3: 19, V4: 10, V5: 9, V8: 7, V13: 13, V16: 16 };
   for (const [ch, total] of Object.entries(expected)) {
     const b = cov.byChapter[ch];
     assert.equal(b.total, total, `${ch}: total`);

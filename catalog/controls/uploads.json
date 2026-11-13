@@ -53,7 +53,7 @@
       "enforcement": "soft",
       "rationale": "Sem cota, uma única conta pode ocupar o banco ou o disco inteiro e gerar custo ou indisponibilidade.",
       "remediation": "Conte o espaço usado por usuário, recuse acima do limite com mensagem clara e monitore o consumo total.",
-      "refs": [{ "std": "ASVS", "id": "V2.4.1" }],
+      "refs": [{ "std": "ASVS", "id": "V2.4.1", "covers": "partial", "note": "só a cota de upload; ver WEB-017" }],
       "origin": ["L-B05"]
     },
     {

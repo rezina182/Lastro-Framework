@@ -52,6 +52,27 @@
         { "std": "ASVS", "id": "V14.2.7" }
       ],
       "origin": ["L-B04"]
+    },
+    {
+      "id": "RT-004",
+      "title": "WebSocket: TLS, origem verificada e token de sessão próprio",
+      "summary": "Conexões WebSocket usam WSS, o cabeçalho Origin do handshake é conferido contra uma lista de origens permitidas e, quando a sessão padrão não pode ser usada, tokens dedicados cumprem os requisitos de sessão e são obtidos ou validados a partir da sessão HTTPS já autenticada.",
+      "pack": "realtime",
+      "tier": 1,
+      "severity": "high",
+      "phase": ["build", "test"],
+      "check": { "type": "manual" },
+      "howToVerify": "(1) Tente conectar por ws:// e confirme a recusa. (2) Conecte com um Origin fora da lista e confirme a recusa no handshake. (3) Se há token dedicado, confirme que é obtido pela sessão HTTPS autenticada, que é aleatório, de curta duração e encerrado no logout, e que sem a sessão HTTPS não se obtém um. Registre com data.",
+      "enforcement": "soft",
+      "rationale": "WebSocket não segue a política de mesma origem: qualquer página aberta pelo usuário pode tentar abrir a conexão com a sessão dele. Sem TLS, o tráfego e o token ficam expostos.",
+      "remediation": "Aceite só WSS, valide o Origin no handshake contra lista fixa e emita um token de curta duração a partir da sessão autenticada, invalidando-o ao sair.",
+      "refs": [
+        { "std": "ASVS", "id": "V4.4.1", "covers": "full" },
+        { "std": "ASVS", "id": "V4.4.2", "covers": "full" },
+        { "std": "ASVS", "id": "V4.4.3", "covers": "full" },
+        { "std": "ASVS", "id": "V4.4.4", "covers": "full" }
+      ],
+      "origin": ["L-R12"]
     }
   ]
 }
