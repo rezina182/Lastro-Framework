@@ -66,4 +66,6 @@ Rode `lastro check` a cada PR. `fail` (exit 1) bloqueia o merge. `incomplete` (e
 node verifier/bin/lastro.js check --url https://staging.exemplo
 ```
 
-Prefira verificar o ambiente de homologação. Use `--active` somente em ambientes seus.
+Verifique o ambiente de staging ou homologação, nunca a produção sem necessidade. Declare `urls.production` no perfil: assim o kit recusa sondas ativas contra ela. As sondas passivas usam só GET, com intervalo mínimo de 150 ms (`--delay`) e teto de 120 requisições.
+
+Para as sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado), use `--active --confirm-non-production`, e só em staging que você controla. Combine com a equipe: elas geram requisições incomuns que podem aparecer nos logs e nos alarmes. Não coloque isso em CI automático.

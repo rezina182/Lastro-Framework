@@ -142,7 +142,7 @@
       "check": { "type": "automated", "id": "http.methods.cors" },
       "enforcement": "soft",
       "rationale": "TRACE pode vazar cabeçalhos. CORS permissivo com credenciais deixa outro site ler dados do usuário autenticado.",
-      "remediation": "Desabilite TRACE no servidor ou no proxy, e responda Access-Control-Allow-Origin com valores fixos de uma lista permitida. Esta verificação é ativa: rode com --active e apenas contra o que for seu.",
+      "remediation": "Desabilite TRACE no servidor ou no proxy, e responda Access-Control-Allow-Origin com valores fixos de uma lista permitida. Esta verificação é ativa: rode só em staging ou homologação que você controla, com --active e --confirm-non-production, e nunca em produção.",
       "refs": [
         { "std": "ASVS", "id": "V13.4.4", "covers": "partial", "note": "só detecta TRACE que devolve a requisição, na página inicial" },
         { "std": "ASVS", "id": "V3.4.2", "covers": "partial", "note": "detecta Origin refletida; não avalia o uso de * com dados sensíveis" }

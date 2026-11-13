@@ -203,3 +203,32 @@ test('o repositório do próprio LASTRO não tem achado bloqueante', async () =>
   assert.deepEqual(bloqueantes, []);
   assert.notEqual(rep.verdict, 'fail');
 });
+
+test('sondas ativas: exigem --url, exigem confirmação e recusam a URL de produção do perfil', async () => {
+  const root = makeProject(BASE({ webApp: true }, { urls: { production: 'https://app.exemplo.test', staging: 'https://stg.exemplo.test' } }));
+  try {
+    await assert.rejects(run(root, { active: true }), /exige --url/);
+    await assert.rejects(run(root, { active: true, url: 'http://127.0.0.1:9' }), /confirm-non-production/);
+    await assert.rejects(run(root, { active: true, url: 'https://app.exemplo.test/', confirmNonProduction: true }), /produção/);
+    await assert.rejects(run(root, { url: 'http://127.0.0.1:9', delayMs: 10 }), /--delay/);
+  } finally { cleanup(root); }
+});
+
+test('sondas ativas: com confirmação e alvo que não é produção, rodam, com ritmo e contagem no relatório', async () => {
+  const { serve } = require('./helpers');
+  const server = await serve((q, s) => { s.writeHead(405); s.end(); });
+  const root = makeProject(BASE({ webApp: true }, { urls: { production: 'https://app.exemplo.test' } }));
+  try {
+    const rep = await run(root, { url: server.url, active: true, confirmNonProduction: true, only: ['WEB-009'], delayMs: 50 });
+    assert.equal(byId(rep, 'WEB-009').state, 'verified');
+    assert.equal(rep.target.active, true);
+    assert.equal(rep.target.requestsSent, 2);
+    assert.equal(rep.target.delayMs, 50);
+    const passive = await run(root, { url: server.url, only: ['WEB-009'], delayMs: 50 });
+    assert.equal(byId(passive, 'WEB-009').state, 'unverified', 'sem --active a sonda ativa não roda');
+    assert.equal(passive.target.requestsSent, 0);
+  } finally {
+    cleanup(root);
+    await server.close();
+  }
+});

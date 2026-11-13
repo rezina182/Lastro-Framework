@@ -25,7 +25,8 @@ Este documento descreve o que o próprio LASTRO precisa proteger. Um kit que ver
 | T1 | Arquivo do repositório analisado tenta fazer o verificador executar código | O verificador só lê texto, sem `eval`, sem `shell`, sem carregar módulos do alvo | CORE-008 |
 | T2 | Resposta HTTP gigante ou lenta trava o verificador | Timeout de 10 s e teto de 512 KB por resposta | teste automatizado |
 | T3 | Redirecionamento leva o verificador a outra origem | Só segue redirecionamento na mesma origem | teste automatizado |
-| T4 | Verificação ativa (TRACE, OPTIONS, JSON malformado) usada sem consentimento | Fica desligada por padrão e exige `--active` | decisão de projeto |
+| T4 | Verificação ativa (TRACE, OPTIONS, JSON malformado) usada sem consentimento ou contra produção | Desligada por padrão; exige `--active` e `--confirm-non-production`; recusada contra `urls.production` do perfil | teste automatizado |
+| T16 | O verificador sobrecarrega ou derruba a aplicação alvo, ou dispara alarmes sem aviso | Aviso impresso antes de toda verificação HTTP; intervalo mínimo de 50 ms (padrão 150 ms) e teto de 120 requisições; passado o teto, nada mais é enviado | teste automatizado |
 | T5 | "Não sei" tratado como "passou" | Estado `unverified` nunca conta como aprovado; veredito `incomplete` | princípio central |
 | T6 | Atestação manual forjada ou eterna | Atestação tem responsável e validade de até 366 dias; controle automatizado ignora atestação | schema e engine |
 | T7 | Risco aceito sem dono, sem prazo ou sem justificativa | Schema exige dono, aprovador, justificativa e validade; vencido volta a ser achado | CORE-013 |

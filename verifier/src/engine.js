@@ -72,11 +72,28 @@ function isApplicable(control, packs, flags) {
   return req.every((f) => flags[f]) && (control.appliesIf || []).every((f) => flags[f]);
 }
 
-function buildContext({ root, profile, catalog, url, active, now }) {
+// Freios de segurança do verificador contra a aplicação alvo (padrões usados pelo CLI).
+const DEFAULT_DELAY_MS = 150;
+const MIN_DELAY_MS = 50;
+const DEFAULT_MAX_REQUESTS = 120;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function sameOrigin(a, b) {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch (e) {
+    return false;
+  }
+}
+
+function buildContext({ root, profile, catalog, url, active, now, delayMs = 0, maxRequests = DEFAULT_MAX_REQUESTS }) {
   const files = U.listFiles(root);
   const fileSet = new Set(files);
   const readCache = new Map();
   const httpCache = new Map();
+  let sent = 0;
+  let lastAt = 0;
   let base = null;
   if (url) {
     const u = new URL(url);
@@ -101,10 +118,19 @@ function buildContext({ root, profile, catalog, url, active, now }) {
     async fetch(p, o = {}) {
       const key = o.cacheKey || `${o.method || 'GET'} ${p} ${o.maxRedirects || 0}`;
       if (httpCache.has(key)) return httpCache.get(key);
+      // Teto de requisições: passado dele, nenhuma sonda chega à aplicação e o resultado vira "não verificado".
+      if (sent >= maxRequests) {
+        return { ok: false, url: `${base}${p}`, status: 0, headers: {}, setCookie: [], body: '', truncated: false, error: `teto de ${maxRequests} requisições do verificador atingido`, redirects: [] };
+      }
+      sent += 1;
+      const wait = lastAt + delayMs - Date.now();
+      if (wait > 0) await sleep(wait);
       const res = await request(`${base}${p}`, { method: o.method || 'GET', headers: o.headers, body: o.body, maxRedirects: o.maxRedirects || 0 });
+      lastAt = Date.now();
       httpCache.set(key, res);
       return res;
     },
+    requestCount: () => sent,
     allSetCookies: () => [...httpCache.values()].flatMap((r) => r.setCookie || []),
   };
 }
@@ -138,7 +164,21 @@ async function runCheck(opts = {}) {
   const risks = loadRisks(root);
   if (opts.url && !/^https?:\/\//.test(opts.url)) throw new ConfigError('--url deve começar com http:// ou https://');
 
-  const ctx = buildContext({ root, profile, catalog, url: opts.url || null, active: opts.active, now });
+  // Sondas ativas podem gerar carga, ruído em logs e alarmes. Só rodam com confirmação explícita e fora de produção.
+  if (opts.active) {
+    if (!opts.url) throw new ConfigError('--active exige --url.');
+    if (!opts.confirmNonProduction) {
+      throw new ConfigError('As sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado) podem gerar carga e alarmes. Rode-as só em ambiente de staging ou homologação que você controla, e confirme com --confirm-non-production.');
+    }
+    const prod = profile.urls && profile.urls.production;
+    if (prod && sameOrigin(prod, opts.url)) {
+      throw new ConfigError(`A URL informada é a de produção do perfil (${prod}). Sondas ativas nunca rodam em produção: use a URL de staging.`);
+    }
+  }
+  const delayMs = opts.delayMs === undefined ? DEFAULT_DELAY_MS : opts.delayMs;
+  if (!Number.isInteger(delayMs) || delayMs < MIN_DELAY_MS) throw new ConfigError(`--delay deve ser um inteiro de pelo menos ${MIN_DELAY_MS} ms.`);
+
+  const ctx = buildContext({ root, profile, catalog, url: opts.url || null, active: opts.active, now, delayMs, maxRequests: opts.maxRequests || DEFAULT_MAX_REQUESTS });
   const only = opts.only ? new Set(opts.only) : null;
   const warnings = [];
   const validRisk = (rk) => U.parseDate(rk.expires) > now.getTime();
@@ -206,7 +246,7 @@ async function runCheck(opts = {}) {
     tool: { name: 'lastro', version: kitVersion() },
     catalogVersion: catalog.version,
     generatedAt: now.toISOString(),
-    target: { root: path.basename(root), url: opts.url || null, active: !!opts.active },
+    target: { root: path.basename(root), url: opts.url || null, active: !!opts.active, requestsSent: ctx.requestCount(), delayMs },
     profile: { name: profile.name, flags: profile.flags },
     verdict,
     summary,
@@ -215,4 +255,4 @@ async function runCheck(opts = {}) {
   };
 }
 
-module.exports = { runCheck, buildContext, loadProfile, loadRisks, isApplicable, ConfigError, DEFAULT_THRESHOLDS, MAX_ATTESTATION_DAYS };
+module.exports = { DEFAULT_DELAY_MS, MIN_DELAY_MS, DEFAULT_MAX_REQUESTS, runCheck, buildContext, loadProfile, loadRisks, isApplicable, ConfigError, DEFAULT_THRESHOLDS, MAX_ATTESTATION_DAYS };

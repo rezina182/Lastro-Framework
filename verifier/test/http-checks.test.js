@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { makeProject, cleanup, ctxFor, runOne, serve } = require('./helpers');
+const { buildContext } = require('../src/engine');
+const { loadCatalog } = require('../src/catalog');
 const { request } = require('../src/http');
 const { parseCsp } = require('../src/checks/http');
 
@@ -275,4 +277,43 @@ test('amostragem: o HSTS é exigido em cada resposta amostrada, não só na pág
   assert.equal(r.state, 'failed');
   assert.deepEqual(r.findings.map((f) => f.key), ['hsts-missing:api']);
   assert.equal(r.findings[0].location, '/api/x');
+});
+
+test('freios: intervalo mínimo entre requisições, teto total e cache que não conta', async () => {
+  const hits = [];
+  const server = await serve((q, r) => { hits.push(Date.now()); r.writeHead(200); r.end('ok'); });
+  const root = makeProject({});
+  try {
+    const profile = { schemaVersion: 1, name: 't', flags: {} };
+    const ctx = buildContext({ root, profile, catalog: loadCatalog(), url: server.url, active: false, now: new Date(), delayMs: 80, maxRequests: 3 });
+    const results = [];
+    for (const p of ['/a', '/b', '/c', '/d', '/e']) results.push(await ctx.fetch(p));
+    assert.deepEqual(results.map((r) => r.ok), [true, true, true, false, false]);
+    assert.ok(results[3].error.includes('teto de 3'));
+    assert.equal(ctx.requestCount(), 3);
+    assert.equal(hits.length, 3, 'passado o teto, nada chega ao servidor');
+    assert.ok(hits[1] - hits[0] >= 70 && hits[2] - hits[1] >= 70, `intervalos: ${hits[1] - hits[0]} e ${hits[2] - hits[1]}`);
+    await ctx.fetch('/a');
+    assert.equal(ctx.requestCount(), 3, 'resposta em cache não conta nem chega ao servidor');
+    assert.equal(hits.length, 3);
+  } finally {
+    cleanup(root);
+    await server.close();
+  }
+});
+
+test('freios: ao bater no teto, as sondas viram "não verificado" e nunca "aprovado"', async () => {
+  const server = await serve(goodHandler);
+  const root = makeProject({});
+  try {
+    const profile = { schemaVersion: 1, name: 't', flags: {} };
+    const ctx = buildContext({ root, profile, catalog: loadCatalog(), url: server.url, active: false, now: new Date(), maxRequests: 0 });
+    const { checks } = require('../src/checks/http');
+    for (const id of ['http.csp.script', 'http.headers.basic', 'http.paths.sensitive', 'http.errors.generic']) {
+      assert.equal((await checks[id](ctx)).state, 'unverified', id);
+    }
+  } finally {
+    cleanup(root);
+    await server.close();
+  }
 });

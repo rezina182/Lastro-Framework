@@ -76,3 +76,38 @@ test('CLI: check dá 1 numa falha, escreve JSON e o backlog --write cria arquivo
     assert.equal(cli(['check', '--root', root, '--allow-incomplete']).status, 0);
   } finally { cleanup(root); }
 });
+
+test('CLI: --active sem confirmação, contra produção ou com --delay inválido é recusado antes de qualquer requisição', () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ aiCodingAgents: true }, { urls: { production: 'http://127.0.0.1:9' } }),
+    '.gitignore': '.env\n',
+  });
+  try {
+    const semConfirmar = cli(['check', '--root', root, '--url', 'http://127.0.0.1:8', '--active']);
+    assert.equal(semConfirmar.status, 3);
+    assert.ok(semConfirmar.stderr.includes('--confirm-non-production'));
+    const emProducao = cli(['check', '--root', root, '--url', 'http://127.0.0.1:9', '--active', '--confirm-non-production']);
+    assert.equal(emProducao.status, 3);
+    assert.ok(emProducao.stderr.includes('nunca rodam em produção'));
+    assert.equal(cli(['check', '--root', root, '--url', 'http://127.0.0.1:8', '--delay', '10']).status, 3);
+    assert.equal(cli(['check', '--root', root, '--url', 'http://127.0.0.1:8', '--delay', 'abc']).status, 3);
+  } finally { cleanup(root); }
+});
+
+test('CLI: toda verificação HTTP imprime o aviso, e o alvo de produção do perfil é destacado', () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ aiCodingAgents: true }, { urls: { production: 'http://127.0.0.1:9' } }),
+    '.gitignore': '.env\n',
+  });
+  try {
+    const staging = cli(['check', '--root', root, '--url', 'http://127.0.0.1:8']);
+    assert.ok(staging.stderr.includes('AVISO: verificação HTTP em http://127.0.0.1:8'));
+    assert.ok(staging.stderr.includes('staging'));
+    assert.ok(!staging.stderr.includes('PRODUÇÃO'));
+    const prod = cli(['check', '--root', root, '--url', 'http://127.0.0.1:9']);
+    assert.ok(prod.stderr.includes('PRODUÇÃO'));
+    assert.ok(prod.stderr.includes('ativas são recusadas'));
+    const json = cli(['check', '--root', root, '--url', 'http://127.0.0.1:8', '--json']);
+    assert.doesNotThrow(() => JSON.parse(json.stdout), 'o aviso vai para stderr e não suja a saída em JSON');
+  } finally { cleanup(root); }
+});

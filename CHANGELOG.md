@@ -9,6 +9,7 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 - Validação do catálogo: toda referência ASVS de um controle precisa existir no mapa.
 - Licença: Apache-2.0 para o código e CC BY 4.0 para a documentação.
 - Catálogo com 150 controles em 8 pacotes e 37 lições de origem.
+- Trava das verificações dinâmicas: aviso impresso antes de toda verificação HTTP (staging recomendado), intervalo mínimo entre requisições (`--delay`, padrão 150 ms, mínimo 50 ms), teto de 120 requisições, e sondas ativas que exigem `--active --confirm-non-production` e são recusadas contra `urls.production` do perfil. Passado o teto, as sondas viram "não verificado".
 - Sondas HTTP de cabeçalho (CSP, HSTS, nosniff, Referrer-Policy, frame-ancestors) passam a amostrar várias respostas: página inicial, erro 404, saúde e as rotas `paths.login`, `paths.api` e `paths.static` do perfil. Cada achado indica a resposta e o caminho. A amostra reduz o ponto cego de cabeçalhos só na home, mas não prova "todas as respostas": os requisitos ASVS V3.4.x seguem como `partial`.
 - Classificação do ASVS concluída para todos os 17 capítulos até L2 (253 requisitos): V9 a V12, V14, V15 e V17 com 29 controles novos (AUTH-030 a AUTH-039, CORE-043 a CORE-058, WEB-021, RT-005 e RT-006). Cobertura: 253 com controle, 237 inteiros e 16 parciais.
 - Novas flags de perfil `tokenAuth` (emite ou valida tokens autocontidos) e `oauthProvider` (atua como servidor de autorização). Perfis antigos precisam acrescentá-las.

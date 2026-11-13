@@ -12,3 +12,4 @@
 10. **Alinhado a, nunca "em conformidade com".** O kit ajuda a se aproximar de SSDF, ASVS e outros. Não certifica.
 11. **Neutro e sem dependências.** Nada preso a uma marca, uma ferramenta de IA ou um gerenciador de pacotes.
 12. **Evidência fresca.** Threat model, atestações e riscos têm prazo e perdem validade.
+13. **Teste dinâmico só com aviso, só fora de produção e com freio.** Verificação estática é o padrão. Quem toca a aplicação avisa antes, usa intervalo e teto de requisições, e as sondas ativas exigem confirmação explícita e nunca rodam contra a URL de produção do perfil. Nada que gere carga roda de forma automática.

@@ -39,7 +39,21 @@ node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state         
 
 Códigos de saída: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração.
 
-Use `--url` e `--active` apenas em aplicações suas ou com autorização. As sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado) ficam desligadas por padrão.
+### Verificações que tocam a aplicação
+
+O kit separa três tipos de verificação, do mais seguro ao mais arriscado:
+
+| Tipo | O que faz | Quando roda |
+|------|-----------|-------------|
+| Estática | Lê o código e os arquivos do projeto | Sempre. Não toca na aplicação. |
+| Passiva | Requisições GET comuns (cerca de 30), como um navegador | Só com `--url`. Intervalo mínimo de 150 ms e teto de 120 requisições. |
+| Ativa | TRACE, OPTIONS com Origin falsa, JSON malformado | Só com `--active --confirm-non-production`. |
+
+Regras de segurança do verificador:
+- Prefira **staging ou homologação** para qualquer verificação HTTP. Antes de cada uma, o CLI imprime um aviso.
+- As sondas ativas **nunca rodam sem confirmação** e são recusadas contra a URL de `urls.production` do perfil.
+- Nada disso é automático: o CI do próprio kit só roda verificações estáticas.
+- Passado o teto de requisições, as sondas viram "não verificado". O verificador não tenta mais, e nunca conta como aprovado.
 
 ## O que está no repositório
 

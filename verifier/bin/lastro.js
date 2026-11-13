@@ -17,7 +17,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level']);
+const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -48,14 +48,43 @@ Uso:
 
 Opções de check, baseline e backlog:
   --root DIR           pasta do projeto (padrão: a pasta atual)
-  --url URL            também verifica a aplicação em execução (somente GET)
-  --active             liga sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado). Só em apps seus.
+  --url URL            também verifica a aplicação em execução (somente GET, ritmo controlado, teto de 120 requisições).
+                       Prefira staging ou homologação.
+  --delay MS           intervalo mínimo entre requisições à aplicação (padrão 150, mínimo 50)
+  --active             liga sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado).
+                       Exige --url e --confirm-non-production, e é recusada contra a URL de produção do perfil.
+  --confirm-non-production   confirma que o alvo é staging ou homologação sob seu controle
   --only ID,ID         limita a alguns controles
   --json               saída em JSON
   --out ARQUIVO        grava o relatório JSON
   --allow-incomplete   exit 0 quando o veredito for "incompleto"
 
 Saída: 0 aprovado | 1 falha | 2 incompleto | 3 erro de uso ou configuração.`;
+
+/** Opções de segurança das verificações HTTP, repassadas ao motor. */
+function httpOptions(flags) {
+  const opts = { url: flags.url, active: !!flags.active, confirmNonProduction: !!flags['confirm-non-production'] };
+  if (flags.delay !== undefined) opts.delayMs = Number(flags.delay);
+  return opts;
+}
+
+/** Aviso antes de qualquer requisição à aplicação. Vai para stderr para não sujar a saída em JSON. */
+function printHttpNotice(root, flags) {
+  if (!flags.url || flags.url === true) return;
+  let origin = String(flags.url);
+  try { origin = new URL(flags.url).origin; } catch (e) { /* o motor recusa URL inválida */ }
+  let prod = null;
+  try { prod = (loadProfile(root).urls || {}).production || null; } catch (e) { /* o motor reporta o perfil inválido */ }
+  const lines = [`AVISO: verificação HTTP em ${origin}`];
+  if (prod && new URL(prod).origin === origin) {
+    lines.push('- O alvo é a URL de PRODUÇÃO do perfil. Só rodam sondas passivas (GET); as ativas são recusadas. Prefira o staging.');
+  } else {
+    lines.push('- Prefira o ambiente de staging ou de homologação. Evite apontar para produção sem necessidade.');
+  }
+  lines.push('- Modo passivo: requisições GET (cerca de 30), 1 a cada 150 ms por padrão, com teto de 120 no total.');
+  if (flags.active) lines.push('- SONDAS ATIVAS LIGADAS (TRACE, OPTIONS com Origin falsa, JSON malformado). Use só em staging que você controla.');
+  console.error(lines.join('\n'));
+}
 
 function profileTemplate(name) {
   const flags = {};
@@ -137,7 +166,8 @@ async function main(argv) {
     }
     let states = null;
     if (flags.state) {
-      const rep = await runCheck({ root, url: flags.url, active: !!flags.active });
+      printHttpNotice(root, flags);
+      const rep = await runCheck({ root, ...httpOptions(flags) });
       states = new Map(rep.controls.map((c) => [c.id, c.state]));
     }
     const cov = asvsLib.coverage(cat.controls, cat.asvsMap, { level, states });
@@ -162,7 +192,8 @@ async function main(argv) {
 
   if (['check', 'baseline', 'backlog'].includes(cmd)) {
     const only = flags.only ? String(flags.only).split(',').map((s) => s.trim()).filter(Boolean) : null;
-    const report = await runCheck({ root, url: flags.url, active: !!flags.active, only });
+    printHttpNotice(root, flags);
+    const report = await runCheck({ root, ...httpOptions(flags), only });
 
     if (cmd === 'check') {
       if (flags.out) fs.writeFileSync(path.resolve(flags.out), `${JSON.stringify(report, null, 2)}\n`);

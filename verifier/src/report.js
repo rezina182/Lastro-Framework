@@ -11,7 +11,7 @@ function formatReport(r) {
   out.push(`LASTRO ${r.tool.version} | catálogo ${r.catalogVersion} | perfil "${r.profile.name}" | veredito: ${VERDICT[r.verdict]}`);
   out.push(`Controles aplicáveis: ${s.applicable} | verificados: ${s.verified} | com falha: ${s.failed} | não verificados: ${s.unverified} | não se aplicam: ${s.notApplicable}`);
   out.push(`Achados bloqueantes (novos, alta/crítica): ${s.blocking} | dívida em baseline: ${s.debt} | riscos aceitos: ${s.accepted}`);
-  if (r.target.url) out.push(`Alvo HTTP: ${r.target.url}${r.target.active ? ' (sondas ativas ligadas)' : ' (somente sondas passivas)'}`);
+  if (r.target.url) out.push(`Alvo HTTP: ${r.target.url}${r.target.active ? ' (sondas ativas ligadas)' : ' (somente sondas passivas)'} | ${r.target.requestsSent} requisições, intervalo mínimo de ${r.target.delayMs} ms`);
 
   const blocking = r.controls.flatMap((c) => c.findings.filter((f) => f.blocking).map((f) => ({ c, f })));
   if (blocking.length) {
