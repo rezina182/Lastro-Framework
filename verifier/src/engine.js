@@ -16,6 +16,7 @@ const schema = require('./schema');
 const { loadCatalog, validateCatalog } = require('./catalog');
 const { registry } = require('./checks');
 const { request } = require('./http');
+const { computeScore } = require('./score');
 
 class ConfigError extends Error {}
 
@@ -109,6 +110,7 @@ function buildContext({ root, profile, catalog, url, active, now, delayMs = 0, m
     files,
     thresholds: { ...DEFAULT_THRESHOLDS, ...(profile.thresholds || {}) },
     excludePrefixes: (profile.scan && profile.scan.excludePrefixes) || [],
+    safeFunctions: (profile.scan && profile.scan.safeFunctions) || [],
     isGit: fs.existsSync(path.join(root, '.git')),
     has: (rel) => fileSet.has(rel),
     read(rel) {
@@ -242,6 +244,7 @@ async function runCheck(opts = {}) {
   const incomplete = controls.some((x) => x.state === 'unverified' && BLOCKING_SEVERITIES.has(x.severity) && !x.controlRiskAccepted);
   const verdict = blocking > 0 ? 'fail' : incomplete ? 'incomplete' : 'pass';
 
+  const packTitles = Object.fromEntries(Object.entries(catalog.packs).map(([k, v]) => [k, v.title]));
   return {
     tool: { name: 'lastro', version: kitVersion() },
     catalogVersion: catalog.version,
@@ -250,6 +253,7 @@ async function runCheck(opts = {}) {
     profile: { name: profile.name, flags: profile.flags },
     verdict,
     summary,
+    score: computeScore({ controls, summary }, { packTitles }),
     controls,
     warnings,
   };

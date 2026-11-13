@@ -202,7 +202,14 @@ function updateBot(ctx) {
 
 function securityMd(ctx) {
   const f = ['SECURITY.md', '.github/SECURITY.md', 'docs/SECURITY.md'].find((p) => ctx.has(p));
-  if (!f) return failed([{ severity: 'medium', key: 'no-security-md', message: 'SECURITY.md ausente: não há canal público para reportar vulnerabilidades.' }]);
+  if (!f) {
+    // security.txt (RFC 9116), versionado ou servido pela própria aplicação, também é um canal de reporte.
+    const txt = ctx.files.find((p) => /(^|\/)security\.txt$/.test(p));
+    if (txt) return verified([`Canal de reporte em ${txt} (security.txt). Confira se há também um SECURITY.md para quem lê o repositório.`]);
+    const served = codeFiles(ctx).find((p) => (ctx.read(p) || '').includes('.well-known/security.txt'));
+    if (served) return verified([`security.txt servido pela aplicação (${served}, heurística por texto). Confira se há também um SECURITY.md para quem lê o repositório.`]);
+    return failed([{ severity: 'medium', key: 'no-security-md', message: 'SECURITY.md ausente: não há canal público para reportar vulnerabilidades.' }]);
+  }
   const t = ctx.read(f) || '';
   if (t.trim().length < 200 || !/(contato|contact|report|reportar|e-?mail|advisor|vulnerabilidade)/i.test(t)) {
     return failed([{ severity: 'medium', key: 'weak-security-md', location: f, message: `${f} existe, mas não descreve como reportar uma vulnerabilidade.` }]);
@@ -284,7 +291,8 @@ function scanPatterns(ctx, ruleName, patterns, defaultSeverity) {
           findings.push({ severity: 'medium', key: `${ruleName}:nojust:${f}:${i + 1}`, location: `${f}:${i + 1}`, message: 'Supressão sem justificativa (escreva o motivo depois de ":").' });
           continue;
         }
-        findings.push({ severity: p.severity || defaultSeverity, key: `${ruleName}:${p.id}:${f}:${i + 1}`, location: `${f}:${i + 1}`, message: p.message });
+        const severity = p.severityFn ? p.severityFn(line, m) : (p.severity || defaultSeverity);
+        findings.push({ severity, key: `${ruleName}:${p.id}:${f}:${i + 1}`, location: `${f}:${i + 1}`, message: p.message });
       }
     });
   }
@@ -322,7 +330,10 @@ const XSS_PATTERNS = [
   {
     id: 'inner-html',
     re: /\.(?:innerHTML|outerHTML)\s*\+?=(?!=)(.*)$/,
-    skip: (line, m) => LITERAL_ONLY.test(m[1]),
+    // Template literal (`...`) é analisado por inteiro em templateAssignments, não só pela primeira linha.
+    skip: (line, m) => LITERAL_ONLY.test(m[1]) || /^\s*`/.test(m[1]),
+    // Variável solta (innerHTML = html) é evidência fraca: o escape depende de como ela foi montada (veja os templates).
+    severityFn: (line, m) => (/^\s*[A-Za-z_$][\w$.]*\s*;?\s*(?:\/\/.*)?$/.test(m[1]) ? 'low' : 'medium'),
     message: 'Escrita de HTML por atribuição (innerHTML/outerHTML) com conteúdo não literal: risco de XSS.',
   },
   { id: 'insert-adjacent', re: /insertAdjacentHTML\s*\(/, message: 'insertAdjacentHTML: risco de XSS se o conteúdo vier de fora.' },
@@ -331,8 +342,134 @@ const XSS_PATTERNS = [
   { id: 'vue-vhtml', re: new RegExp('\\bv' + '-html\\b'), message: 'Renderização de HTML cru no Vue.' },
 ];
 
+// Funções reconhecidas como escape ou conversão segura de saída. O perfil acrescenta as do projeto em scan.safeFunctions.
+// Início de um template de HTML: atribuído a innerHTML/outerHTML, ou um template que começa com uma tag e é
+// atribuído, acrescentado (+=), retornado ou devolvido por uma arrow function.
+const ASSIGN_HTML = /\.(?:innerHTML|outerHTML)\s*\+?=(?!=)\s*`/g;
+const HTML_TEMPLATE = /(?:=>|\+=|(?<![=!<>+])=(?![=>])|\breturn\b)\s*`\s*<[A-Za-z!]/g;
+
+const DEFAULT_SAFE_FUNCTIONS = [
+  'escHtml', 'escHTML', 'escapeHtml', 'escapeHTML', 'esc', 'escape', 'sanitize', 'sanitizeHtml', 'DOMPurify.sanitize',
+  'encodeURIComponent', 'encodeURI', 'Number', 'parseInt', 'parseFloat', 'Boolean',
+];
+
+function skipString(src, from) {
+  const quote = src[from];
+  let j = from + 1;
+  while (j < src.length && src[j] !== quote && src[j] !== '\n') {
+    if (src[j] === '\\') j += 1;
+    j += 1;
+  }
+  return j + 1;
+}
+
+/** Lê um template literal (src[start] é a crase de abertura). Devolve as interpolações, com os templates aninhados dentro delas. */
+function readTemplate(src, start) {
+  const exprs = [];
+  let i = start + 1;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '\\') { i += 2; continue; }
+    if (c === '`') return { end: i + 1, exprs };
+    if (c === '$' && src[i + 1] === '{') {
+      let depth = 1;
+      let j = i + 2;
+      const nested = [];
+      while (j < src.length && depth > 0) {
+        const ch = src[j];
+        if (ch === '`') {
+          const inner = readTemplate(src, j);
+          nested.push(...inner.exprs);
+          j = inner.end;
+          continue;
+        }
+        if (ch === '"' || ch === "'") { j = skipString(src, j); continue; }
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
+        j += 1;
+      }
+      exprs.push({ text: src.slice(i + 2, j - 1), nested });
+      i = j;
+      continue;
+    }
+    i += 1;
+  }
+  return { end: src.length, exprs };
+}
+
+const leavesOf = (exprs) => exprs.flatMap((e) => (e.nested.length ? leavesOf(e.nested) : [e]));
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const MEMBER_ACCESS = /^[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*|\s*\[[^\]]*\])+$/;
+
+/** 'safe' (escape, número, literal), 'object' (dado de um objeto, como r.nome) ou 'other' (variável ou chamada desconhecida). */
+function classifyInterpolation(text, safeRe) {
+  const head = text.trim().split(/\s*(?:\|\||\?\?)\s*/)[0].trim();
+  const ternary = /^[^?]+\?\s*([\s\S]+?)\s:\s*([\s\S]+)$/.exec(head);
+  if (ternary) {
+    const parts = [classifyInterpolation(ternary[1], safeRe), classifyInterpolation(ternary[2], safeRe)];
+    if (parts.every((p) => p === 'safe')) return 'safe';
+    return parts.includes('object') ? 'object' : 'other';
+  }
+  if (head === '' || /^(['"`]).*\1$/.test(head) || /^\d+(?:\.\d+)?$/.test(head)) return 'safe';
+  if (safeRe.test(head) || /\.toFixed\s*\(\s*\d*\s*\)$/.test(head) || /\.length$/.test(head)) return 'safe';
+  if (MEMBER_ACCESS.test(head)) return 'object';
+  return 'other';
+}
+
+/** Atribuições de HTML por template literal (innerHTML = `...`): analisa o template inteiro, mesmo em várias linhas. */
+function templateAssignments(ctx) {
+  const safeNames = [...DEFAULT_SAFE_FUNCTIONS, ...(ctx.safeFunctions || [])];
+  const safeRe = new RegExp(`^(?:${safeNames.map(escapeRegex).join('|')})\\s*\\(`);
+  const findings = [];
+  const suppressed = [];
+  for (const f of codeFiles(ctx)) {
+    if (!JS_EXT.includes(path.extname(f).toLowerCase())) continue;
+    const src = ctx.read(f);
+    if (src === null) continue;
+    const starts = new Set();
+    for (const re of [ASSIGN_HTML, HTML_TEMPLATE]) {
+      re.lastIndex = 0;
+      let hit;
+      while ((hit = re.exec(src)) !== null) starts.add(src.indexOf('`', hit.index));
+    }
+    let lineNo = 1;
+    let counted = 0;
+    let covered = -1;
+    for (const tick of [...starts].sort((a, b) => a - b)) {
+      if (tick < covered) continue; // template aninhado: já analisado dentro do externo
+      for (; counted < tick; counted += 1) if (src.charCodeAt(counted) === 10) lineNo += 1;
+      const lineStart = src.lastIndexOf('\n', tick) + 1;
+      const lineEnd = src.indexOf('\n', tick);
+      const line = src.slice(lineStart, lineEnd < 0 ? undefined : lineEnd);
+      const sup = SUPPRESS.exec(line);
+      if (sup && sup[1] === 'xss-sinks') {
+        if (sup[2].trim().length >= 4) { suppressed.push(`${f}:${lineNo} (xss-sinks): ${sup[2].trim().slice(0, 80)}`); continue; }
+        findings.push({ severity: 'medium', key: `xss-sinks:nojust:${f}:${lineNo}`, location: `${f}:${lineNo}`, message: 'Supressão sem justificativa (escreva o motivo depois de ":").' });
+        continue;
+      }
+      const tpl = readTemplate(src, tick);
+      covered = tpl.end;
+      const classes = leavesOf(tpl.exprs).map((l) => ({ text: l.text.trim(), cls: classifyInterpolation(l.text, safeRe) }));
+      const objects = classes.filter((c) => c.cls === 'object');
+      const others = classes.filter((c) => c.cls === 'other');
+      if (!objects.length && !others.length) continue;
+      const ex = objects.length ? `, ex.: \${${objects[0].text.slice(0, 40)}}` : '';
+      findings.push({
+        severity: objects.length ? 'medium' : 'low',
+        key: `xss-sinks:inner-html-template:${f}:${lineNo}`,
+        location: `${f}:${lineNo}`,
+        message: `HTML montado por template com ${objects.length + others.length} interpolação(ões) sem escape reconhecido (${objects.length} de dado de objeto${ex}). Use escHtml ou textContent; se o valor é fixo ou já escapado, justifique com lastro-ignore ou liste a função em scan.safeFunctions.`,
+      });
+    }
+  }
+  return { findings, suppressed };
+}
+
 function xssSinks(ctx) {
-  return scanPatterns(ctx, 'xss-sinks', XSS_PATTERNS, 'medium');
+  const base = scanPatterns(ctx, 'xss-sinks', XSS_PATTERNS, 'medium');
+  const tpl = templateAssignments(ctx);
+  const notes = [...base.notes, ...(tpl.suppressed.length ? [`${tpl.suppressed.length} supressão(ões) justificada(s) em templates:`, ...tpl.suppressed] : [])];
+  return failed([...base.findings, ...tpl.findings], notes);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -348,11 +485,23 @@ const SQL_SHAPE = '(?:SEL' + 'ECT\\b[^"\'`]*\\bFR' + 'OM|INS' + 'ERT\\s+INTO|UPD
 const QUOTE = '["\'`]';
 const NOT_QUOTE = '[^"\'`]*';
 
+// Interpolar um fragmento fixo (nome de coluna, lista de campos) e passar os valores por parâmetro é um padrão
+// comum e legítimo. Texto não distingue isso de injeção, então a gravidade segue a força da evidência:
+// "alta" só com dado de requisição à vista na própria linha; nos demais casos "média" (revisar, não bloqueia).
+const REQUEST_DATA = /\b(?:req|request)\s*\.\s*(?:query|params|body|headers|cookies|args|form|json|GET|POST)\b|\$_(?:GET|POST|REQUEST|COOKIE)\b/;
+const interpolationSeverity = (line) => (REQUEST_DATA.test(line) ? 'high' : 'medium');
+// Constantes em MAIÚSCULAS_COM_SUBLINHADO são tratadas como fixas por convenção.
+const onlyConstants = (line) => {
+  const parts = [...line.matchAll(/\$\{([^}]*)\}/g)];
+  return parts.length > 0 && parts.every((p) => /^\s*[A-Z][A-Z0-9_]*\s*$/.test(p[1]));
+};
+
 const SQL_PATTERNS = [
   {
     id: 'js-template', ext: JS_EXT, re: new RegExp('`[^`]*\\b' + SQL_SHAPE + '[^`]*\\$\\{'),
-    skip: (line) => /\bsql\s*`/.test(line),
-    message: 'Consulta SQL montada com interpolação de texto: risco de injeção de SQL. Use parâmetros (placeholders).',
+    skip: (line) => /\bsql\s*`/.test(line) || onlyConstants(line),
+    severityFn: interpolationSeverity,
+    message: 'Consulta SQL montada com interpolação de texto: confirme que o trecho interpolado é fixo ou validado e que os valores vão por parâmetro (placeholders).',
   },
   {
     id: 'concat', re: new RegExp(QUOTE + NOT_QUOTE + '\\b' + SQL_SHAPE + NOT_QUOTE + QUOTE + '\\s*\\+\\s*[\\w(]'),
@@ -360,7 +509,8 @@ const SQL_PATTERNS = [
   },
   {
     id: 'py-fstring', ext: ['.py'], re: new RegExp('\\bf["\'][^"\']*\\b' + SQL_SHAPE + '[^"\']*\\{'),
-    message: 'Consulta SQL montada com f-string: risco de injeção de SQL. Use parâmetros (placeholders).',
+    severityFn: interpolationSeverity,
+    message: 'Consulta SQL montada com f-string: confirme que o trecho interpolado é fixo ou validado e que os valores vão por parâmetro (placeholders).',
   },
   {
     id: 'py-percent', ext: ['.py'], re: new RegExp('["\'][^"\']*\\b' + SQL_SHAPE + '[^"\']*["\']\\s*%\\s*[\\w(]'),
@@ -372,7 +522,8 @@ const SQL_PATTERNS = [
   },
   {
     id: 'php-interpolation', ext: ['.php'], re: new RegExp('"[^"]*\\b' + SQL_SHAPE + '[^"]*\\$\\w'),
-    message: 'Consulta SQL montada com variável interpolada: risco de injeção de SQL. Use consultas preparadas.',
+    severityFn: interpolationSeverity,
+    message: 'Consulta SQL montada com variável interpolada: confirme que ela é fixa ou validada e prefira consultas preparadas.',
   },
 ];
 

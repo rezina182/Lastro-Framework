@@ -220,8 +220,16 @@ function validateProfile(p) {
   if (p.scan !== undefined) {
     if (!isObj(p.scan)) errs.push('profile.scan: deve ser objeto');
     else {
-      checkKeys(p.scan, [], ['excludePrefixes'], 'profile.scan', errs);
+      checkKeys(p.scan, [], ['excludePrefixes', 'safeFunctions'], 'profile.scan', errs);
       if (p.scan.excludePrefixes !== undefined) stringList(p.scan.excludePrefixes, 'profile.scan.excludePrefixes', errs, { max: 100, itemMax: 200 });
+      if (p.scan.safeFunctions !== undefined) {
+        stringList(p.scan.safeFunctions, 'profile.scan.safeFunctions', errs, { max: 100, itemMax: 80 });
+        if (Array.isArray(p.scan.safeFunctions)) {
+          p.scan.safeFunctions.forEach((n, i) => {
+            if (typeof n === 'string' && !/^[A-Za-z_$][\w$.]*$/.test(n)) errs.push(`profile.scan.safeFunctions[${i}]: use só o nome da função (letras, números, _, $ e ponto)`);
+          });
+        }
+      }
     }
   }
   if (p.agent !== undefined) {

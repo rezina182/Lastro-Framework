@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Maturidade
+
+Todo relatório traz um nível de 0 a 4 e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
+
 ## Uso rápido
 
 Requer Node 22 ou superior. Nenhuma dependência para instalar.
@@ -35,6 +39,7 @@ node /caminho/para/lastro/verifier/bin/lastro.js check
 node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exemplo   # inclui verificações HTTP passivas
 node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
 node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
+node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com nível de maturidade
 ```
 
 Códigos de saída: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração.

@@ -156,7 +156,7 @@
       "check": { "type": "automated", "id": "repo.code.xss-sinks" },
       "enforcement": "soft",
       "rationale": "Escrever HTML a partir de dados externos é a principal porta do XSS. Sem isso, a CSP estrita (sem unsafe-inline) passa a ser viável.",
-      "remediation": "Monte elementos com createElement e textContent. Atribuições de texto literal são aceitas. Para casos justificados, use 'lastro-ignore xss-sinks: motivo'.",
+      "remediation": "Monte elementos com createElement e textContent. Atribuições de texto literal são aceitas. Em templates de HTML, passe cada dado por escHtml (ou por uma função sua, revisada e listada em scan.safeFunctions). Para casos justificados, use 'lastro-ignore xss-sinks: motivo'. Gravidade: média para dado de objeto sem escape reconhecido; baixa para variável solta ou chamada desconhecida.",
       "refs": [
         { "std": "ASVS", "id": "V1.2.1", "covers": "partial", "note": "detecta só atribuições como innerHTML; ver CORE-030" },
         { "std": "SSDF", "id": "PW.5.1" }
@@ -1110,7 +1110,7 @@
       "check": { "type": "automated", "id": "repo.code.sql-concat" },
       "enforcement": "hard",
       "rationale": "Texto de SQL montado com dados externos é a porta da injeção de SQL. É um padrão que o código gerado por IA repete, porque funciona no teste feliz.",
-      "remediation": "Troque por consulta parametrizada (placeholders $1, ? ou nomeados) ou use o ORM. O que não pode ser parâmetro, como nome de coluna e de ordenação, deve vir de uma lista fixa. Casos justificados: 'lastro-ignore sql-concat: motivo'.",
+      "remediation": "Troque por consulta parametrizada (placeholders $1, ? ou nomeados) ou use o ORM. O que não pode ser parâmetro, como nome de coluna e de ordenação, deve vir de uma lista fixa. Casos justificados: 'lastro-ignore sql-concat: motivo'. Gravidade: alta para concatenação com variável, para % e format e para dado de requisição à vista na linha; média (revisar, não bloqueia) para interpolação de fragmento sem evidência de dado externo; constantes em MAIÚSCULAS são ignoradas.",
       "refs": [
         { "std": "ASVS", "id": "V1.2.4", "covers": "partial", "note": "varredura por texto, linha a linha: não vê SQL montado em várias linhas, em outro arquivo ou com palavras em minúsculas; o roteiro completo está em CORE-031" },
         { "std": "SSDF", "id": "PW.5.1" }

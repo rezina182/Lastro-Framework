@@ -253,13 +253,35 @@ test('sql-concat: concatenação, template, f-string, %, format e PHP são achad
     'e.py': `q = "${SQL_SEL}{}".format(uid)\n`,
     'f.php': `$q = "${SQL_SEL}$id";\n`,
   };
+  // Concatenação e % / format: alta. Interpolação (template, f-string, PHP): média, a menos que haja dado de requisição à vista.
+  const gravidade = { 'a.js': 'high', 'b.ts': 'medium', 'c.py': 'medium', 'd.py': 'high', 'e.py': 'high', 'f.php': 'medium' };
   for (const [file, content] of Object.entries(casos)) {
     await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => {
       assert.equal(r.state, 'failed', file);
-      assert.equal(r.findings[0].severity, 'high', file);
+      assert.equal(r.findings[0].severity, gravidade[file], file);
       assert.equal(r.findings[0].location, `${file}:1`);
     });
   }
+});
+
+test('sql-concat: interpolação com dado de requisição à vista é alta; constante em maiúsculas é ignorada; fragmento fixo fica em média', async () => {
+  const tainted = {
+    'a.ts': `db.query(\`${SQL_SEL}\${req.query.id}\`);\n`,
+    'b.py': `cur.execute(f"${SQL_SEL}{request.args['id']}")\n`,
+    'c.php': `$q = "${SQL_SEL}$_GET['id']";\n`,
+  };
+  for (const [file, content] of Object.entries(tainted)) {
+    await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => {
+      assert.equal(r.state, 'failed', file);
+      assert.equal(r.findings[0].severity, 'high', file);
+    });
+  }
+  await withProject({ 'a.js': `db.query(\`${SQL_SEL}$1 \${FILTRO_ATIVO}\`, [id]);\n` }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'));
+  await withProject({ 'a.js': `db.query(\`${SQL_SEL}$1 \${FILTRO_ATIVO} \${w}\`, [id]);\n` }, 'repo.code.sql-concat', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'medium');
+    assert.ok(r.findings[0].message.includes('confirme'), 'pede revisão em vez de afirmar injeção');
+  });
 });
 
 test('sql-concat: consulta parametrizada, tag de template, texto comum, SQL partido e minúsculas não são achados', async () => {
@@ -345,4 +367,104 @@ test('varreduras estáticas ignoram pastas excluídas no perfil e arquivos que n
   const sql = `db.query("${SQL_SEL}" + id);\n`;
   await withProject({ 'fixtures/a.js': sql }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'), { profile });
   await withProject({ 'README.md': sql, 'dados.json': '{"x": 1}\n' }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified'));
+});
+
+// --- xss-sinks em templates (várias linhas) e security.txt -------------------------------------
+const tpl = (...linhas) => ['el.innerHTML = `', ...linhas, '`;', ''].join('\n');
+
+test('xss-sinks em template: lê o template inteiro, em várias linhas, e reconhece escapes', async () => {
+  const verifiedCases = {
+    'escape e número': tpl('<td>${escHtml(r.nome)}</td>', '<td>${Number(r.id)} ${p.valor.toFixed(2)}</td>'),
+    'HTML estático': tpl('<p>nada dinâmico aqui</p>', '<b>fixo</b>'),
+    'ternário de literais': tpl("<td>${ativo ? 'sim' : 'não'}</td>"),
+    'fallback escapado': tpl("<td>${escHtml(x) || '-'}</td>"),
+    'template aninhado escapado': tpl('${lista.map(o => `<li>${escHtml(o.n)}</li>`).join("")}'),
+    'tamanho': tpl('<td>${itens.length}</td>'),
+  };
+  for (const [nome, src] of Object.entries(verifiedCases)) {
+    await withProject({ 'a.js': src }, 'repo.code.xss-sinks', (r) => assert.equal(r.state, 'verified', `${nome}: ${JSON.stringify(r.findings)}`));
+  }
+});
+
+test('xss-sinks em template: dado de objeto sem escape é média, variável solta é baixa, e a mensagem mostra o trecho', async () => {
+  await withProject({ 'a.js': tpl('<p>Cliente: ${result.clienteNome}</p>') }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings.length, 1);
+    assert.equal(r.findings[0].severity, 'medium');
+    assert.equal(r.findings[0].location, 'a.js:1', 'o achado aponta a linha da atribuição');
+    assert.ok(r.findings[0].message.includes('result.clienteNome'));
+  });
+  await withProject({ 'a.js': tpl('<div>${barra}</div>') }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'low'));
+  await withProject({ 'a.js': tpl('${lista.map(o => `<li>${o.nome}</li>`).join("")}') }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'medium');
+  });
+  await withProject({ 'a.js': tpl("<td>${r.numero || '-'}</td>") }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'medium'));
+  // um único achado por atribuição, mesmo com várias interpolações
+  await withProject({ 'a.js': tpl('${a.x} ${b.y} ${c}') }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings.length, 1));
+});
+
+test('xss-sinks em template: scan.safeFunctions do perfil, supressão justificada e pontuação sem justificativa', async () => {
+  const src = tpl('<td>${brlFmt(c.total)}</td>');
+  await withProject({ 'a.js': src }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'low'));
+  const profile = { schemaVersion: 1, name: 't', flags: {}, scan: { safeFunctions: ['brlFmt'] } };
+  await withProject({ 'a.js': src }, 'repo.code.xss-sinks', (r) => assert.equal(r.state, 'verified'), { profile });
+  const sup = 'el.innerHTML = `<b>${hub.titulo}</b>`; // lastro-ignore xss-sinks: título vem de constante interna\n';
+  await withProject({ 'a.js': sup }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.state, 'verified');
+    assert.ok(r.notes.join(' ').includes('supressão'));
+  });
+  const semMotivo = 'el.innerHTML = `<b>${hub.titulo}</b>`; // lastro-ignore xss-sinks:\n';
+  await withProject({ 'a.js': semMotivo }, 'repo.code.xss-sinks', (r) => assert.equal(r.state, 'failed'));
+});
+
+test('xss-sinks: o perfil recusa safeFunctions com nome inválido', () => {
+  const schema = require('../src/schema');
+  const base = { schemaVersion: 1, name: 't', flags: Object.fromEntries(schema.FLAGS.map((f) => [f, false])) };
+  assert.deepEqual(schema.validateProfile({ ...base, scan: { safeFunctions: ['brlFmt', 'util.fmt'] } }), []);
+  assert.ok(schema.validateProfile({ ...base, scan: { safeFunctions: ['x(); y'] } }).length > 0);
+});
+
+test('security-md: security.txt versionado ou servido pela aplicação conta como canal de reporte', async () => {
+  await withProject({ 'public/.well-known/security.txt': 'Contact: mailto:seguranca@exemplo.test\n' }, 'repo.docs.security-md', (r) => {
+    assert.equal(r.state, 'verified');
+    assert.ok(r.notes[0].includes('security.txt'));
+  });
+  await withProject({ 'server.js': "app.get('/.well-known/security.txt', (req, res) => res.send('x'));\n" }, 'repo.docs.security-md', (r) => {
+    assert.equal(r.state, 'verified');
+    assert.ok(r.notes[0].includes('servido pela aplicação'));
+  });
+  await withProject({ 'server.js': "app.get('/health', (req, res) => res.send('ok'));\n" }, 'repo.docs.security-md', (r) => assert.equal(r.state, 'failed'));
+});
+
+test('xss-sinks: templates de HTML montados em variável, acrescentados, retornados ou em arrow também são analisados', async () => {
+  await withProject({ 'a.js': 'let html = "";\nhtml += `<tr><td>${r.nome}</td></tr>`;\n' }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings.length, 1);
+    assert.equal(r.findings[0].severity, 'medium');
+    assert.equal(r.findings[0].location, 'a.js:2');
+  });
+  await withProject({ 'a.js': 'const f = (p) => `<li>${p.nome}</li>`;\n' }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'medium'));
+  await withProject({ 'a.js': 'function x(p) {\n  return `<b>${p.titulo}</b>`;\n}\n' }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].location, 'a.js:2'));
+  const limpos = [
+    'html += `<tr><td>${escHtml(r.nome)}</td><td>${Number(r.id)}</td></tr>`;\n',
+    'function x(p) {\n  return `<b>${escHtml(p.n)}</b>`;\n}\n',
+    'const msg = `Olá ${user.nome}`;\n',
+    'const url = `/api/itens/${r.id}`;\n',
+    'if (a === b) { x = 1; }\nconst ok = a <= `b`;\n',
+  ];
+  for (const src of limpos) await withProject({ 'a.js': src }, 'repo.code.xss-sinks', (r) => assert.equal(r.state, 'verified', `${src.trim()}: ${JSON.stringify(r.findings)}`));
+});
+
+test('xss-sinks: template aninhado não gera achado duplicado e innerHTML = variável é evidência fraca (baixa)', async () => {
+  const aninhado = 'html += `<ul>${itens.map(o => `<li>${o.nome}</li>`).join("")}</ul>`;\n';
+  await withProject({ 'a.js': aninhado }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.findings.length, 1, 'um achado só, para o template externo');
+    assert.equal(r.findings[0].severity, 'medium');
+  });
+  await withProject({ 'a.js': 'el.innerHTML = html;\n' }, 'repo.code.xss-sinks', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'low');
+  });
+  await withProject({ 'a.js': 'el.innerHTML = "<b>" + nome + "</b>";\n' }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'medium'));
 });

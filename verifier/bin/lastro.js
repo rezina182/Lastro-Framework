@@ -9,7 +9,7 @@ const path = require('node:path');
 const { runCheck, ConfigError } = require('../src/engine');
 const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/catalog');
 const { registry } = require('../src/checks');
-const { formatReport } = require('../src/report');
+const { formatReport, formatMarkdown } = require('../src/report');
 const { loadProfile } = require('../src/engine');
 const { loadTickets, planBacklog, writeTickets } = require('../src/backlog');
 const { FLAGS } = require('../src/schema');
@@ -42,6 +42,7 @@ Uso:
   lastro check [opções]                      verifica o projeto e dá o veredito
   lastro baseline [--write] [opções]         registra os achados atuais como dívida conhecida
   lastro backlog [--write] [opções]          gera tickets P0-P3 a partir das lacunas
+  lastro report [--out ARQUIVO.md]           relatório legível em Markdown: maturidade, achados, falta de prova e ASVS
   lastro asvs [--level 1|2|3] [--state]      cobertura do ASVS 5.0 por capítulo (--state mostra o estado no projeto)
   lastro asvs verify --csv ARQUIVO           confere o mapa do kit contra o CSV oficial do ASVS
   lastro asvs sync --csv ARQUIVO [--write]   regenera catalog/asvs-map.json a partir do CSV oficial
@@ -173,6 +174,24 @@ async function main(argv) {
     const cov = asvsLib.coverage(cat.controls, cat.asvsMap, { level, states });
     if (flags.out) fs.writeFileSync(path.resolve(flags.out), `${JSON.stringify(cov, null, 2)}\n`);
     console.log(flags.json ? JSON.stringify(cov, null, 2) : asvsLib.formatCoverage(cov));
+    return 0;
+  }
+
+  if (cmd === 'report') {
+    printHttpNotice(root, flags);
+    const report = await runCheck({ root, ...httpOptions(flags) });
+    const cat = loadCatalog();
+    const states = new Map(report.controls.map((c) => [c.id, c.state]));
+    const coverage = asvsLib.coverage(cat.controls, cat.asvsMap, { level: 2, states });
+    const text = `${formatMarkdown(report, { coverage })}\n`;
+    if (flags.out && flags.out !== true) {
+      const file = path.resolve(flags.out);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, text);
+      console.log(`Relatório gravado em ${file}`);
+    } else {
+      console.log(text);
+    }
     return 0;
   }
 

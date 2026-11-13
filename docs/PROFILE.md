@@ -33,6 +33,7 @@ O pacote `core` sempre se aplica.
 ```
 
 - `paths.api` e `paths.static` indicam uma rota de API e um arquivo estático reais. As sondas de cabeçalho (CSP, HSTS, nosniff, Referrer-Policy, frame-ancestors) também as consultam, além da página inicial, de um erro 404, da rota de saúde e do login. Sem elas, a amostra fica menor. A amostra reduz o ponto cego de cabeçalhos presentes só na home, mas não prova "todas as respostas".
+- `scan.safeFunctions` lista funções do projeto que escapam ou convertem a saída com segurança (por exemplo `brlFmt`). O CORE-009 já reconhece `escHtml`, `escapeHtml`, `esc`, `sanitize`, `DOMPurify.sanitize`, `encodeURIComponent`, `Number`, `parseInt` e `parseFloat`. Liste só funções que você revisou: uma função aqui deixa de ser acusada.
 - `scan.excludePrefixes` tira pastas das varreduras de código e de mídia. Use só para fixtures de teste e código de terceiros. Cada exclusão é um ponto cego.
 - `agent.instructionPaths` acrescenta pastas à lista de arquivos de instrução.
 - Campo desconhecido é recusado, para evitar erro de digitação silencioso.
