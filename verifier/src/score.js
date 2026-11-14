@@ -20,9 +20,20 @@ const DISCLAIMER = 'A pontuação mede a evidência que existe, não a seguranç
 
 const pct = (n, d) => (d === 0 ? 0 : Math.round((n / d) * 1000) / 10);
 
+// Fases do ciclo de vida de desenvolvimento seguro (SSDLC), na ordem em que acontecem.
+const PHASES = [
+  ['design', 'Projeto'],
+  ['build', 'Desenvolvimento'],
+  ['test', 'Teste'],
+  ['deploy', 'Entrega'],
+  ['runtime', 'Operação'],
+  ['respond', 'Resposta a incidentes'],
+];
+
 function computeScore(report, { packTitles = {} } = {}) {
   const sum = { total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 };
   const byPack = {};
+  const byPhase = Object.fromEntries(PHASES.map(([k, name]) => [k, { phase: k, name, controls: 0, total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 }]));
   const open = [];
   let applicable = 0;
   for (const c of report.controls) {
@@ -45,6 +56,16 @@ function computeScore(report, { packTitles = {} } = {}) {
       p.unverified += w;
     }
     if ((c.severity === 'critical' || c.severity === 'high') && c.state !== 'verified') open.push(c.id);
+    // Um controle conta em cada fase em que atua (o peso total por fase pode somar mais que o geral).
+    for (const ph of c.phase || []) {
+      const b = byPhase[ph];
+      if (!b) continue;
+      b.controls += 1;
+      b.total += w;
+      if (c.state === 'verified') b[c.evidence && c.evidence.source === 'manual-attestation' ? 'attested' : 'machine'] += w;
+      else if (c.state === 'failed') b.failed += w;
+      else b.unverified += w;
+    }
   }
 
   const provenPct = pct(sum.machine + sum.attested, sum.total);
@@ -82,6 +103,16 @@ function computeScore(report, { packTitles = {} } = {}) {
     unverifiedPct: pct(sum.unverified, sum.total),
     highOrCriticalOpen: open.length,
     nextStep,
+    byPhase: PHASES.map(([k]) => byPhase[k]).filter((b) => b.controls > 0).map((b) => ({
+      phase: b.phase,
+      name: b.name,
+      controls: b.controls,
+      provenPct: pct(b.machine + b.attested, b.total),
+      machinePct: pct(b.machine, b.total),
+      attestedPct: pct(b.attested, b.total),
+      failedPct: pct(b.failed, b.total),
+      unverifiedPct: pct(b.unverified, b.total),
+    })),
     byPack: Object.values(byPack)
       .sort((a, b) => a.pack.localeCompare(b.pack))
       .map((p) => ({
@@ -97,4 +128,4 @@ function computeScore(report, { packTitles = {} } = {}) {
   };
 }
 
-module.exports = { WEIGHT, LEVELS, DISCLAIMER, computeScore };
+module.exports = { WEIGHT, LEVELS, PHASES, DISCLAIMER, computeScore };

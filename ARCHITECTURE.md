@@ -4,12 +4,13 @@
 
 ```
 catalog/                       verifier/
+  risk-map.json (natureza, pilares, CWE; ver src/risk.js e src/audit.js)
   packs.json   ─┐                bin/lastro.js   (CLI)
   lessons.json ─┼─ loadCatalog ─ src/catalog.js  (carga e validação cruzada)
   controls/*.json┘              src/engine.js    (perfil, aplicabilidade, veredito)
                                 src/checks/      (registro: repo.* e http.*)
 .lastro/ (no projeto alvo)      src/backlog.js   (lacunas → tickets P0..P3)
-  profile.json                  src/report.js    (saída em texto)
+  profile.json                  src/report.js    (texto e Markdown; HTML em src/html.js; nota em src/score.js)
   status.json  (atestações)     src/http.js      (cliente HTTP limitado)
   baseline.json                 src/schema.js    (validadores, sem dependências)
   risks/*.json

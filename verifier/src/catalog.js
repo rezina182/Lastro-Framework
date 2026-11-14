@@ -44,6 +44,8 @@ function loadCatalog(dir = DEFAULT_CATALOG_DIR) {
   const asvs = loadAsvsMap(dir);
   if (!asvs.ok) errors.push(asvs.error);
   else errors.push(...schema.validateAsvsMap(asvs.value));
+  const riskFile = readJsonStrict(path.join(dir, 'risk-map.json'));
+  if (!riskFile.ok) errors.push(riskFile.error);
   if (packsFile.ok) errors.push(...schema.validatePacks(packsFile.value));
   if (lessonsFile.ok) errors.push(...schema.validateLessons(lessonsFile.value));
 
@@ -54,8 +56,10 @@ function loadCatalog(dir = DEFAULT_CATALOG_DIR) {
       byId.set(c.id, c);
     }
   }
+  if (riskFile.ok) errors.push(...schema.validateRiskMap(riskFile.value, new Set(byId.keys())));
   return {
     dir,
+    riskMap: riskFile.ok && riskFile.value && riskFile.value.entries ? riskFile.value.entries : {},
     version: packsFile.ok ? packsFile.value.catalogVersion : '0.0.0',
     packs: packsFile.ok ? packsFile.value.packs : {},
     lessons: lessonsFile.ok && Array.isArray(lessonsFile.value.lessons) ? lessonsFile.value.lessons : [],

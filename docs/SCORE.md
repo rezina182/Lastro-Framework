@@ -38,6 +38,41 @@ Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para 
 - **A nota depende do perfil.** Marcar flags como `false` para fugir de controles melhora o número e piora a segurança. Revise o perfil com outra pessoa.
 - **Compare com a mesma versão do catálogo.** Um catálogo novo pode trazer controles novos e derrubar a nota sem que nada mude na aplicação.
 
+## Contexto: nem toda aplicação precisa do mesmo rigor
+
+O relatório estima o **risco inerente** da aplicação a partir do que o perfil declara, e a partir dele sugere uma **meta de maturidade**. A meta não muda quais controles se aplicam (isso é papel dos flags do perfil). Ela diz quanto de evidência é razoável esperar.
+
+| Fator declarado no perfil | Pontos |
+|---|---|
+| Exposição à internet, dados pessoais, dados de menores, servidor de autorização OAuth | 2 cada |
+| Login, usuários anônimos, upload, tempo real, tokens, agentes de IA no desenvolvimento | 1 cada |
+
+| Pontos | Risco inerente | Meta padrão |
+|---|---|---|
+| 0 a 3 | baixo | nível 2 |
+| 4 a 7 | moderado | nível 3 |
+| 8 ou mais | alto | nível 4 |
+
+O perfil pode sobrescrever o risco e a meta quando quem conhece a aplicação discorda da estimativa:
+
+```json
+{ "context": { "criticality": "high", "targetLevel": 3 } }
+```
+
+`criticality` aceita `low`, `medium` ou `high`. `targetLevel` vai de 0 a 4. O relatório mostra de onde veio cada valor.
+
+O escopo também depende do contexto: o relatório lista os pacotes que ficaram fora porque o perfil declara que a aplicação não tem aquele recurso. Um perfil que subdeclara a aplicação melhora o número e piora a segurança.
+
+## Aderência por fase do ciclo de vida (SSDLC)
+
+Cada controle declara as fases em que atua: projeto, desenvolvimento, teste, entrega, operação e resposta a incidentes. O relatório mostra, por fase, a fatia do peso provado, falhando e sem prova. Um controle conta em todas as fases em que atua, então as fases não somam o total.
+
+"Aderência" aqui é evidência por fase, não conformidade certificada. O catálogo se alinha a práticas como o NIST SSDF e ao OWASP ASVS, mas o kit não certifica nada.
+
+## Fatos de engenharia
+
+Para a conversa sobre qualidade de desenvolvimento, o relatório lista fatos objetivos que **não entram na pontuação**: volume de código e de testes, arquivos muito grandes, se o CI executa os testes e o lint, ferramentas configuradas, lockfile e documentação. O kit não mede qualidade de código com uma nota: a leitura e o julgamento são das pessoas.
+
 ## O que não usar a pontuação para fazer
 
 - Certificar, auditar ou declarar conformidade com ASVS, SSDF ou qualquer padrão.

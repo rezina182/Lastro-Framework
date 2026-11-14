@@ -7,6 +7,7 @@
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { hasPrefix, parseDate, readJson } = require('../util');
+const { isTestPath } = require('../engineering');
 const schema = require('../schema');
 
 const verified = (notes = []) => ({ state: 'verified', findings: [], notes });
@@ -267,7 +268,21 @@ function codeFiles(ctx) {
   return ctx.files.filter((f) => CODE_EXT.has(path.extname(f).toLowerCase()) && !/\.min\.js$/.test(f) && !hasPrefix(f, ctx.excludePrefixes));
 }
 
-/** Aplica uma lista de padrões linha a linha, respeitando supressões justificadas. */
+// Linha inteira de comentário: um aviso como "nunca use rejectUnauthorized: false" não é o código que ele proíbe.
+const SLASH_COMMENT = /^\s*(?:\/\/|\/\*|\*(?!\w)|<!--)/;
+const HASH_COMMENT = /^\s*#/;
+function isCommentLine(line, ext) {
+  if (['.py', '.rb', '.sh', '.ps1'].includes(ext)) return HASH_COMMENT.test(line);
+  if (ext === '.php') return SLASH_COMMENT.test(line) || HASH_COMMENT.test(line);
+  return SLASH_COMMENT.test(line);
+}
+
+/**
+ * Aplica uma lista de padrões linha a linha, respeitando supressões justificadas.
+ * Duas calibrações valem para todos os padrões, salvo os que pedem o contrário:
+ *  - linha inteira de comentário é ignorada (`inComments: true` mantém, para segredos);
+ *  - achado em arquivo de teste nunca passa de gravidade baixa (`keepInTests: true` mantém, para formatos de segredo).
+ */
 function scanPatterns(ctx, ruleName, patterns, defaultSeverity) {
   const findings = [];
   const suppressed = [];
@@ -275,10 +290,13 @@ function scanPatterns(ctx, ruleName, patterns, defaultSeverity) {
     const ext = path.extname(f).toLowerCase();
     const t = ctx.read(f);
     if (t === null) continue;
+    const testFile = isTestPath(f);
     t.split(/\r?\n/).forEach((line, i) => {
       if (line.length > 2000) return;
+      const comment = isCommentLine(line, ext);
       for (const p of patterns) {
         if (p.ext && !p.ext.includes(ext)) continue;
+        if (comment && !p.inComments) continue;
         const m = p.re.exec(line);
         if (!m) continue;
         if (p.skip && p.skip(line, m)) continue;
@@ -291,8 +309,10 @@ function scanPatterns(ctx, ruleName, patterns, defaultSeverity) {
           findings.push({ severity: 'medium', key: `${ruleName}:nojust:${f}:${i + 1}`, location: `${f}:${i + 1}`, message: 'Supressão sem justificativa (escreva o motivo depois de ":").' });
           continue;
         }
-        const severity = p.severityFn ? p.severityFn(line, m) : (p.severity || defaultSeverity);
-        findings.push({ severity, key: `${ruleName}:${p.id}:${f}:${i + 1}`, location: `${f}:${i + 1}`, message: p.message });
+        const capped = testFile && !p.keepInTests;
+        const severity = capped ? 'low' : (p.severityFn ? p.severityFn(line, m) : (p.severity || defaultSeverity));
+        const message = capped ? `${p.message} (arquivo de teste: gravidade limitada a baixa)` : p.message;
+        findings.push({ severity, key: `${ruleName}:${p.id}:${f}:${i + 1}`, location: `${f}:${i + 1}`, message });
       }
     });
   }
@@ -455,7 +475,7 @@ function templateAssignments(ctx) {
       if (!objects.length && !others.length) continue;
       const ex = objects.length ? `, ex.: \${${objects[0].text.slice(0, 40)}}` : '';
       findings.push({
-        severity: objects.length ? 'medium' : 'low',
+        severity: !isTestPath(f) && objects.length ? 'medium' : 'low',
         key: `xss-sinks:inner-html-template:${f}:${lineNo}`,
         location: `${f}:${lineNo}`,
         message: `HTML montado por template com ${objects.length + others.length} interpolação(ões) sem escape reconhecido (${objects.length} de dado de objeto${ex}). Use escHtml ou textContent; se o valor é fixo ou já escapado, justifique com lastro-ignore ou liste a função em scan.safeFunctions.`,
@@ -588,6 +608,14 @@ const SECRET_FORMATS = [
     message: 'Valor literal atribuído a um nome que parece segredo (senha, chave, token). Leia de variável de ambiente ou de um cofre.',
   },
 ];
+
+// Formatos conhecidos de segredo continuam valendo em comentários e em arquivos de teste: uma chave real vaza igual.
+for (const p of SECRET_FORMATS) {
+  if (p.severity === 'high') {
+    p.keepInTests = true;
+    p.inComments = true;
+  }
+}
 
 function hardcodedSecrets(ctx) {
   return scanPatterns(ctx, 'hardcoded-secrets', SECRET_FORMATS, 'high');

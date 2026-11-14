@@ -468,3 +468,59 @@ test('xss-sinks: template aninhado não gera achado duplicado e innerHTML = vari
   });
   await withProject({ 'a.js': 'el.innerHTML = "<b>" + nome + "</b>";\n' }, 'repo.code.xss-sinks', (r) => assert.equal(r.findings[0].severity, 'medium'));
 });
+
+// --- calibrações: comentários e arquivos de teste ------------------------------------------------
+
+test('comentário inteiro não é código: o aviso "nunca use X" não aciona o padrão de X', async () => {
+  const comentarios = {
+    'a.js': '// Nunca use rejectUnauthorized: false.\n/**\n * rejectUnauthorized: false é proibido aqui\n */\n/* verify=False não */\n',
+    'b.py': '# requests.get(u, verify=False) não faça isso\n',
+    'c.js': '// eval(x) é proibido\n * eval(y) também\n',
+  };
+  await withProject({ 'a.js': comentarios['a.js'] }, 'repo.code.tls-verification', (r) => assert.equal(r.state, 'verified', JSON.stringify(r.findings)));
+  await withProject({ 'b.py': comentarios['b.py'] }, 'repo.code.tls-verification', (r) => assert.equal(r.state, 'verified'));
+  await withProject({ 'c.js': comentarios['c.js'] }, 'repo.code.dynamic-eval', (r) => assert.equal(r.state, 'verified'));
+  // o código de verdade, e o código com comentário no fim da linha, continuam sendo achados
+  await withProject({ 'd.js': 'const o = { rejectUnauthorized: false };\n' }, 'repo.code.tls-verification', (r) => assert.equal(r.state, 'failed'));
+  await withProject({ 'e.js': 'const x = eval(y); // só aqui\n' }, 'repo.code.dynamic-eval', (r) => assert.equal(r.state, 'failed'));
+});
+
+test('segredo no formato conhecido continua sendo achado até dentro de um comentário', async () => {
+  const chave = P('-----BEGIN ', 'RSA PRIVATE KEY-----');
+  await withProject({ 'a.js': `// ${chave}\n` }, 'repo.code.hardcoded-secrets', (r) => {
+    assert.equal(r.state, 'failed');
+    assert.equal(r.findings[0].severity, 'high');
+  });
+  await withProject({ 'a.py': `# ${P('AKIA', 'ABCDEFGHIJKLMNOP')}\n` }, 'repo.code.hardcoded-secrets', (r) => assert.equal(r.state, 'failed'));
+  // já a atribuição genérica, em comentário, é só texto
+  await withProject({ 'a.js': `// ${P('const pass', 'word = "Sup3r', 'Segredo99";')}\n` }, 'repo.code.hardcoded-secrets', (r) => assert.equal(r.state, 'verified'));
+});
+
+test('arquivo de teste: o achado nunca passa de gravidade baixa, e a mensagem diz por quê', async () => {
+  const casos = [
+    ['tests/a.test.js', 'const x = eval(y);\n', 'repo.code.dynamic-eval'],
+    ['__tests__/b.js', 'const o = { rejectUnauthorized: false };\n', 'repo.code.tls-verification'],
+    ['src/c.spec.ts', `db.query("${SQL_SEL}" + id);\n`, 'repo.code.sql-concat'],
+    ['test_d.py', 'h = hashlib.md5(x)\n', 'repo.code.weak-hash'],
+    ['tests/e.test.js', 'const token = Math.random();\n', 'repo.code.weak-random'],
+    ['tests/f.test.js', `${P('const pass', 'word = "Sup3r', 'Segredo99";')}\n`, 'repo.code.hardcoded-secrets'],
+    ['tests/g.test.js', tpl('<p>${r.nome}</p>'), 'repo.code.xss-sinks'],
+  ];
+  for (const [file, src, id] of casos) {
+    await withProject({ [file]: src }, id, (r) => {
+      assert.equal(r.state, 'failed', `${file}: ${id}`);
+      assert.ok(r.findings.every((f) => f.severity === 'low'), `${file}: ${JSON.stringify(r.findings.map((f) => f.severity))}`);
+    });
+  }
+  await withProject({ 'tests/a.test.js': 'const x = eval(y);\n' }, 'repo.code.dynamic-eval', (r) => assert.ok(r.findings[0].message.includes('arquivo de teste')));
+  // fora de teste a gravidade original vale, e um nome parecido com "test" não é pasta de teste
+  await withProject({ 'src/contest.js': 'const x = eval(y);\n' }, 'repo.code.dynamic-eval', (r) => assert.equal(r.findings[0].severity, 'high'));
+  await withProject({ 'src/a.js': 'const x = eval(y);\n' }, 'repo.code.dynamic-eval', (r) => assert.equal(r.findings[0].severity, 'high'));
+});
+
+test('arquivo de teste: chave real num teste continua sendo achado de gravidade alta', async () => {
+  await withProject({ 'tests/a.test.js': `const a = "${P('AKIA', 'ABCDEFGHIJKLMNOP')}";\n` }, 'repo.code.hardcoded-secrets', (r) => {
+    assert.equal(r.findings[0].severity, 'high');
+    assert.ok(!r.findings[0].message.includes('arquivo de teste'));
+  });
+});

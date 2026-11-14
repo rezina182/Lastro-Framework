@@ -17,6 +17,10 @@ const { loadCatalog, validateCatalog } = require('./catalog');
 const { registry } = require('./checks');
 const { request } = require('./http');
 const { computeScore } = require('./score');
+const { deriveContext, describeScope } = require('./context');
+const { engineeringFacts } = require('./engineering');
+const { analyzeRisk } = require('./risk');
+const { loadAuditFile } = require('./audit');
 
 class ConfigError extends Error {}
 
@@ -222,7 +226,7 @@ async function runCheck(opts = {}) {
       };
     });
     controls.push({
-      id: c.id, title: c.title, pack: c.pack, tier: c.tier, severity: c.severity, enforcement: c.enforcement,
+      id: c.id, title: c.title, pack: c.pack, tier: c.tier, severity: c.severity, enforcement: c.enforcement, phase: c.phase, remediation: c.remediation,
       state: r.state, notes: r.notes || [], evidence: r.evidence || null, findings,
       controlRiskAccepted: r.state === 'unverified' && !!controlRisk ? controlRisk.id : null,
     });
@@ -245,6 +249,21 @@ async function runCheck(opts = {}) {
   const verdict = blocking > 0 ? 'fail' : incomplete ? 'incomplete' : 'pass';
 
   const packTitles = Object.fromEntries(Object.entries(catalog.packs).map(([k, v]) => [k, v.title]));
+  const score = computeScore({ controls, summary }, { packTitles });
+  // Contexto: o risco inerente da aplicação define a meta de maturidade razoável para ela.
+  const context = deriveContext(profile);
+  context.gap = Math.max(0, context.targetLevel - score.level);
+  context.meetsTarget = score.level >= context.targetLevel;
+  // Se a dívida atual fosse registrada como baseline, o portão só bloquearia achados novos.
+  const blockingCauses = new Set(controls.filter((x) => x.findings.some((f) => f.blocking)).map((x) => x.id)).size;
+  let audit = null;
+  if (opts.auditFile) {
+    const a = loadAuditFile(path.resolve(String(opts.auditFile)));
+    if (!a.ok) throw new ConfigError(`--audit-file: ${a.error}`);
+    audit = a.value;
+  }
+  const risk = analyzeRisk({ controls }, { riskMap: catalog.riskMap, catalog, profile, audit });
+  const baselineView = blocking > 0 ? { findings: blocking, causes: blockingCauses, verdictIfAdopted: incomplete ? 'incomplete' : 'pass' } : null;
   return {
     tool: { name: 'lastro', version: kitVersion() },
     catalogVersion: catalog.version,
@@ -253,7 +272,13 @@ async function runCheck(opts = {}) {
     profile: { name: profile.name, flags: profile.flags },
     verdict,
     summary,
-    score: computeScore({ controls, summary }, { packTitles }),
+    score,
+    context,
+    scope: describeScope(catalog.packs, profile.flags),
+    baselineView,
+    risk,
+    dependencyVulns: audit,
+    engineering: engineeringFacts(ctx),
     controls,
     warnings,
   };

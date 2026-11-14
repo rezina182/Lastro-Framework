@@ -9,7 +9,8 @@ const path = require('node:path');
 const { runCheck, ConfigError } = require('../src/engine');
 const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/catalog');
 const { registry } = require('../src/checks');
-const { formatReport, formatMarkdown } = require('../src/report');
+const { formatReport, formatMarkdown, redactReport, validateRedactTerms } = require('../src/report');
+const { formatHtml, validateTheme } = require('../src/html');
 const { loadProfile } = require('../src/engine');
 const { loadTickets, planBacklog, writeTickets } = require('../src/backlog');
 const { FLAGS } = require('../src/schema');
@@ -17,7 +18,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay']);
+const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -42,7 +43,12 @@ Uso:
   lastro check [opções]                      verifica o projeto e dá o veredito
   lastro baseline [--write] [opções]         registra os achados atuais como dívida conhecida
   lastro backlog [--write] [opções]          gera tickets P0-P3 a partir das lacunas
-  lastro report [--out ARQUIVO.md]           relatório legível em Markdown: maturidade, achados, falta de prova e ASVS
+  lastro report [--out ARQUIVO] [--format md|html] [--theme ARQUIVO.css]
+                                             relatório legível: maturidade, achados, falta de prova e ASVS.
+                                             Termina em .html? Gera HTML autocontido, sem scripts nem recursos
+                                             externos. --theme aplica um CSS seu (só variáveis e estilos).
+                                             --redact termo1,termo2 troca esses termos por [omitido] em todo o
+                                             relatório, para compartilhá-lo sem nomes de empresa ou produto.
   lastro asvs [--level 1|2|3] [--state]      cobertura do ASVS 5.0 por capítulo (--state mostra o estado no projeto)
   lastro asvs verify --csv ARQUIVO           confere o mapa do kit contra o CSV oficial do ASVS
   lastro asvs sync --csv ARQUIVO [--write]   regenera catalog/asvs-map.json a partir do CSV oficial
@@ -55,6 +61,8 @@ Opções de check, baseline e backlog:
   --active             liga sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado).
                        Exige --url e --confirm-non-production, e é recusada contra a URL de produção do perfil.
   --confirm-non-production   confirma que o alvo é staging ou homologação sob seu controle
+  --audit-file ARQ     resultado de "npm audit --json" gerado por você (o kit não consulta a internet). Traz as
+                       vulnerabilidades conhecidas das dependências (GHSA, CWE, CVSS) para a análise de risco.
   --only ID,ID         limita a alguns controles
   --json               saída em JSON
   --out ARQUIVO        grava o relatório JSON
@@ -66,6 +74,7 @@ Saída: 0 aprovado | 1 falha | 2 incompleto | 3 erro de uso ou configuração.`;
 function httpOptions(flags) {
   const opts = { url: flags.url, active: !!flags.active, confirmNonProduction: !!flags['confirm-non-production'] };
   if (flags.delay !== undefined) opts.delayMs = Number(flags.delay);
+  if (flags['audit-file'] && flags['audit-file'] !== true) opts.auditFile = flags['audit-file'];
   return opts;
 }
 
@@ -178,12 +187,49 @@ async function main(argv) {
   }
 
   if (cmd === 'report') {
+    // Formato e tema são validados antes de qualquer requisição à aplicação.
+    const outFile = flags.out && flags.out !== true ? flags.out : null;
+    const format = flags.format && flags.format !== true ? String(flags.format) : (outFile && /\.html?$/i.test(outFile) ? 'html' : 'md');
+    if (!['md', 'html'].includes(format)) {
+      console.error('--format deve ser md ou html.');
+      return 3;
+    }
+    let theme = null;
+    if (flags.theme) {
+      if (format !== 'html') {
+        console.error('--theme só vale com --format html (ou com --out terminando em .html).');
+        return 3;
+      }
+      let css;
+      try {
+        css = fs.readFileSync(path.resolve(String(flags.theme)), 'utf8');
+      } catch (e) {
+        console.error(`Não foi possível ler o tema: ${e.message}`);
+        return 3;
+      }
+      const themeErrors = validateTheme(css);
+      if (themeErrors.length) {
+        console.error(`Tema recusado:\n- ${themeErrors.join('\n- ')}`);
+        return 3;
+      }
+      theme = css;
+    }
+    let redact = null;
+    if ('redact' in flags) {
+      redact = typeof flags.redact === 'string' ? flags.redact.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      const redactErrors = validateRedactTerms(redact);
+      if (redactErrors.length) {
+        console.error(`--redact recusado:\n- ${redactErrors.join('\n- ')}`);
+        return 3;
+      }
+    }
     printHttpNotice(root, flags);
-    const report = await runCheck({ root, ...httpOptions(flags) });
+    const rawReport = await runCheck({ root, ...httpOptions(flags) });
+    const report = redact ? redactReport(rawReport, redact) : rawReport;
     const cat = loadCatalog();
     const states = new Map(report.controls.map((c) => [c.id, c.state]));
     const coverage = asvsLib.coverage(cat.controls, cat.asvsMap, { level: 2, states });
-    const text = `${formatMarkdown(report, { coverage })}\n`;
+    const text = format === 'html' ? formatHtml(report, { coverage, theme }) : `${formatMarkdown(report, { coverage })}\n`;
     if (flags.out && flags.out !== true) {
       const file = path.resolve(flags.out);
       fs.mkdirSync(path.dirname(file), { recursive: true });

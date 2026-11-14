@@ -188,7 +188,18 @@ function validateLessons(l) {
 function validateProfile(p) {
   const errs = [];
   if (!isObj(p)) return ['profile.json: deve ser objeto'];
-  checkKeys(p, ['schemaVersion', 'name', 'flags'], ['urls', 'paths', 'thresholds', 'scan', 'agent'], 'profile', errs);
+  checkKeys(p, ['schemaVersion', 'name', 'flags'], ['urls', 'paths', 'thresholds', 'scan', 'agent', 'context'], 'profile', errs);
+  if (p.context !== undefined) {
+    if (!isObj(p.context)) errs.push('profile.context: deve ser objeto');
+    else {
+      checkKeys(p.context, [], ['criticality', 'targetLevel', 'sensitiveData'], 'profile.context', errs);
+      if (p.context.sensitiveData !== undefined && typeof p.context.sensitiveData !== 'boolean') errs.push('profile.context.sensitiveData: deve ser true ou false');
+      if (p.context.criticality !== undefined) oneOf(p.context.criticality, ['low', 'medium', 'high'], 'profile.context.criticality', errs);
+      if (p.context.targetLevel !== undefined && !(Number.isInteger(p.context.targetLevel) && p.context.targetLevel >= 0 && p.context.targetLevel <= 4)) {
+        errs.push('profile.context.targetLevel: inteiro de 0 a 4');
+      }
+    }
+  }
   if (p.schemaVersion !== 1) errs.push('profile.schemaVersion: use 1');
   text(p.name, 'profile.name', errs, 80);
   if (!isObj(p.flags)) errs.push('profile.flags: deve ser objeto');
@@ -362,7 +373,38 @@ function validateAsvsMap(m) {
   return errs;
 }
 
+const RISK_KINDS = ['security', 'practice', 'quality'];
+const RISK_REACH = ['internet', 'network', 'internal', 'pipeline'];
+const PILLAR_CODES = 'CIDANPLU';
+
+/** Mapa de risco: natureza, pilares, CWE e alcance de cada controle. Todo controle do catálogo precisa de uma entrada. */
+function validateRiskMap(m, controlIds) {
+  const errs = [];
+  if (!isObj(m)) return ['risk-map.json: deve ser objeto'];
+  checkKeys(m, ['schemaVersion', 'entries'], ['note'], 'risk-map', errs);
+  if (m.schemaVersion !== 1) errs.push('risk-map.schemaVersion: use 1');
+  if (!isObj(m.entries)) return [...errs, 'risk-map.entries: deve ser objeto'];
+  for (const [id, e] of Object.entries(m.entries)) {
+    const w = `risk-map.entries.${id}`;
+    if (!ID_CONTROL.test(id)) errs.push(`${w}: id de controle inválido`);
+    else if (controlIds && !controlIds.has(id)) errs.push(`${w}: controle inexistente no catálogo`);
+    if (!isObj(e)) { errs.push(`${w}: deve ser objeto`); continue; }
+    checkKeys(e, ['kind', 'pillars', 'cwe'], ['reach', 'lgpd'], w, errs);
+    oneOf(e.kind, RISK_KINDS, `${w}.kind`, errs);
+    if (e.reach !== undefined) oneOf(e.reach, RISK_REACH, `${w}.reach`, errs);
+    if (typeof e.pillars !== 'string' || e.pillars.length === 0 || ![...e.pillars].every((c) => PILLAR_CODES.includes(c)) || new Set(e.pillars).size !== e.pillars.length) {
+      errs.push(`${w}.pillars: use letras distintas entre ${PILLAR_CODES.split('').join(', ')}`);
+    }
+    if (!Array.isArray(e.cwe) || e.cwe.length > 8 || !e.cwe.every((n) => Number.isInteger(n) && n > 0 && n < 10000)) errs.push(`${w}.cwe: lista de até 8 números de CWE`);
+    if (e.lgpd !== undefined) text(e.lgpd, `${w}.lgpd`, errs, 160);
+    if (e.kind === 'security' && Array.isArray(e.cwe) && e.cwe.length === 0) errs.push(`${w}.cwe: controle de segurança precisa de ao menos um CWE`);
+  }
+  if (controlIds) for (const id of controlIds) if (!(id in m.entries)) errs.push(`risk-map.entries: falta a entrada de ${id}`);
+  return errs;
+}
+
 module.exports = {
+  RISK_KINDS, RISK_REACH, PILLAR_CODES, validateRiskMap,
   ID_ASVS, validateAsvsMap,
   FLAGS, SEVERITIES, PHASES, ENFORCEMENT, PACKS, PACK_PREFIX, CHECK_TYPES, TICKET_STATUS, PRIORITIES, LESSON_SOURCES,
   ID_CONTROL, ID_LESSON, ID_RISK, ID_TICKET, ID_CHECK, FINGERPRINT,

@@ -125,7 +125,7 @@ test('relatório em Markdown: seções, escape de barra vertical e aviso de esco
   const r = fakeFullReport();
   r.score = computeScore(r, { packTitles: { core: 'Base' } });
   const md = formatMarkdown(r);
-  for (const trecho of ['# Relatório LASTRO: Meu \\| App', '## Maturidade', '## Achados que bloqueiam', '## Outros achados', '## Controles sem prova', '## Limites']) {
+  for (const trecho of ['# Relatório LASTRO: Meu \\| App', '## Maturidade', '## Causas dos bloqueios', '### Todas as ocorrências', '## Outros achados', '## Controles sem prova', '## Limites']) {
     assert.ok(md.includes(trecho), `faltou: ${trecho}`);
   }
   assert.ok(md.includes('TLS \\| desligado'), 'a barra vertical é escapada para não quebrar a tabela');

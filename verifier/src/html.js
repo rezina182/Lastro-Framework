@@ -1,0 +1,466 @@
+'use strict';
+
+// Relatório em HTML: um arquivo único, sem scripts, sem fontes nem imagens externas.
+// Tudo que vem do projeto analisado (nomes, caminhos, mensagens) é texto não confiável e passa por escape.
+// A identidade visual não faz parte do kit: o tema padrão é neutro e quem quiser outra aparência passa um
+// arquivo de tema (--theme), que só pode redefinir variáveis e estilos, sem recursos externos.
+
+const { groupCauses } = require('./causes');
+const { FLAG_LABELS } = require('./context');
+
+const VERDICT = { pass: ['APROVADO', 'ok'], fail: ['FALHA', 'bad'], incomplete: ['INCOMPLETO', 'warn'] };
+const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const SEV_PT = { critical: 'crítica', high: 'alta', medium: 'média', low: 'baixa' };
+const SEV_TITLE = { critical: 'Crítica', high: 'Alta', medium: 'Média', low: 'Baixa' };
+const MAX_FINDINGS_PER_CONTROL = 150;
+const MAX_THEME_BYTES = 60000;
+
+const h = (s) => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+const clamp = (n) => Math.min(100, Math.max(0, num(n)));
+const pctText = (n) => `${String(num(n)).replace('.', ',')}%`;
+
+const BASE_CSS = `
+:root{--bg:#f4f5f8;--surface:#ffffff;--surface-2:#eceef3;--text:#1c2230;--muted:#566074;--border:#d5d9e2;
+--accent:#1d4ed8;--ok:#047857;--warn:#b45309;--bad:#b91c1c;--info:#0369a1;--radius:12px;
+--font:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--surface:#161a23;--surface-2:#1f2430;--text:#e7eaf0;--muted:#a4adbd;
+--border:#2b3242;--accent:#93b4ff;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--info:#38bdf8}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--font)}
+.skip{position:absolute;left:-999px;top:0;background:var(--surface);color:var(--text);padding:8px 12px}
+.skip:focus{left:8px;top:8px;z-index:9}
+.hero{padding:32px 24px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+.wrap{max-width:1100px;margin:0 auto}
+.eyebrow{margin:0 0 4px;color:var(--muted);font-size:.85rem;letter-spacing:.08em;text-transform:uppercase}
+h1{margin:0 0 8px;font-size:1.9rem;line-height:1.2;overflow-wrap:anywhere}
+.meta{margin:0;color:var(--muted);font-size:.92rem}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+nav.toc a{color:var(--accent);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:4px 12px;font-size:.88rem}
+nav.toc a:hover,nav.toc a:focus{background:var(--surface-2)}
+main{padding:8px 24px 48px}
+section{margin-top:32px}
+h2{margin:0 0 12px;font-size:1.25rem}
+h3{margin:20px 0 8px;font-size:1.02rem}
+p{margin:0 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.card-label{margin:0;color:var(--muted);font-size:.82rem}
+.card-value{margin:4px 0 0;font-size:1.55rem;font-weight:700;line-height:1.2}
+.card-note{margin:4px 0 0;color:var(--muted);font-size:.82rem}
+.badge{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:1px 10px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.info{color:var(--info)}
+.sev-critical,.sev-high{color:var(--bad)}.sev-medium{color:var(--warn)}.sev-low{color:var(--muted)}
+.bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border)}
+.bar span{display:block;height:100%}
+.seg-ok{background:var(--ok)}.seg-info{background:var(--info)}.seg-bad{background:var(--bad)}.seg-none{background:var(--border)}.seg-warn{background:var(--warn)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0 0;padding:0;list-style:none;color:var(--muted);font-size:.86rem}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:baseline}
+.note{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:12px 16px;margin:12px 0}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+caption{text-align:left;color:var(--muted);padding:10px 12px;font-size:.86rem}
+th,td{padding:8px 12px;text-align:left;vertical-align:top;border-top:1px solid var(--border)}
+thead th{border-top:0;background:var(--surface-2);font-weight:600;white-space:nowrap}
+td.num,th.num{text-align:right;white-space:nowrap}
+td .bar{min-width:140px}
+code{font:.86em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface-2);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
+details{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;padding:0 14px}
+summary{cursor:pointer;padding:10px 0;font-weight:600}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+summary .count{color:var(--muted);font-weight:400;margin-left:8px}
+details ul{margin:0 0 12px;padding-left:18px}
+details li{margin:6px 0;overflow-wrap:anywhere}
+.empty{color:var(--muted)}
+.heat td{text-align:center;font-weight:600;white-space:nowrap}
+.heat th{white-space:nowrap}
+.heat-low{background:var(--surface-2)}
+.heat-medium{background:var(--surface-2);box-shadow:inset 0 -3px 0 var(--warn)}
+.heat-high{background:var(--surface-2);box-shadow:inset 0 -3px 0 var(--bad)}
+.heat-critical{background:var(--surface-2);box-shadow:inset 0 0 0 2px var(--bad)}
+@supports (background:color-mix(in srgb,red 10%,white)){
+.heat-medium{background:color-mix(in srgb,var(--warn) 18%,var(--surface))}
+.heat-high{background:color-mix(in srgb,var(--bad) 20%,var(--surface))}
+.heat-critical{background:color-mix(in srgb,var(--bad) 38%,var(--surface))}}
+.kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0}
+.why{color:var(--muted);font-size:.84rem;margin:4px 0 0}
+a{color:var(--accent)}
+footer{padding:24px;color:var(--muted);font-size:.85rem;text-align:center}
+@media print{body{background:#fff;color:#000}.skip,nav.toc{display:none}details{border-color:#999}}
+`;
+
+/** Valida o arquivo de tema: só CSS inofensivo, sem recursos externos nem nada que quebre o documento. */
+function validateTheme(css) {
+  const errs = [];
+  if (typeof css !== 'string' || css.trim() === '') return ['o tema está vazio'];
+  if (Buffer.byteLength(css, 'utf8') > MAX_THEME_BYTES) errs.push(`o tema passa de ${MAX_THEME_BYTES} bytes`);
+  if (css.includes('<')) errs.push('o tema não pode conter "<"');
+  if (css.includes('\\')) errs.push('o tema não pode conter barra invertida (escapes de CSS)');
+  if (/@import/i.test(css)) errs.push('o tema não pode usar @import');
+  if (/expression\s*\(|javascript:|behavior\s*:|-moz-binding/i.test(css)) errs.push('o tema contém construção não permitida');
+  for (const m of css.matchAll(/url\s*\(\s*(['"]?)([^'")]*)\1\s*\)/gi)) {
+    if (!/^data:/i.test(m[2].trim())) errs.push(`o tema referencia recurso externo em url(): ${m[2].trim().slice(0, 40)}`);
+  }
+  return errs;
+}
+
+const bar = (parts) => {
+  const label = parts.map((p) => `${p.label} ${pctText(p.value)}`).join(', ');
+  return `<div class="bar" role="img" aria-label="${h(label)}">${parts.map((p) => `<span class="${p.cls}" style="width:${clamp(p.value)}%"></span>`).join('')}</div>`;
+};
+
+const sevBadge = (sev) => `<span class="sev-${h(sev)}"><strong>${h(SEV_PT[sev] || sev)}</strong></span>`;
+const card = (label, value, note = '') => `<div class="card"><p class="card-label">${h(label)}</p>${value ? `<p class="card-value">${value}</p>` : ''}${note ? `<p class="card-note">${h(note)}</p>` : ''}</div>`;
+
+function table(caption, head, rows, numericCols = []) {
+  const th = head.map((t, i) => `<th scope="col"${numericCols.includes(i) ? ' class="num"' : ''}>${h(t)}</th>`).join('');
+  const body = rows.map((r) => `<tr>${r.map((c, i) => `<td${numericCols.includes(i) ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join('');
+  return `<div class="table-wrap"><table><caption>${h(caption)}</caption><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+const R = require('./risk');
+
+const CLASS_CSS = { critical: 'bad', high: 'bad', medium: 'warn', low: 'info' };
+const classBadge = (cls) => `<span class="badge ${CLASS_CSS[cls] || 'info'}">${h(R.CLASS_PT[cls] || cls)}</span>`;
+// Sem links externos: o arquivo continua autocontido. A CWE N se consulta em cwe.mitre.org/data/definitions/N.html.
+const cweLinks = (list) => (list.length ? list.filter((n) => Number.isInteger(n) && n > 0).map((n) => `<code>CWE-${n}</code>`).join(', ') : '-');
+const pillarsText = (codes) => codes.map((c) => R.PILLARS[c] || c).join(', ');
+const stateText = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
+
+function riskRows(list, limit) {
+  return list.slice(0, limit).map((i) => {
+    let where;
+    if (i.type === 'vuln') {
+      where = i.advisories.map((a) => `<code>${h(a.id || a.title || 'aviso')}</code>`).join(', ');
+      where += ` (${i.direct ? 'dependência direta' : 'indireta'}; correção: ${h(i.fix)})`;
+    } else where = i.locations.length ? i.locations.map((l) => `<code>${h(l)}</code>`).join(', ') : '';
+    const why = `Probabilidade ${i.likelihood} (${R.LIKELIHOOD_PT[i.likelihood]}): ${i.reasons.likelihood.join('; ')}. Impacto ${i.impact} (${R.IMPACT_PT[i.impact]}): ${i.reasons.impact.join('; ')}.${i.reasons.reach ? ` Alcance: ${i.reasons.reach}.` : ''}`;
+    return [
+      `${classBadge(i.class)}${i.accepted ? ' <span class="empty">(aceito)</span>' : ''}`,
+      `${i.likelihood} x ${i.impact} = ${i.score}`,
+      `<strong>${h(i.id)}</strong> ${h(i.title)}${where ? `<br>${where}` : ''}<p class="why">${h(why)}</p>`,
+      h(stateText(i)),
+      h(pillarsText(i.pillars)),
+      cweLinks(i.cwe),
+      h(i.asvs.slice(0, 3).join(', ') || '-'),
+    ];
+  });
+}
+
+function riskHtml(r) {
+  const k = r.risk;
+  const out = ['<section id="risco" aria-labelledby="t-risco"><h2 id="t-risco">Análise de risco</h2>'];
+  out.push('<p>Três coisas diferentes aparecem em um relatório de segurança, e misturá-las faz tudo parecer igualmente urgente. A estimativa de risco (probabilidade x impacto, de 1 a 4 cada) vale só para riscos de segurança.</p>');
+  out.push('<div class="kinds">');
+  for (const key of ['security', 'practice', 'quality']) out.push(card(R.KINDS[key].label, '', R.KINDS[key].help));
+  out.push('</div>');
+
+  const c = k.summary.confirmed;
+  const p = k.summary.potential;
+  out.push('<h3>Riscos de segurança por criticidade</h3>', '<div class="cards">');
+  for (const cls of R.CLASSES) out.push(card(`${R.CLASS_PT[cls]}`, `<span class="${CLASS_CSS[cls]}">${num(c[cls])}</span>`, `confirmados; ${num(p[cls])} potencial(is) sem prova`));
+  out.push('</div>');
+  out.push(`<div class="note"><p><strong>Confirmado</strong> é o que a verificação encontrou. <strong>Potencial</strong> é o que ninguém provou ainda: a probabilidade é uma suposição média, ajustada pela exposição, e não quer dizer que a falha exista. ${num(k.summary.securityVerified)} controle(s) de segurança estão verificados e não entram na conta.</p></div>`);
+
+  out.push('<h3>Matriz de risco</h3>', '<p>Só os riscos confirmados entram na matriz. Os potenciais (sem prova) ficam limitados a "Alto": crítico exige evidência.</p>');
+  const head = '<thead><tr><th scope="col">Impacto \\ Probabilidade</th>' + [1, 2, 3, 4].map((l) => `<th scope="col">${l} ${h(R.LIKELIHOOD_PT[l])}</th>`).join('') + '</tr></thead>';
+  const body = [4, 3, 2, 1].map((imp) => {
+    const cells = k.matrix.filter((m) => m.impact === imp).sort((a, b) => a.likelihood - b.likelihood);
+    return `<tr><th scope="row">${imp} ${h(R.IMPACT_PT[imp])}</th>${cells.map((m) => `<td class="heat-${h(m.class)}">${m.count ? `${num(m.count)}<br><span class="empty">${h(R.CLASS_PT[m.class])}</span>` : '·'}</td>`).join('')}</tr>`;
+  }).join('');
+  out.push(`<div class="table-wrap"><table class="heat"><caption>Quantidade de riscos de segurança confirmados por probabilidade e impacto</caption>${head}<tbody>${body}</tbody></table></div>`);
+
+  const conf = k.security.filter((i) => i.state === 'failed');
+  const pot = k.security.filter((i) => i.state === 'unverified');
+  const cols = ['Classe', 'P x I', 'Controle e motivo', 'Estado', 'Pilares', 'CWE', 'ASVS'];
+  out.push('<h3>Riscos de segurança confirmados</h3>');
+  if (!conf.length) out.push('<p class="empty">Nenhum.</p>');
+  else for (const cls of R.CLASSES) {
+    const list = conf.filter((i) => i.class === cls);
+    if (!list.length) continue;
+    out.push(`<details${cls === 'critical' || cls === 'high' ? ' open' : ''}><summary>${h(R.CLASS_PT[cls])} <span class="count">${list.length} risco(s)</span></summary>`);
+    out.push(table(`Riscos confirmados de classe ${R.CLASS_PT[cls].toLowerCase()}, do maior para o menor`, cols, riskRows(list, 60)));
+    if (list.length > 60) out.push(`<p class="empty">... e mais ${list.length - 60}.</p>`);
+    out.push('</details>');
+  }
+  out.push('<h3>Riscos potenciais (sem prova): onde olhar primeiro</h3>');
+  out.push('<p>Controles que ninguém provou. A ordem mostra o que mais pesa se a falha existir, dado o contexto declarado. Provar o controle (ou corrigi-lo) tira o item daqui.</p>');
+  if (!pot.length) out.push('<p class="empty">Nenhum.</p>');
+  else for (const cls of R.CLASSES) {
+    const list = pot.filter((i) => i.class === cls);
+    if (!list.length) continue;
+    out.push(`<details${cls === 'critical' ? ' open' : ''}><summary>${h(R.CLASS_PT[cls])} <span class="count">${list.length} controle(s)</span></summary>`);
+    out.push(table(`Riscos potenciais de classe ${R.CLASS_PT[cls].toLowerCase()}`, cols, riskRows(list, 40)));
+    if (list.length > 40) out.push(`<p class="empty">... e mais ${list.length - 40}.</p>`);
+    out.push('</details>');
+  }
+
+  out.push('<h3>Pilares da segurança da informação</h3>');
+  out.push('<p>Quais pilares os itens abertos tocam. "Pior classe" considera só riscos de segurança.</p>');
+  out.push(table('Itens abertos por pilar', ['Pilar', 'Significa', 'Itens abertos', 'Confirmados', 'Potenciais', 'Pior classe'],
+    k.pillars.map((pl) => [`<strong>${h(pl.name)}</strong>`, h(pl.help), String(num(pl.open)), String(num(pl.confirmed)), String(num(pl.potential)), pl.worstClass ? classBadge(pl.worstClass) : '-']), [2, 3, 4]));
+
+  const pv = k.privacy;
+  out.push('<h3>Privacidade e LGPD</h3>');
+  if (!pv.applies) out.push('<p>O perfil declara que a aplicação não trata dados pessoais. Se isso mudar, declare <code>personalData</code> (e <code>minorsData</code> ou <code>context.sensitiveData</code>, se for o caso) para que o impacto dos riscos de confidencialidade suba.</p>');
+  else {
+    const classes = [pv.data.personal && 'dados pessoais', pv.data.minors && 'dados de crianças ou adolescentes', pv.data.sensitive && 'dados pessoais sensíveis'].filter(Boolean).join(', ');
+    out.push(`<p>A aplicação trata ${h(classes)}. <strong>${num(pv.confirmed)}</strong> risco(s) confirmado(s) e <strong>${num(pv.potential)}</strong> potencial(is) tocam privacidade ou confidencialidade de dado pessoal.</p>`);
+    out.push(`<div class="note"><p>${h(pv.note)}</p></div>`);
+    if (pv.items.length) {
+      out.push(table('Itens que tocam dado pessoal', ['Classe', 'Controle', 'Natureza', 'Estado', 'Base na LGPD'],
+        pv.items.slice(0, 25).map((i) => [i.class ? classBadge(i.class) : '-', `<strong>${h(i.id)}</strong> ${h(i.title)}`, h(R.KINDS[i.kind].label), h(stateText(i)), h(i.lgpd || '-')])));
+      if (pv.items.length > 25) out.push(`<p class="empty">... e mais ${pv.items.length - 25}.</p>`);
+    }
+  }
+
+  if (r.dependencyVulns) {
+    const v = r.dependencyVulns;
+    out.push('<h3>Vulnerabilidades conhecidas em dependências</h3>');
+    out.push(`<p>Fonte: ${h(v.source)}. ${num(v.total)} pacote(s): ${num(v.bySeverity.critical)} crítico(s), ${num(v.bySeverity.high)} alto(s), ${num(v.bySeverity.medium)} médio(s), ${num(v.bySeverity.low)} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso (github.com/advisories/GHSA-...).</p>`);
+    if (v.items.length) {
+      out.push(table('Pacotes com aviso conhecido', ['Pacote', 'Gravidade', 'Aviso (GHSA)', 'CWE', 'CVSS', 'CVE', 'Correção'],
+        v.items.slice(0, 40).map((i) => {
+          const a = i.advisories[0];
+          const ghsa = a ? `<code>${h(a.id || a.title || '-')}</code>` : '-';
+          return [`<strong>${h(i.package)}</strong>${i.direct ? '' : ' (indireta)'}`, sevBadge(i.severity), ghsa, a ? cweLinks(a.cwe) : '-', a && a.cvss !== null ? h(String(a.cvss)) : '-', a && a.cve.length ? h(a.cve.join(', ')) : 'ver o aviso', h(i.fix)];
+        })));
+    }
+  }
+
+  const listKind = (title, help, list) => {
+    out.push(`<h3>${h(title)}</h3>`, `<p>${h(help)}</p>`);
+    if (!list.length) { out.push('<p class="empty">Nenhum item aberto.</p>'); return; }
+    out.push(table(title, ['Gravidade', 'Controle', 'Estado', 'Pilares'],
+      list.slice(0, 40).map((i) => [sevBadge(i.severity), `<strong>${h(i.id)}</strong> ${h(i.title)}`, h(stateText(i)), h(pillarsText(i.pillars))])));
+    if (list.length > 40) out.push(`<p class="empty">... e mais ${list.length - 40}.</p>`);
+  };
+  listKind('Boas práticas pendentes', `${R.KINDS.practice.help}. Cobrar com prazo, mas sem tratar como brecha.`, k.practices);
+  listKind('Qualidade pendente', `${R.KINDS.quality.help}.`, k.quality);
+
+  out.push('<div class="note"><p>A probabilidade é uma estimativa a partir do estado do controle e da exposição declarada no perfil. Um modelo de ameaças (docs/THREAT-MODEL.md) a torna específica: quem ataca, por onde e o que já existe. Sem ele, use a classe para priorizar a investigação, não como medida do dano.</p></div>');
+  out.push('</section>');
+  return out;
+}
+
+function formatHtml(r, { coverage = null, theme = null } = {}) {
+  const k = r.score;
+  const s = r.summary;
+  const [verdictText, verdictCls] = VERDICT[r.verdict] || ['?', 'warn'];
+  const scope = r.target.url
+    ? `Alvo HTTP: ${h(r.target.url)} (${r.target.active ? 'sondas ativas ligadas' : 'somente sondas passivas'}, ${num(r.target.requestsSent)} requisições).`
+    : 'Escopo: somente verificações estáticas do repositório. Nenhuma requisição foi feita à aplicação, então cabeçalhos, cookies, CSP e HSTS ficaram sem verificação.';
+
+  const out = [];
+  out.push('<!doctype html>', '<html lang="pt-BR">', '<head>', '<meta charset="utf-8">');
+  out.push('<meta name="viewport" content="width=device-width, initial-scale=1">');
+  out.push(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">`);
+  out.push(`<title>Relatório LASTRO: ${h(r.profile.name)}</title>`);
+  out.push(`<style>${BASE_CSS}${theme ? `\n/* tema */\n${theme}` : ''}</style>`, '</head>', '<body>');
+  out.push('<a class="skip" href="#resumo">Ir para o resumo</a>');
+  out.push('<header class="hero"><div class="wrap">');
+  out.push('<p class="eyebrow">Relatório LASTRO</p>', `<h1>${h(r.profile.name)}</h1>`);
+  out.push(`<p class="meta">Gerado em ${h(r.generatedAt.slice(0, 10))} | LASTRO ${h(r.tool.version)} | catálogo ${h(r.catalogVersion)}</p>`);
+  out.push(`<p class="meta">${scope}</p>`);
+  out.push('<nav class="toc" aria-label="Seções do relatório">');
+  const links = [];
+  if (r.risk) links.push(['risco', 'Análise de risco']);
+  links.push(['resumo', 'Resumo']);
+  if (r.context && k) links.push(['contexto', 'Contexto e meta']);
+  if (k && k.byPhase && k.byPhase.length) links.push(['ssdlc', 'SSDLC por fase']);
+  links.push(['pacotes', 'Por pacote'], ['bloqueantes', 'Causas dos bloqueios'], ['achados', 'Outros achados'], ['sem-prova', 'Sem prova']);
+  if (coverage) links.push(['asvs', 'ASVS']);
+  if (r.engineering) links.push(['engenharia', 'Engenharia']);
+  links.push(['limites', 'Limites']);
+  for (const [id, text] of links) out.push(`<a href="#${id}">${text}</a>`);
+  out.push('</nav>', '</div></header>', '<main><div class="wrap">');
+
+  if (r.risk) out.push(...riskHtml(r));
+
+  // Resumo e maturidade
+  out.push('<section id="resumo" aria-labelledby="t-resumo"><h2 id="t-resumo">Resumo e maturidade</h2>');
+  out.push('<div class="cards">');
+  out.push(card('Portão de CI', `<span class="badge ${verdictCls}">${verdictText}</span>`, `${num(s.blocking)} achado(s) novo(s) de gravidade alta ou crítica`));
+  if (k) {
+    out.push(card('Nível de maturidade', `${num(k.level)} de 4`, k.levelName));
+    out.push(card('Provado', pctText(k.provenPct), `por máquina ${pctText(k.machinePct)}, autodeclarado ${pctText(k.attestedPct)}`));
+    out.push(card('Falhando', `<span class="bad">${h(pctText(k.failedPct))}</span>`));
+    out.push(card('Sem prova', pctText(k.unverifiedPct), 'conta como zero'));
+  }
+  out.push(card('Controles aplicáveis', String(num(s.applicable)), `${num(s.verified)} verificados, ${num(s.failed)} falhando, ${num(s.unverified)} sem prova`));
+  out.push('</div>');
+  if (k) {
+    out.push(bar([
+      { cls: 'seg-ok', label: 'Provado por máquina', value: k.machinePct },
+      { cls: 'seg-info', label: 'Autodeclarado', value: k.attestedPct },
+      { cls: 'seg-bad', label: 'Falhando', value: k.failedPct },
+      { cls: 'seg-none', label: 'Sem prova', value: k.unverifiedPct },
+    ]));
+    out.push('<ul class="legend"><li><i class="seg-ok"></i>Provado por máquina</li><li><i class="seg-info"></i>Autodeclarado (atestação)</li><li><i class="seg-bad"></i>Falhando</li><li><i class="seg-none"></i>Sem prova</li></ul>');
+    out.push(`<div class="note"><p><strong>Regra do nível ${num(k.level)}:</strong> ${h(k.levelRule)}.</p><p><strong>Próximo passo:</strong> ${h(k.nextStep)}</p></div>`);
+    out.push(`<p class="empty">${h(k.disclaimer)}</p>`);
+  }
+  out.push('</section>');
+
+  // Contexto e meta
+  if (r.context && k) {
+    const c = r.context;
+    const riskCls = c.risk === 'alto' ? 'bad' : c.risk === 'moderado' ? 'warn' : 'ok';
+    out.push('<section id="contexto" aria-labelledby="t-ctx"><h2 id="t-ctx">Contexto e meta</h2>', '<div class="cards">');
+    out.push(card('Risco inerente', `<span class="badge ${riskCls}">${h(c.risk)}</span>`, `${num(c.points)} pontos, ${c.riskSource}`));
+    out.push(card('Meta de maturidade', `nível ${num(c.targetLevel)}`, c.targetSource));
+    out.push(card('Hoje', `nível ${num(k.level)}`, c.meetsTarget ? 'meta atingida' : `faltam ${num(c.gap)} nível(is)`));
+    out.push('</div>');
+    out.push(`<p>A aplicação ${h(c.factors.length ? c.factors.join('; ') : 'não declara fatores de exposição no perfil')}.</p>`);
+    if (r.scope) {
+      out.push(`<p><strong>No escopo:</strong> ${h(r.scope.on.map((p) => p.title.split(':')[0]).join('; '))}.</p>`);
+      if (r.scope.off.length) {
+        const off = r.scope.off.map((p) => `${p.title.split(':')[0]} (${p.missing.map((f) => FLAG_LABELS[f] || f).join(', ')})`).join('; ');
+        out.push(`<p><strong>Fora do escopo</strong>, porque o perfil declara que a aplicação não tem: ${h(off)}.</p>`);
+      }
+    }
+    out.push('<div class="note"><p>Nem toda aplicação precisa do mesmo rigor. A meta acompanha o risco inerente, e o escopo depende do perfil: um perfil que subdeclara a aplicação melhora o número e piora a segurança. Revise o perfil com outra pessoa.</p></div>', '</section>');
+  }
+
+  // Aderência por fase do SSDLC
+  if (k && k.byPhase && k.byPhase.length) {
+    out.push('<section id="ssdlc" aria-labelledby="t-ssdlc"><h2 id="t-ssdlc">Aderência por fase do ciclo de vida (SSDLC)</h2>');
+    out.push('<p>Cada controle conta em todas as fases em que atua, então as fases não somam o total. "Aderência" é a fatia do peso dos controles da fase que está provada, não uma certificação.</p>');
+    out.push(table('Peso provado, falhando e sem prova em cada fase', ['Fase', 'Controles', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
+      k.byPhase.map((p) => [
+        h(p.name), String(num(p.controls)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
+        bar([{ cls: 'seg-ok', label: 'Por máquina', value: p.machinePct }, { cls: 'seg-info', label: 'Autodeclarado', value: p.attestedPct }, { cls: 'seg-bad', label: 'Falhando', value: p.failedPct }, { cls: 'seg-none', label: 'Sem prova', value: p.unverifiedPct }]),
+      ]), [1, 2, 3, 4]));
+    out.push('</section>');
+  }
+
+  // Por pacote
+  out.push('<section id="pacotes" aria-labelledby="t-pacotes"><h2 id="t-pacotes">Por pacote</h2>');
+  if (k) {
+    out.push(table('Peso provado, falhando e sem prova em cada pacote de controles', ['Pacote', 'Controles', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
+      k.byPack.map((p) => [
+        h(p.title.split(':')[0]), String(num(p.controls)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
+        bar([{ cls: 'seg-ok', label: 'Por máquina', value: p.machinePct }, { cls: 'seg-info', label: 'Autodeclarado', value: p.attestedPct }, { cls: 'seg-bad', label: 'Falhando', value: p.failedPct }, { cls: 'seg-none', label: 'Sem prova', value: p.unverifiedPct }]),
+      ]), [1, 2, 3, 4]));
+  }
+  out.push('</section>');
+
+  // Bloqueantes
+  const blocking = r.controls.flatMap((c) => c.findings.filter((f) => f.blocking).map((f) => ({ c, f })));
+  out.push('<section id="bloqueantes" aria-labelledby="t-bloq"><h2 id="t-bloq">Causas dos bloqueios</h2>');
+  if (!blocking.length) out.push('<p class="empty">Nenhum.</p>');
+  else {
+    const causes = groupCauses(r);
+    out.push(`<p>${blocking.length} achado(s) novo(s), de gravidade alta ou crítica, fora do baseline e sem risco aceito vigente, em ${causes.length} causa(s). Cada causa tem uma correção só.</p>`);
+    for (const cz of causes) {
+      out.push(`<details open><summary>${h(cz.id)}: ${h(cz.title)} <span class="count">${cz.count} ocorrência(s), gravidade ${sevBadge(cz.severity)}</span></summary>`);
+      if (cz.remediation) out.push(`<p><strong>Como corrigir:</strong> ${h(cz.remediation)}</p>`);
+      if (cz.locations.length) {
+        out.push('<ul>', ...cz.locations.slice(0, 30).map((l) => `<li><code>${h(l)}</code></li>`));
+        if (cz.locations.length > 30) out.push(`<li class="empty">... e mais ${cz.locations.length - 30} local(is).</li>`);
+        out.push('</ul>');
+      }
+      out.push('</details>');
+    }
+    if (r.baselineView) {
+      const v = r.baselineView;
+      const view = v.verdictIfAdopted === 'pass' ? 'aprovado' : 'incompleto (ainda há controles altos ou críticos sem prova)';
+      out.push(`<div class="note"><p><strong>Com baseline:</strong> se esta dívida (${num(v.findings)} achado(s), ${num(v.causes)} causa(s)) fosse registrada com <code>lastro baseline --write</code>, o portão ficaria ${h(view)}: só achado novo passaria a bloquear. A dívida continua visível aqui e deve virar ticket ou risco aceito com dono e validade.</p></div>`);
+    }
+    out.push('<details><summary>Todas as ocorrências</summary>');
+    out.push(table('Achados bloqueantes', ['Controle', 'Gravidade', 'Onde', 'O que'],
+      blocking.sort((a, b) => SEV_ORDER[a.f.severity] - SEV_ORDER[b.f.severity] || a.c.id.localeCompare(b.c.id))
+        .map(({ c, f }) => [`<strong>${h(c.id)}</strong>`, sevBadge(f.severity), f.location ? `<code>${h(f.location)}</code>` : '-', h(f.message)])));
+    out.push('</details>');
+  }
+  out.push('</section>');
+
+  // Outros achados
+  const failing = r.controls.filter((c) => c.findings.some((f) => !f.blocking))
+    .sort((a, b) => {
+      const wa = Math.min(...a.findings.filter((f) => !f.blocking).map((f) => SEV_ORDER[f.severity]));
+      const wb = Math.min(...b.findings.filter((f) => !f.blocking).map((f) => SEV_ORDER[f.severity]));
+      return wa - wb || a.id.localeCompare(b.id);
+    });
+  out.push('<section id="achados" aria-labelledby="t-ach"><h2 id="t-ach">Outros achados (não bloqueiam)</h2>');
+  if (!failing.length) out.push('<p class="empty">Nenhum.</p>');
+  else {
+    out.push('<p>Cada grupo pede uma decisão: corrigir, justificar com um comentário <code>lastro-ignore</code> ou aceitar o risco com dono e validade. Abra o grupo para ver os locais.</p>');
+    for (const c of failing) {
+      const fs = c.findings.filter((f) => !f.blocking).sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+      const shown = fs.slice(0, MAX_FINDINGS_PER_CONTROL);
+      out.push('<details>');
+      out.push(`<summary>${h(c.id)}: ${h(c.title)} <span class="count">${fs.length} achado(s), maior gravidade ${sevBadge(fs[0].severity)}</span></summary><ul>`);
+      for (const f of shown) out.push(`<li>${sevBadge(f.severity)} ${f.location ? `<code>${h(f.location)}</code> ` : ''}${h(f.message)}</li>`);
+      if (fs.length > shown.length) out.push(`<li class="empty">... e mais ${fs.length - shown.length} achado(s) do mesmo controle.</li>`);
+      out.push('</ul></details>');
+    }
+  }
+  out.push('</section>');
+
+  // Sem prova
+  const open = r.controls.filter((c) => c.state === 'unverified');
+  out.push('<section id="sem-prova" aria-labelledby="t-prova"><h2 id="t-prova">Controles sem prova</h2>');
+  out.push(`<p>${open.length} controle(s) sem prova não contam como aprovados. A maioria é manual: a prova é uma atestação com responsável e validade em <code>.lastro/status.json</code>. Os de HTTP exigem <code>--url</code>.</p>`);
+  for (const sev of ['critical', 'high', 'medium', 'low']) {
+    const list = open.filter((c) => c.severity === sev).sort((a, b) => a.id.localeCompare(b.id));
+    if (!list.length) continue;
+    out.push(`<details${sev === 'critical' || sev === 'high' ? ' open' : ''}><summary>${h(SEV_TITLE[sev])} <span class="count">${list.length} controle(s)</span></summary>`);
+    out.push(table(`Controles de gravidade ${SEV_PT[sev]} sem prova`, ['Controle', 'Título', 'Por quê'],
+      list.map((c) => [`<strong>${h(c.id)}</strong>`, h(c.title), h((c.notes[0] || '').slice(0, 120))])));
+    out.push('</details>');
+  }
+  out.push('</section>');
+
+  // ASVS
+  if (coverage) {
+    const t = coverage.totals;
+    out.push(`<section id="asvs" aria-labelledby="t-asvs"><h2 id="t-asvs">Cobertura do ASVS ${h(coverage.version)} (até L${num(coverage.level)})</h2>`);
+    out.push(`<p>${num(t.total)} requisitos: ${num(t.verified)} verificados, ${num(t.failed)} falhando, ${num(t.unverified)} sem prova, ${num(t.outOfProfile)} fora do perfil e ${num(t.none)} sem controle. Um requisito só conta como verificado quando um controle que o cobre por inteiro está verificado.</p>`);
+    const chapters = Object.keys(coverage.byChapter).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    out.push(table('Estado dos requisitos do ASVS por capítulo', ['Capítulo', 'Total', 'Verificados', 'Falhando', 'Sem prova', 'Fora do perfil', 'Distribuição'],
+      chapters.map((ch) => {
+        const b = coverage.byChapter[ch];
+        const total = Math.max(1, num(b.total));
+        const p = (n) => (num(n) / total) * 100;
+        return [`${h(ch)} ${h(b.name)}`, String(num(b.total)), String(num(b.verified)), String(num(b.failed)), String(num(b.unverified)), String(num(b.outOfProfile)),
+          bar([{ cls: 'seg-ok', label: 'Verificados', value: p(b.verified) }, { cls: 'seg-bad', label: 'Falhando', value: p(b.failed) }, { cls: 'seg-none', label: 'Sem prova', value: p(b.unverified) }, { cls: 'seg-warn', label: 'Fora do perfil', value: p(b.outOfProfile) }])];
+      }), [1, 2, 3, 4, 5]));
+    out.push('</section>');
+  }
+
+  if (r.warnings.length) out.push('<section aria-labelledby="t-avisos"><h2 id="t-avisos">Avisos</h2><ul>', ...r.warnings.map((w) => `<li>${h(w)}</li>`), '</ul></section>');
+
+  if (r.engineering) {
+    const e = r.engineering;
+    const yes = (b) => (b ? 'sim' : 'não');
+    out.push('<section id="engenharia" aria-labelledby="t-eng"><h2 id="t-eng">Fatos de engenharia (não entram na pontuação)</h2>');
+    out.push('<p>O kit não dá nota à qualidade do código. Estes são indícios objetivos para a conversa sobre manutenção e revisão.</p>');
+    out.push(table('Indícios objetivos do repositório', ['Item', 'O que foi observado'], [
+      ['Código-fonte', `${num(e.sourceFiles)} arquivo(s), ${num(e.sourceLines)} linha(s)${e.largest.length ? `. Maiores: ${e.largest.map((x) => `<code>${h(x.file)}</code> (${num(x.lines)})`).join(', ')}` : ''}`],
+      ['Testes', `${num(e.testFiles)} arquivo(s), ${num(e.testLines)} linha(s), ${h(pctText(e.testToSourcePct))} do código-fonte`],
+      ['CI', `${num(e.ci.workflows)} workflow(s); executa testes: ${yes(e.ci.runsTests)}; executa lint: ${yes(e.ci.runsLint)}`],
+      ['Ferramentas', `script de teste ${yes(e.tooling.testScript)}; lint configurado ${yes(e.tooling.lintConfig || e.tooling.lintScript)}; tipagem ${yes(e.tooling.typeConfig)}; lockfile ${yes(e.tooling.lockfile)}`],
+      ['Documentação', `README ${yes(e.docs.readme)}; arquitetura ${yes(e.docs.architecture)}; registro de mudanças ${yes(e.docs.changelog)}; licença ${yes(e.docs.license)}`],
+      ['Dependências', e.dependencies.prod === null ? 'sem package.json' : `${num(e.dependencies.prod)} de produção e ${num(e.dependencies.dev)} de desenvolvimento`],
+    ]));
+    if (e.observations.length) out.push('<h3>Observações</h3><ul>', ...e.observations.map((x) => `<li>${h(x)}</li>`), '</ul>');
+    out.push('</section>');
+  }
+
+  out.push('<section id="limites" aria-labelledby="t-lim"><h2 id="t-lim">Limites</h2><ul>');
+  out.push('<li>As varreduras de código são heurísticas por texto, linha a linha: erram para os dois lados e não substituem revisão.</li>');
+  out.push('<li>A pontuação e a cobertura medem evidência e progresso do kit. Elas não certificam a aplicação nem provam conformidade com o ASVS.</li>');
+  out.push('<li>Atestação é autodeclaração com prazo. Quem escreveu o código não deve ser o único a atestar controles de nível alto.</li>');
+  out.push('</ul></section>');
+  out.push('</div></main>', '<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas.</footer>', '</body>', '</html>');
+  return `${out.join('\n')}\n`;
+}
+
+module.exports = { formatHtml, validateTheme, MAX_FINDINGS_PER_CONTROL };

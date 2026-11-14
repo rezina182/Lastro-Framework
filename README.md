@@ -26,6 +26,10 @@ Por isso o verificador segue regras simples:
 
 Todo relatório traz um nível de 0 a 4 e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
 
+## Risco
+
+O relatório abre com a análise de risco: separa **risco de segurança**, **boa prática** e **qualidade**, e para o risco de segurança mostra probabilidade x impacto, classe, pilares da segurança da informação, CWE, requisitos do ASVS e o que toca privacidade e LGPD. O que ninguém provou aparece como "potencial" e nunca passa de "Alto". Veja [docs/RISCO.md](docs/RISCO.md).
+
 ## Uso rápido
 
 Requer Node 22 ou superior. Nenhuma dependência para instalar.
@@ -40,6 +44,10 @@ node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exe
 node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
 node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
 node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com nível de maturidade
+node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html            # o mesmo em HTML autocontido (sem scripts nem recursos externos)
+node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html --theme meu-tema.css   # com a sua identidade visual
+npm audit --json > audit.json   # você roda: envia a lista de pacotes ao registro do npm
+node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html --audit-file audit.json   # inclui dependências vulneráveis (GHSA, CWE, CVSS)
 ```
 
 Códigos de saída: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração.

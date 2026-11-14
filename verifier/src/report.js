@@ -17,6 +17,16 @@ function formatReport(r) {
     out.push(`  ${k.nextStep}`);
     out.push(`  ${k.disclaimer}`);
   }
+  if (r.context && r.score) {
+    const c = r.context;
+    out.push(`Contexto: risco ${c.risk} (${c.points} pontos) | meta de maturidade: nível ${c.targetLevel} | hoje: nível ${r.score.level}${c.meetsTarget ? ' (meta atingida)' : ` (faltam ${c.gap})`}`);
+  }
+  if (r.risk) {
+    const c = r.risk.summary.confirmed;
+    const p = r.risk.summary.potential;
+    out.push(`Risco de segurança confirmado: ${c.critical} crítico(s), ${c.high} alto(s), ${c.medium} médio(s), ${c.low} baixo(s) | potencial (sem prova): ${p.critical} crítico(s), ${p.high} alto(s) | boas práticas abertas: ${r.risk.summary.practicesOpen} | qualidade aberta: ${r.risk.summary.qualityOpen}`);
+  }
+  if (r.baselineView) out.push(`Portão: ${r.baselineView.findings} achado(s) bloqueante(s) em ${r.baselineView.causes} causa(s). Registrada como baseline, essa dívida deixaria o portão ${r.baselineView.verdictIfAdopted === 'pass' ? 'aprovado' : 'incompleto'}: só achado novo bloquearia.`);
   if (r.target.url) out.push(`Alvo HTTP: ${r.target.url}${r.target.active ? ' (sondas ativas ligadas)' : ' (somente sondas passivas)'} | ${r.target.requestsSent} requisições, intervalo mínimo de ${r.target.delayMs} ms`);
 
   const blocking = r.controls.flatMap((c) => c.findings.filter((f) => f.blocking).map((f) => ({ c, f })));
@@ -51,6 +61,156 @@ function formatReport(r) {
   return out.join('\n');
 }
 
+const { groupCauses } = require('./causes');
+const { FLAG_LABELS } = require('./context');
+const R = require('./risk');
+
+const cweText = (list) => (list.length ? list.map((n) => `CWE-${n}`).join(', ') : '-');
+const pillarText = (codes) => codes.map((c) => R.PILLARS[c]).join(', ');
+const stateWord = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
+
+function riskMd(r) {
+  const k = r.risk;
+  const out = ['## Análise de risco', ''];
+  out.push('Três coisas diferentes aparecem em um relatório de segurança, e misturá-las faz tudo parecer igualmente urgente:', '');
+  for (const key of ['security', 'practice', 'quality']) out.push(`- **${R.KINDS[key].label}:** ${R.KINDS[key].help}.`);
+  out.push('', 'A estimativa de risco (probabilidade x impacto, de 1 a 4 cada, classe pelo produto) vale só para **riscos de segurança**. Boa prática e qualidade aparecem em listas próprias, ordenadas pela gravidade do controle.', '');
+  const c = k.summary.confirmed;
+  const p = k.summary.potential;
+  out.push('### Riscos de segurança por criticidade', '');
+  out.push('| Classe | Confirmados (achado ou falha) | Potenciais (sem prova) |', '|---|---|---|');
+  for (const cls of R.CLASSES) out.push(`| ${R.CLASS_PT[cls]} | ${c[cls]} | ${p[cls]} |`);
+  out.push(`| **Total** | **${c.total}** | **${p.total}** |`, '');
+  out.push(`"Confirmado" é o que a verificação encontrou. "Potencial" é o que ninguém provou: a probabilidade é uma suposição média ajustada pela exposição, e não quer dizer que a falha exista. ${k.summary.securityVerified} controle(s) de segurança estão verificados e não entram na conta.`, '');
+
+  out.push('### Matriz de risco (riscos confirmados)', '');
+  out.push('Só os riscos confirmados entram na matriz. Os potenciais (sem prova) ficam limitados a "Alto": crítico exige evidência.', '');
+  out.push('| Impacto \\ Probabilidade | 1 rara | 2 possível | 3 provável | 4 quase certa |', '|---|---|---|---|---|');
+  for (let imp = 4; imp >= 1; imp -= 1) {
+    const cells = k.matrix.filter((m) => m.impact === imp).sort((a, b) => a.likelihood - b.likelihood);
+    out.push(`| ${imp} ${R.IMPACT_PT[imp]} | ${cells.map((m) => (m.count ? `${m.count} (${R.CLASS_PT[m.class]})` : '·')).join(' | ')} |`);
+  }
+  out.push('');
+
+  const rows = k.security;
+  if (rows.length) {
+    out.push('### Lista de riscos de segurança', '');
+    const conf = rows.filter((i) => i.state === 'failed');
+    const pot = rows.filter((i) => i.state === 'unverified');
+    const render = (list, title, limit) => {
+      if (!list.length) return;
+      out.push(`#### ${title}`, '');
+      out.push('| Classe | P x I | Controle | Pilares | CWE | ASVS | Onde / por quê |', '|---|---|---|---|---|---|---|');
+      for (const i of list.slice(0, limit)) {
+        const where = i.type === 'vuln'
+          ? `${i.advisories.map((a) => a.id || a.title).join(', ').slice(0, 90)} (${i.direct ? 'direta' : 'indireta'}; correção: ${i.fix})`
+          : (i.locations.length ? i.locations.join(', ') : i.reasons.likelihood[0]);
+        out.push(`| ${R.CLASS_PT[i.class]}${i.accepted ? ' (aceito)' : ''} | ${i.likelihood} x ${i.impact} = ${i.score} | ${i.id} ${md(i.title)} | ${pillarText(i.pillars)} | ${cweText(i.cwe)} | ${i.asvs.slice(0, 3).join(', ') || '-'} | ${md(where)} |`);
+      }
+      if (list.length > limit) out.push('', `... e mais ${list.length - limit}, em ordem decrescente de risco.`);
+      out.push('');
+    };
+    render(conf, 'Confirmados', 60);
+    render(pot, 'Potenciais (sem prova): onde olhar primeiro', 25);
+  }
+
+  out.push('### Pilares da segurança da informação', '');
+  out.push('Quais pilares os riscos abertos (de qualquer natureza) tocam. "Pior classe" considera só riscos de segurança.', '');
+  out.push('| Pilar | Significa | Itens abertos | Confirmados | Potenciais | Pior classe |', '|---|---|---|---|---|---|');
+  for (const pl of k.pillars) out.push(`| ${pl.name} | ${pl.help} | ${pl.open} | ${pl.confirmed} | ${pl.potential} | ${pl.worstClass ? R.CLASS_PT[pl.worstClass] : '-'} |`);
+  out.push('');
+
+  const pv = k.privacy;
+  out.push('### Privacidade e LGPD', '');
+  if (!pv.applies) out.push('O perfil declara que a aplicação não trata dados pessoais. Se isso mudar, declare `personalData` (e `minorsData` ou `context.sensitiveData`, se for o caso) para que o impacto dos riscos de confidencialidade suba.', '');
+  else {
+    const classes = [pv.data.personal && 'dados pessoais', pv.data.minors && 'dados de crianças ou adolescentes', pv.data.sensitive && 'dados pessoais sensíveis'].filter(Boolean).join(', ');
+    out.push(`A aplicação trata ${classes}. ${pv.confirmed} risco(s) confirmado(s) e ${pv.potential} potencial(is) tocam privacidade ou confidencialidade de dado pessoal.`, '');
+    out.push(`> ${pv.note}`, '');
+    if (pv.items.length) {
+      out.push('| Classe | Controle | Natureza | Estado | Base na LGPD |', '|---|---|---|---|---|');
+      for (const i of pv.items.slice(0, 25)) out.push(`| ${i.class ? R.CLASS_PT[i.class] : '-'} | ${i.id} ${md(i.title)} | ${R.KINDS[i.kind].label} | ${stateWord(i)} | ${md(i.lgpd || '-')} |`);
+      if (pv.items.length > 25) out.push('', `... e mais ${pv.items.length - 25}.`);
+      out.push('');
+    }
+  }
+
+  if (r.dependencyVulns) {
+    const v = r.dependencyVulns;
+    out.push('### Vulnerabilidades conhecidas em dependências', '');
+    out.push(`Fonte: ${v.source}. ${v.total} pacote(s): ${v.bySeverity.critical} crítico(s), ${v.bySeverity.high} alto(s), ${v.bySeverity.medium} médio(s), ${v.bySeverity.low} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso.`, '');
+    if (v.items.length) {
+      out.push('| Pacote | Gravidade | Aviso (GHSA) | CWE | CVSS | CVE | Correção |', '|---|---|---|---|---|---|---|');
+      for (const i of v.items.slice(0, 40)) {
+        const a = i.advisories[0];
+        out.push(`| ${md(i.package)}${i.direct ? '' : ' (indireta)'} | ${SEV_PT[i.severity]} | ${md(a && (a.id || a.title) ? (a.id || a.title) : '-')} | ${a ? cweText(a.cwe) : '-'} | ${a && a.cvss !== null ? a.cvss : '-'} | ${a && a.cve.length ? a.cve.join(', ') : 'ver o aviso'} | ${md(i.fix)} |`);
+      }
+      out.push('');
+    }
+  }
+
+  const listKind = (title, help, list) => {
+    out.push(`### ${title}`, '', help, '');
+    if (!list.length) { out.push('Nenhum item aberto.', ''); return; }
+    out.push('| Gravidade | Controle | Estado | Pilares |', '|---|---|---|---|');
+    for (const i of list.slice(0, 40)) out.push(`| ${SEV_PT[i.severity]} | ${i.id} ${md(i.title)} | ${stateWord(i)} | ${pillarText(i.pillars)} |`);
+    if (list.length > 40) out.push('', `... e mais ${list.length - 40}.`);
+    out.push('');
+  };
+  listKind('Boas práticas pendentes', `${R.KINDS.practice.help}. Cobrar com prazo, mas sem tratar como brecha.`, k.practices);
+  listKind('Qualidade pendente', `${R.KINDS.quality.help}.`, k.quality);
+
+  out.push('> A probabilidade é uma estimativa a partir do estado do controle e da exposição declarada no perfil. Um modelo de ameaças (docs/THREAT-MODEL.md) a torna específica: quem ataca, por onde e o que já existe. Sem ele, use a classe para priorizar a investigação, não como medida do dano.', '');
+  return out;
+}
+
+/** Texto sobre o que acontece se a dívida atual virar baseline (usado no Markdown, no HTML e no texto). */
+function baselineLines(v) {
+  const view = v.verdictIfAdopted === 'pass' ? 'aprovado' : 'incompleto (ainda há controles altos ou críticos sem prova)';
+  return [
+    `Se esta dívida (${v.findings} achado(s), ${v.causes} causa(s)) fosse registrada como baseline com \`lastro baseline --write\`, o portão ficaria ${view}: só achado novo passaria a bloquear. A dívida continua visível no relatório e deve virar ticket ou risco aceito com dono e validade.`,
+  ];
+}
+
+const flagList = (flags) => flags.map((f) => FLAG_LABELS[f] || f).join(', ');
+
+function contextMd(r) {
+  const c = r.context;
+  const out = ['## Contexto e meta', ''];
+  out.push(`- **Risco inerente: ${c.risk}** (${c.points} pontos, ${c.riskSource}). A aplicação ${c.factors.length ? c.factors.join('; ') : 'não declara fatores de exposição no perfil'}.`);
+  out.push(`- **Meta de maturidade para este contexto: nível ${c.targetLevel}** (${c.targetSource}). Hoje: nível ${r.score.level}. ${c.meetsTarget ? 'Meta atingida.' : `Faltam ${c.gap} nível(is).`}`);
+  if (r.scope) {
+    out.push(`- Pacotes no escopo: ${r.scope.on.map((p) => p.title.split(':')[0]).join('; ')}.`);
+    if (r.scope.off.length) out.push(`- Fora do escopo, porque o perfil declara que a aplicação não tem: ${r.scope.off.map((p) => `${p.title.split(':')[0]} (${flagList(p.missing)})`).join('; ')}.`);
+  }
+  out.push('', '> Nem toda aplicação precisa do mesmo rigor. A meta acompanha o risco inerente, e o escopo depende do perfil: um perfil que subdeclara a aplicação melhora o número e piora a segurança. Revise o perfil com outra pessoa.', '');
+  return out;
+}
+
+function phasesMd(r) {
+  const out = ['## Aderência por fase do ciclo de vida (SSDLC)', ''];
+  out.push('Cada controle conta em todas as fases em que atua, então as fases não somam o total. "Aderência" é a fatia do peso dos controles da fase que está provada, não uma certificação.', '');
+  out.push('| Fase | Controles | Provado | Falhando | Sem prova |', '|---|---|---|---|---|');
+  for (const p of r.score.byPhase) out.push(`| ${p.name} | ${p.controls} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
+  out.push('');
+  return out;
+}
+
+function engineeringMd(e) {
+  const yes = (b) => (b ? 'sim' : 'não');
+  const out = ['## Fatos de engenharia (não entram na pontuação)', ''];
+  out.push('O kit não dá nota à qualidade do código. Estes são indícios objetivos para a conversa sobre manutenção e revisão.', '');
+  out.push(`- Código-fonte: ${e.sourceFiles} arquivo(s), ${e.sourceLines} linha(s).${e.largest.length ? ` Maiores: ${e.largest.map((x) => `${md(x.file)} (${x.lines})`).join(', ')}.` : ''}`);
+  out.push(`- Testes: ${e.testFiles} arquivo(s), ${e.testLines} linha(s) (${e.testToSourcePct}% do código-fonte).`);
+  out.push(`- CI: ${e.ci.workflows} workflow(s); executa testes: ${yes(e.ci.runsTests)}; executa lint: ${yes(e.ci.runsLint)}.`);
+  out.push(`- Ferramentas: script de teste ${yes(e.tooling.testScript)}; lint configurado ${yes(e.tooling.lintConfig || e.tooling.lintScript)}; tipagem ${yes(e.tooling.typeConfig)}; lockfile ${yes(e.tooling.lockfile)}.`);
+  out.push(`- Documentação: README ${yes(e.docs.readme)}; arquitetura ${yes(e.docs.architecture)}; registro de mudanças ${yes(e.docs.changelog)}; licença ${yes(e.docs.license)}.`);
+  if (e.dependencies.prod !== null) out.push(`- Dependências: ${e.dependencies.prod} de produção e ${e.dependencies.dev} de desenvolvimento.`);
+  if (e.observations.length) out.push('', 'Observações:', ...e.observations.map((x) => `- ${md(x)}`));
+  out.push('');
+  return out;
+}
+
 const md = (s) => String(s).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 const STATE_PT = { verified: 'verificado', failed: 'falhando', unverified: 'sem prova', not_applicable: 'não se aplica' };
 const SEV_PT = { critical: 'crítica', high: 'alta', medium: 'média', low: 'baixa' };
@@ -64,11 +224,12 @@ function formatMarkdown(r, { coverage = null } = {}) {
   const s = r.summary;
   const out = [];
   out.push(`# Relatório LASTRO: ${md(r.profile.name)}`, '');
-  out.push(`Gerado em ${r.generatedAt.slice(0, 10)} | LASTRO ${r.tool.version} | catálogo ${r.catalogVersion} | veredito: **${VERDICT[r.verdict]}**`);
+  out.push(`Gerado em ${r.generatedAt.slice(0, 10)} | LASTRO ${r.tool.version} | catálogo ${r.catalogVersion} | portão de CI: **${VERDICT[r.verdict]}**`);
   out.push(r.target.url
     ? `Alvo HTTP: ${md(r.target.url)} (${r.target.active ? 'sondas ativas ligadas' : 'somente sondas passivas'}, ${r.target.requestsSent} requisições).`
     : 'Escopo: somente verificações estáticas do repositório. Nenhuma requisição foi feita à aplicação, então cabeçalhos, cookies, CSP e HSTS ficaram sem verificação.');
   out.push('');
+  if (r.risk) out.push(...riskMd(r));
   if (k) {
     out.push('## Maturidade', '');
     out.push(`**Nível ${k.level}: ${k.levelName}.** Regra do nível: ${k.levelRule}.`, '');
@@ -80,14 +241,26 @@ function formatMarkdown(r, { coverage = null } = {}) {
     for (const p of k.byPack) out.push(`| ${md(p.title.split(':')[0])} | ${p.controls} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
     out.push('');
   }
+  if (r.context && k) out.push(...contextMd(r));
+  if (k && k.byPhase && k.byPhase.length) out.push(...phasesMd(r));
   out.push('## Resumo', '');
   out.push(`- Controles aplicáveis: ${s.applicable} (verificados ${s.verified}, falhando ${s.failed}, sem prova ${s.unverified}); não se aplicam: ${s.notApplicable}.`);
   out.push(`- Achados bloqueantes: ${s.blocking}. Dívida em baseline: ${s.debt}. Riscos aceitos: ${s.accepted}.`, '');
 
   const blocking = r.controls.flatMap((c) => c.findings.filter((f) => f.blocking).map((f) => ({ c, f })));
-  out.push('## Achados que bloqueiam', '');
-  if (!blocking.length) out.push('Nenhum.', '');
+  out.push('## Causas dos bloqueios', '');
+  const causes = groupCauses(r);
+  if (!blocking.length) out.push('Nenhum achado bloqueante.', '');
   else {
+    out.push(`${blocking.length} achado(s) em ${causes.length} causa(s). Cada causa tem uma correção só.`, '');
+    out.push('| Controle | Gravidade | Ocorrências | Onde | Como corrigir |', '|---|---|---|---|---|');
+    for (const c of causes) {
+      const where = `${md(c.locations.slice(0, 3).join(', ') || '-')}${c.locations.length > 3 ? ` e mais ${c.locations.length - 3}` : ''}`;
+      out.push(`| ${c.id} ${md(c.title)} | ${SEV_PT[c.severity]} | ${c.count} | ${where} | ${md(c.remediation.slice(0, 260))} |`);
+    }
+    out.push('');
+    if (r.baselineView) out.push(...baselineLines(r.baselineView), '');
+    out.push('### Todas as ocorrências', '');
     out.push('| Controle | Gravidade | Onde | O que |', '|---|---|---|---|');
     for (const { c, f } of blocking.sort((a, b) => SEV_ORDER[a.f.severity] - SEV_ORDER[b.f.severity])) {
       out.push(`| ${c.id} | ${SEV_PT[f.severity]} | ${md(f.location || '-')} | ${md(f.message)} |`);
@@ -132,6 +305,7 @@ function formatMarkdown(r, { coverage = null } = {}) {
   }
 
   if (r.warnings.length) out.push('## Avisos', '', ...r.warnings.map((w) => `- ${md(w)}`), '');
+  if (r.engineering) out.push(...engineeringMd(r.engineering));
   out.push('## Limites', '');
   out.push('- As varreduras de código são heurísticas por texto, linha a linha: erram para os dois lados e não substituem revisão.');
   out.push('- A pontuação e a cobertura medem evidência e progresso do kit. Elas não certificam a aplicação nem provam conformidade com o ASVS.');
@@ -139,4 +313,36 @@ function formatMarkdown(r, { coverage = null } = {}) {
   return out.join('\n');
 }
 
-module.exports = { formatReport, formatMarkdown };
+const REDACT_MAX_TERMS = 20;
+
+/** Valida a lista de termos de --redact. Devolve a lista de erros (vazia = válida). */
+function validateRedactTerms(terms) {
+  const errs = [];
+  if (!Array.isArray(terms) || terms.length === 0) return ['informe ao menos um termo'];
+  if (terms.length > REDACT_MAX_TERMS) errs.push(`no máximo ${REDACT_MAX_TERMS} termos`);
+  for (const t of terms) {
+    if (typeof t !== 'string' || t.length < 3 || t.length > 60) errs.push(`termo inválido "${String(t).slice(0, 20)}": use de 3 a 60 caracteres`);
+    else if (!/^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u.test(t)) errs.push(`termo inválido "${t}": use só letras, números, espaço, ponto, _ e -`);
+  }
+  return errs;
+}
+
+/**
+ * Devolve uma cópia do relatório com os termos trocados por "[omitido]" em todos os textos, sem diferenciar
+ * maiúsculas de minúsculas. Serve para compartilhar um relatório sem nomes de empresa, produto ou cliente.
+ * A troca é feita nos dados, antes de formatar, então o Markdown e o HTML continuam íntegros.
+ */
+function redactReport(report, terms) {
+  const errs = validateRedactTerms(terms);
+  if (errs.length) throw new Error(`--redact inválido: ${errs.join('; ')}`);
+  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'giu');
+  const walk = (v) => {
+    if (typeof v === 'string') return v.replace(re, '[omitido]');
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  return walk(report);
+}
+
+module.exports = { formatReport, formatMarkdown, redactReport, validateRedactTerms };
