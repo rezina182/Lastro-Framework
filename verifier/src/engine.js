@@ -21,6 +21,7 @@ const { deriveContext, describeScope } = require('./context');
 const { engineeringFacts } = require('./engineering');
 const { analyzeRisk } = require('./risk');
 const { loadAuditFile } = require('./audit');
+const TM = require('./threatmodel');
 
 class ConfigError extends Error {}
 
@@ -262,7 +263,19 @@ async function runCheck(opts = {}) {
     if (!a.ok) throw new ConfigError(`--audit-file: ${a.error}`);
     audit = a.value;
   }
-  const risk = analyzeRisk({ controls }, { riskMap: catalog.riskMap, catalog, profile, audit });
+  // Modelo de ameaças: rascunho gerado agora, combinado com as decisões já gravadas (se houver).
+  let tmPersisted = null;
+  const tmFile = TM.loadFile(root);
+  if (tmFile) {
+    if (!tmFile.ok) warnings.push(`${TM.FILE} ilegível (${tmFile.error}): ignorado na análise.`);
+    else {
+      const tmErrs = TM.validateModel(tmFile.value);
+      if (tmErrs.length) warnings.push(`${TM.FILE} inválido (${tmErrs[0]}): ignorado na análise.`);
+      else tmPersisted = tmFile.value;
+    }
+  }
+  const threatModel = TM.buildThreatModel({ ctx, controls, riskMap: catalog.riskMap, profile, persisted: tmPersisted, now });
+  const risk = analyzeRisk({ controls }, { riskMap: catalog.riskMap, catalog, profile, audit, threatLikelihood: TM.likelihoodOverrides(threatModel) });
   const baselineView = blocking > 0 ? { findings: blocking, causes: blockingCauses, verdictIfAdopted: incomplete ? 'incomplete' : 'pass' } : null;
   return {
     tool: { name: 'lastro', version: kitVersion() },
@@ -277,6 +290,7 @@ async function runCheck(opts = {}) {
     scope: describeScope(catalog.packs, profile.flags),
     baselineView,
     risk,
+    threatModel,
     dependencyVulns: audit,
     engineering: engineeringFacts(ctx),
     controls,

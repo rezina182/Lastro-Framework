@@ -9,6 +9,9 @@ const { execFileSync } = require('node:child_process');
 const { hasPrefix, parseDate, readJson } = require('../util');
 const { isTestPath } = require('../engineering');
 const schema = require('../schema');
+const { evaluateFile: evaluateThreatFile } = require('../threatmodel');
+
+const TM_FILE = '.lastro/threat-model.json';
 
 const verified = (notes = []) => ({ state: 'verified', findings: [], notes });
 const failed = (findings, notes = []) => ({ state: findings.length ? 'failed' : 'verified', findings, notes });
@@ -219,6 +222,14 @@ function securityMd(ctx) {
 }
 
 function threatModel(ctx) {
+  // Modelo estruturado (lastro threat-model): se existe, é ele que vale, e rascunho não passa.
+  if (ctx.has(TM_FILE)) {
+    const j = readJson(ctx.root, TM_FILE);
+    if (!j.ok) return failed([{ severity: 'medium', key: 'tm-unreadable', location: TM_FILE, message: `${TM_FILE} ilegível (${j.error}).` }]);
+    const problems = evaluateThreatFile(j.value, ctx.now, ctx.thresholds.threatModelMaxAgeDays);
+    if (problems.length) return failed(problems.map((p) => ({ severity: p.severity, key: p.key, location: TM_FILE, message: p.message })));
+    return verified([`Modelo de ameaças estruturado revisado por ${j.value.reviewedBy} em ${String(j.value.reviewedAt).slice(0, 10)}, com ${j.value.threats.length} ameaça(s) decidida(s).`]);
+  }
   const f = ['THREAT-MODEL.md', 'threat-model.md', 'docs/THREAT-MODEL.md', 'docs/threat-model.md', '.lastro/threat-model.md'].find((p) => ctx.has(p));
   if (!f) return failed([{ severity: 'high', key: 'no-threat-model', message: 'Nenhum threat model versionado (THREAT-MODEL.md).' }]);
   const t = ctx.read(f) || '';

@@ -73,10 +73,14 @@ function dataContext(profile) {
   };
 }
 
-function likelihoodOf({ state, findings, reach }, d) {
+function likelihoodOf({ state, findings, reach, override = null }, d) {
   const why = [];
   let value;
   let assumed = false;
+  if (override) {
+    // Quem revisou o modelo de ameaças conhece o contexto melhor que a estimativa genérica: a exposição já está embutida.
+    return { value: clamp(override.value), assumed: state !== 'failed', why: [`probabilidade informada por uma pessoa no modelo de ameaças (${override.threat})`] };
+  }
   if (state === 'failed') {
     const worst = findings.length ? findings.map((f) => f.severity).sort((a, b) => SEV_ORDER[a] - SEV_ORDER[b])[0] : null;
     value = worst === 'medium' ? 2 : worst === 'low' ? 1 : 3;
@@ -139,7 +143,7 @@ function vulnItems(audit, d) {
  * Monta a análise de risco a partir do relatório do motor.
  * `riskMap`: entradas do catalog/risk-map.json. `audit`: resultado de audit.parseAudit (opcional).
  */
-function analyzeRisk(report, { riskMap, catalog = null, profile, audit = null }) {
+function analyzeRisk(report, { riskMap, catalog = null, profile, audit = null, threatLikelihood = new Map() }) {
   const d = dataContext(profile);
   const dataApplies = d.personal || d.minors || d.sensitive;
   const all = [];
@@ -162,7 +166,7 @@ function analyzeRisk(report, { riskMap, catalog = null, profile, audit = null })
       accepted: open.length > 0 && open.every((f) => f.accepted), asvs: asvsIds(catalog, c.id), remediation: c.remediation,
     };
     if (e.kind === 'security') {
-      const L = likelihoodOf({ state: c.state, findings: open, reach }, d);
+      const L = likelihoodOf({ state: c.state, findings: open, reach, override: threatLikelihood.get(c.id) || null }, d);
       const I = impactOf({ severity: c.severity, pillars }, d);
       item.likelihood = L.value;
       item.impact = I.value;

@@ -279,7 +279,8 @@ function validateRisk(r, where = 'risk') {
 function validateTicket(t, where = 'ticket') {
   const errs = [];
   if (!isObj(t)) return [`${where}: deve ser objeto`];
-  checkKeys(t, ['schemaVersion', 'id', 'control', 'type', 'priority', 'status', 'title', 'acceptance', 'createdAt'], ['summary', 'owner', 'risk', 'source'], where, errs);
+  checkKeys(t, ['schemaVersion', 'id', 'control', 'type', 'priority', 'status', 'title', 'acceptance', 'createdAt'], ['summary', 'owner', 'risk', 'source', 'threat'], where, errs);
+  if (t.threat !== undefined && (typeof t.threat !== 'string' || !/^TM-[STRIDE]-[a-z]+$/.test(t.threat))) errs.push(`${where}.threat: formato TM-S-web`);
   if (t.schemaVersion !== 1) errs.push(`${where}.schemaVersion: use 1`);
   if (typeof t.id !== 'string' || !ID_TICKET.test(t.id)) errs.push(`${where}.id: formato T-0001`);
   if (typeof t.control !== 'string' || !ID_CONTROL.test(t.control)) errs.push(`${where}.control: id de controle inválido`);

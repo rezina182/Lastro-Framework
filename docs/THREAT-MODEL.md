@@ -45,6 +45,8 @@ Este documento descreve o que o próprio LASTRO precisa proteger. Um kit que ver
 - A conferência do CI é por leitura do arquivo do workflow. Ela não prova que o workflow rodou nem que a proteção de branch está ativa; isso é atestação manual (CORE-014).
 - A v0.1 analisa apenas GitHub Actions. Outros CIs ficam como `unverified`.
 
+Para o modelo de ameaças de **uma aplicação analisada** (e não do kit), veja [THREAT-MODEL-ASSISTIDO.md](THREAT-MODEL-ASSISTIDO.md).
+
 ## Quando revisar
 
 A cada nova versão menor, a cada nova classe de verificação e a cada incidente. O verificador acusa threat model sem revisão há mais de 180 dias.

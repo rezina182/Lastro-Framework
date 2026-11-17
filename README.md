@@ -30,6 +30,10 @@ Todo relatório traz um nível de 0 a 4 e a divisão entre o que foi provado por
 
 O relatório abre com a análise de risco: separa **risco de segurança**, **boa prática** e **qualidade**, e para o risco de segurança mostra probabilidade x impacto, classe, pilares da segurança da informação, CWE, requisitos do ASVS e o que toca privacidade e LGPD. O que ninguém provou aparece como "potencial" e nunca passa de "Alto". Veja [docs/RISCO.md](docs/RISCO.md).
 
+## Modelo de ameaças
+
+`lastro threat-model` gera um rascunho (STRIDE por superfície) a partir do perfil, do catálogo e da leitura do código, com pistas como rotas sem autenticação vista e indícios de dado sensível. A pessoa decide cada ameaça e registra a revisão; só então o CORE-012 passa. Veja [docs/THREAT-MODEL-ASSISTIDO.md](docs/THREAT-MODEL-ASSISTIDO.md).
+
 ## Uso rápido
 
 Requer Node 22 ou superior. Nenhuma dependência para instalar.
@@ -42,6 +46,7 @@ node /caminho/para/lastro/verifier/bin/lastro.js init
 node /caminho/para/lastro/verifier/bin/lastro.js check
 node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exemplo   # inclui verificações HTTP passivas
 node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
+node /caminho/para/lastro/verifier/bin/lastro.js threat-model --write                    # rascunho do modelo de ameaças em .lastro/threat-model.json
 node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
 node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com nível de maturidade
 node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html            # o mesmo em HTML autocontido (sem scripts nem recursos externos)

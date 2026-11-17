@@ -9,7 +9,8 @@ const path = require('node:path');
 const { runCheck, ConfigError } = require('../src/engine');
 const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/catalog');
 const { registry } = require('../src/checks');
-const { formatReport, formatMarkdown, redactReport, validateRedactTerms } = require('../src/report');
+const { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown } = require('../src/report');
+const TM = require('../src/threatmodel');
 const { formatHtml, validateTheme } = require('../src/html');
 const { loadProfile } = require('../src/engine');
 const { loadTickets, planBacklog, writeTickets } = require('../src/backlog');
@@ -41,6 +42,10 @@ Uso:
   lastro init [--root DIR] [--force]         cria .lastro/profile.json para você preencher
   lastro catalog validate                    valida o catálogo de controles do kit
   lastro check [opções]                      verifica o projeto e dá o veredito
+  lastro threat-model [--write] [--out ARQ.md]
+                                             rascunho de modelo de ameaças (STRIDE por superfície) a partir do
+                                             perfil, do catálogo e da leitura do código. Só lê o repositório.
+                                             --write grava .lastro/threat-model.json (decisões preservadas).
   lastro baseline [--write] [opções]         registra os achados atuais como dívida conhecida
   lastro backlog [--write] [opções]          gera tickets P0-P3 a partir das lacunas
   lastro report [--out ARQUIVO] [--format md|html] [--theme ARQUIVO.css]
@@ -238,6 +243,39 @@ async function main(argv) {
     } else {
       console.log(text);
     }
+    return 0;
+  }
+
+  if (cmd === 'threat-model') {
+    // Só leitura do repositório: nada é executado nem acessado pela rede. Grava apenas com --write.
+    const raw = TM.loadFile(root);
+    let persisted = null;
+    if (raw) {
+      if (!raw.ok) { console.error(`${TM.FILE} ilegível (${raw.error}). Corrija ou remova antes de continuar.`); return 3; }
+      const errs = TM.validateModel(raw.value);
+      if (errs.length) { console.error(`${TM.FILE} inválido:\n- ${errs.slice(0, 10).join('\n- ')}`); return 3; }
+      persisted = raw.value;
+    }
+    const report = await runCheck({ root });
+    const t = report.threatModel;
+    console.log(`Modelo de ameaças de "${report.profile.name}": ${t.counts.threats} ameaça(s) (${t.counts.exposed} exposta(s), ${t.counts.unproven} sem prova, ${t.counts.mitigated} mitigada(s)), ${t.counts.pending} sem decisão.`);
+    console.log(`Descoberta: ${t.discovery.routes.total} rota(s), ${t.discovery.routes.byAuth['nao-vista']} sem autenticação vista; armazenamento: ${t.discovery.stores.join(', ') || 'nenhum encontrado'}; tempo real: ${t.discovery.realtime.join(', ') || 'não'}; uploads: ${t.discovery.uploads.join(', ') || 'não'}.`);
+    for (const h of t.discovery.dataHints.filter((x) => x.sensitive)) console.log(`ATENÇÃO: indício de ${h.name} em ${h.files.slice(0, 2).join(', ')}. Confirme e, se for o caso, declare context.sensitiveData no perfil.`);
+    if (flags.out && flags.out !== true) {
+      const file = path.resolve(flags.out);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${threatMarkdown(report).join('\n')}\n`);
+      console.log(`Modelo de ameaças em Markdown gravado em ${file}`);
+    }
+    if (!flags.write) {
+      console.log(t.persisted ? `Modelo em ${TM.FILE}. Rode com --write para acrescentar ameaças novas (as decisões são preservadas).` : `Rascunho não gravado. Rode com --write para criar ${TM.FILE}; depois decida cada ameaça (mitigate, accept ou not_applicable) e registre reviewedBy e reviewedAt.`);
+      return 0;
+    }
+    const content = TM.serialize(t, persisted, new Date());
+    const bad = TM.validateModel(content);
+    if (bad.length) { console.error(`Erro interno ao montar o modelo:\n- ${bad.slice(0, 5).join('\n- ')}`); return 3; }
+    TM.writeModel(root, content);
+    console.log(`Gravado ${TM.FILE} com ${content.threats.length} ameaça(s). As decisões já existentes foram preservadas.`);
     return 0;
   }
 

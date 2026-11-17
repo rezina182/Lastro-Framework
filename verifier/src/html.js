@@ -249,6 +249,66 @@ function riskHtml(r) {
   return out;
 }
 
+const TMX = require('./threatmodel');
+const TM_STATE = { exposed: ['exposta', 'bad'], unproven: ['sem prova', 'warn'], mitigated: ['mitigada', 'ok'] };
+const tmDecisionText = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
+
+function threatHtml(r) {
+  const t = r.threatModel;
+  const d = t.discovery;
+  const status = t.reviewed
+    ? `Modelo revisado por ${t.reviewedBy} em ${String(t.reviewedAt).slice(0, 10)}, com todas as ameaças decididas.`
+    : t.persisted
+      ? `Modelo gravado em .lastro/threat-model.json, ainda incompleto: ${num(t.counts.pending)} ameaça(s) sem decisão ou com aceitação vencida${t.reviewedBy ? '' : ', e sem revisão registrada'}.`
+      : 'Rascunho gerado nesta execução e não gravado. Rode "lastro threat-model --write" para gravar .lastro/threat-model.json, decidir cada ameaça e registrar a revisão.';
+  const out = ['<section id="ameacas" aria-labelledby="t-ameacas"><h2 id="t-ameacas">Modelo de ameaças</h2>'];
+  out.push(`<p>${h(status)}</p>`);
+  out.push('<div class="note"><p>O kit gera o rascunho a partir do perfil, do catálogo e da leitura do código. Rascunho não é prova: o CORE-012 só passa quando uma pessoa decide cada ameaça e registra a revisão. A descoberta é heurística de texto e nunca guarda valores, só nomes e caminhos.</p></div>');
+  out.push('<div class="cards">');
+  out.push(card('Ameaças', String(num(t.counts.threats)), `${num(t.counts.pending)} sem decisão`));
+  out.push(card('Expostas', `<span class="bad">${num(t.counts.exposed)}</span>`, 'há controle falhando'));
+  out.push(card('Sem prova', String(num(t.counts.unproven)), 'controles ainda não provados'));
+  out.push(card('Mitigadas', `<span class="ok">${num(t.counts.mitigated)}</span>`, 'controles verificados'));
+  out.push('</div>');
+
+  out.push('<h3>Ativos</h3>');
+  out.push(table('Ativos a proteger', ['Id', 'Ativo', 'Tipo', 'Origem'], t.assets.map((a) => [h(a.id), `${h(a.name)}${a.note ? `<p class="why">${h(a.note)}</p>` : ''}`, h(a.kind), h(a.source)])));
+
+  out.push('<h3>O que o kit encontrou no código</h3>', '<ul>');
+  out.push(`<li>Rotas HTTP: ${num(d.routes.total)}${d.routes.total ? ` (autenticação visível ${num(d.routes.byAuth.visivel)}, middleware global ${num(d.routes.byAuth.global)}, públicas esperadas ${num(d.routes.byAuth['publica-esperada'])}, <strong>não vista ${num(d.routes.byAuth['nao-vista'])}</strong>)` : ''}.</li>`);
+  if (d.stores.length) out.push(`<li>Armazenamento: ${h(d.stores.join(', '))}.</li>`);
+  if (d.realtime.length) out.push(`<li>Tempo real: ${h(d.realtime.join(', '))}.</li>`);
+  if (d.uploads.length) out.push(`<li>Upload de arquivos: ${h(d.uploads.join(', '))}.</li>`);
+  if (d.externalHosts.length) out.push(`<li>Chamadas a serviços externos: ${h(d.externalHosts.slice(0, 10).join(', '))}.</li>`);
+  out.push(`<li>Variáveis de ambiente lidas: ${num(d.env.total)}${d.env.credentials.length ? `, ${num(d.env.credentials.length)} com nome de segredo (só os nomes)` : ''}.</li>`);
+  for (const x of d.dataHints) out.push(`<li>Indício de dado: ${h(x.name)}${x.sensitive ? ' <strong>(confirme se há dado sensível e declare <code>context.sensitiveData</code>)</strong>' : ''} em ${x.files.slice(0, 3).map((f) => `<code>${h(f)}</code>`).join(', ')}.</li>`);
+  out.push('</ul>');
+  if (d.routes.examples.length) {
+    out.push('<details><summary>Rotas sem autenticação vista <span class="count">pistas para revisar a autorização, não um veredito</span></summary><ul>');
+    if (d.routes.authMounts) out.push(`<li>Atenção: ${num(d.routes.authMounts)} montagem(ns) de roteador com middleware de autenticação foram encontradas. As rotas desses roteadores podem estar protegidas por elas, e o kit não faz essa ligação.</li>`);
+    for (const x of d.routes.examples) out.push(`<li><code>${h(x.method)} ${h(x.path)}</code> (${h(x.location)})</li>`);
+    if (d.routes.byAuth['nao-vista'] > d.routes.examples.length) out.push(`<li class="empty">... e mais ${num(d.routes.byAuth['nao-vista'] - d.routes.examples.length)}.</li>`);
+    out.push('</ul><p class="why">"Não vista" não quer dizer desprotegida: o kit lê texto e não enxerga toda forma de proteger uma rota.</p></details>');
+  }
+
+  out.push('<h3>Ameaças (STRIDE por superfície)</h3>');
+  const order = { exposed: 0, unproven: 1, mitigated: 2 };
+  for (const surface of Object.keys(TMX.SURFACES)) {
+    const list = t.threats.filter((x) => x.surface === surface).sort((a, b) => order[a.state] - order[b.state] || a.id.localeCompare(b.id));
+    if (!list.length) continue;
+    const worst = list.some((x) => x.state === 'exposed');
+    out.push(`<details${worst ? ' open' : ''}><summary>${h(TMX.SURFACES[surface])} <span class="count">${list.length} ameaça(s), ${list.filter((x) => x.state === 'exposed').length} exposta(s), ${list.filter((x) => x.pending).length} sem decisão</span></summary>`);
+    const ev = list[0].evidence;
+    if (ev.length) out.push('<ul>', ...ev.map((e) => `<li>${h(e)}</li>`), '</ul>');
+    out.push(table(`Ameaças em ${TMX.SURFACES[surface].toLowerCase()}`, ['Ameaça', 'Estado', 'Controles', 'CWE', 'Decisão'],
+      list.map((x) => [`<strong>${h(x.id)}</strong> ${h(x.strideName)}<p class="why">${h(x.question)}</p>`, `<span class="${TM_STATE[x.state][1]}">${h(TM_STATE[x.state][0])}</span>`, h(x.controls.join(', ')), cweLinks(x.cwe), h(tmDecisionText(x))])));
+    out.push('</details>');
+  }
+  if (t.orphans.length) out.push(`<p class="empty">Decisões de ameaças que não existem mais (a superfície sumiu do perfil ou do código): ${h(t.orphans.join(', '))}.</p>`);
+  out.push('</section>');
+  return out;
+}
+
 function formatHtml(r, { coverage = null, theme = null } = {}) {
   const k = r.score;
   const s = r.summary;
@@ -271,6 +331,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push('<nav class="toc" aria-label="Seções do relatório">');
   const links = [];
   if (r.risk) links.push(['risco', 'Análise de risco']);
+  if (r.threatModel) links.push(['ameacas', 'Modelo de ameaças']);
   links.push(['resumo', 'Resumo']);
   if (r.context && k) links.push(['contexto', 'Contexto e meta']);
   if (k && k.byPhase && k.byPhase.length) links.push(['ssdlc', 'SSDLC por fase']);
@@ -282,6 +343,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push('</nav>', '</div></header>', '<main><div class="wrap">');
 
   if (r.risk) out.push(...riskHtml(r));
+  if (r.threatModel) out.push(...threatHtml(r));
 
   // Resumo e maturidade
   out.push('<section id="resumo" aria-labelledby="t-resumo"><h2 id="t-resumo">Resumo e maturidade</h2>');

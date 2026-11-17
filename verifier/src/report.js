@@ -26,6 +26,10 @@ function formatReport(r) {
     const p = r.risk.summary.potential;
     out.push(`Risco de segurança confirmado: ${c.critical} crítico(s), ${c.high} alto(s), ${c.medium} médio(s), ${c.low} baixo(s) | potencial (sem prova): ${p.critical} crítico(s), ${p.high} alto(s) | boas práticas abertas: ${r.risk.summary.practicesOpen} | qualidade aberta: ${r.risk.summary.qualityOpen}`);
   }
+  if (r.threatModel) {
+    const tc = r.threatModel.counts;
+    out.push(`Modelo de ameaças: ${r.threatModel.reviewed ? 'revisado' : r.threatModel.persisted ? 'gravado, incompleto' : 'rascunho'} | ${tc.threats} ameaça(s): ${tc.exposed} exposta(s), ${tc.unproven} sem prova, ${tc.mitigated} mitigada(s) | ${tc.pending} sem decisão`);
+  }
   if (r.baselineView) out.push(`Portão: ${r.baselineView.findings} achado(s) bloqueante(s) em ${r.baselineView.causes} causa(s). Registrada como baseline, essa dívida deixaria o portão ${r.baselineView.verdictIfAdopted === 'pass' ? 'aprovado' : 'incompleto'}: só achado novo bloquearia.`);
   if (r.target.url) out.push(`Alvo HTTP: ${r.target.url}${r.target.active ? ' (sondas ativas ligadas)' : ' (somente sondas passivas)'} | ${r.target.requestsSent} requisições, intervalo mínimo de ${r.target.delayMs} ms`);
 
@@ -68,6 +72,52 @@ const R = require('./risk');
 const cweText = (list) => (list.length ? list.map((n) => `CWE-${n}`).join(', ') : '-');
 const pillarText = (codes) => codes.map((c) => R.PILLARS[c]).join(', ');
 const stateWord = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
+
+const TMX = require('./threatmodel');
+const TM_STATE = { exposed: 'exposta (controle falhando)', unproven: 'sem prova', mitigated: 'mitigada (controles verificados)' };
+const tmDecision = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
+
+function tmStatusLine(t) {
+  if (t.reviewed) return `Modelo revisado por ${t.reviewedBy} em ${String(t.reviewedAt).slice(0, 10)}, com todas as ameaças decididas.`;
+  if (t.persisted) return `Modelo gravado em .lastro/threat-model.json, ainda incompleto: ${t.counts.pending} ameaça(s) sem decisão ou com aceitação vencida${t.reviewedBy ? '' : ', e sem revisão registrada'}.`;
+  return 'Rascunho gerado nesta execução e não gravado. Rode `lastro threat-model --write` para gravar `.lastro/threat-model.json`, decidir cada ameaça e registrar a revisão.';
+}
+
+function threatMd(r) {
+  const t = r.threatModel;
+  const d = t.discovery;
+  const out = ['## Modelo de ameaças', ''];
+  out.push(tmStatusLine(t), '');
+  out.push('> O kit gera o rascunho a partir do perfil, do catálogo e da leitura do código. Rascunho não é prova: o CORE-012 só passa quando uma pessoa decide cada ameaça e registra a revisão. A descoberta é heurística de texto e nunca guarda valores, só nomes e caminhos.', '');
+  out.push('### Ativos', '', '| Id | Ativo | Tipo | Origem |', '|---|---|---|---|');
+  for (const a of t.assets) out.push(`| ${a.id} | ${md(a.name)}${a.note ? ` (${md(a.note)})` : ''} | ${a.kind} | ${a.source} |`);
+  out.push('', '### O que o kit encontrou no código', '');
+  out.push(`- Rotas HTTP: ${d.routes.total}${d.routes.total ? ` (autenticação visível ${d.routes.byAuth.visivel}, middleware global ${d.routes.byAuth.global}, públicas esperadas ${d.routes.byAuth['publica-esperada']}, **não vista ${d.routes.byAuth['nao-vista']}**)` : ''}.`);
+  if (d.stores.length) out.push(`- Armazenamento: ${d.stores.join(', ')}.`);
+  if (d.realtime.length) out.push(`- Tempo real: ${d.realtime.join(', ')}.`);
+  if (d.uploads.length) out.push(`- Upload de arquivos: ${d.uploads.join(', ')}.`);
+  if (d.externalHosts.length) out.push(`- Chamadas a serviços externos: ${d.externalHosts.slice(0, 10).join(', ')}.`);
+  out.push(`- Variáveis de ambiente lidas: ${d.env.total}${d.env.credentials.length ? `, ${d.env.credentials.length} com nome de segredo (só os nomes)` : ''}.`);
+  for (const h of d.dataHints) out.push(`- Indício de dado: ${h.name}${h.sensitive ? ' (**confirme se há dado sensível e declare `context.sensitiveData`**)' : ''} em ${h.files.slice(0, 3).map((f) => `\`${md(f)}\``).join(', ')}.`);
+  if (d.routes.examples.length) {
+    out.push('', '**Rotas sem autenticação vista** (pistas para revisar a autorização, não um veredito; "não vista" não quer dizer desprotegida):', '');
+    if (d.routes.authMounts) out.push(`- Atenção: ${d.routes.authMounts} montagem(ns) de roteador com middleware de autenticação foram encontradas. As rotas desses roteadores podem estar protegidas por elas, e o kit não faz essa ligação.`);
+    for (const x of d.routes.examples) out.push(`- \`${md(x.method)} ${md(x.path)}\` (${md(x.location)})`);
+    if (d.routes.byAuth['nao-vista'] > d.routes.examples.length) out.push(`- ... e mais ${d.routes.byAuth['nao-vista'] - d.routes.examples.length}.`);
+  }
+  out.push('', '### Ameaças (STRIDE por superfície)', '');
+  out.push(`${t.counts.threats} ameaça(s): ${t.counts.exposed} exposta(s), ${t.counts.unproven} sem prova, ${t.counts.mitigated} mitigada(s); ${t.counts.pending} sem decisão.`, '');
+  out.push('| Ameaça | Superfície | Estado | Controles | Decisão |', '|---|---|---|---|---|');
+  const order = { exposed: 0, unproven: 1, mitigated: 2 };
+  for (const x of [...t.threats].sort((a, b) => order[a.state] - order[b.state] || a.id.localeCompare(b.id))) {
+    out.push(`| ${x.id} ${md(x.strideName)} | ${md(x.surfaceName)} | ${TM_STATE[x.state]} | ${x.controls.length} | ${tmDecision(x)} |`);
+  }
+  out.push('', 'Perguntas para a revisão:', '');
+  for (const k of Object.keys(TMX.STRIDE)) out.push(`- **${k} (${TMX.STRIDE[k].name}):** ${TMX.STRIDE[k].ask}`);
+  if (t.orphans.length) out.push('', `Decisões de ameaças que não existem mais (a superfície sumiu do perfil ou do código): ${t.orphans.join(', ')}.`);
+  out.push('');
+  return out;
+}
 
 function riskMd(r) {
   const k = r.risk;
@@ -230,6 +280,7 @@ function formatMarkdown(r, { coverage = null } = {}) {
     : 'Escopo: somente verificações estáticas do repositório. Nenhuma requisição foi feita à aplicação, então cabeçalhos, cookies, CSP e HSTS ficaram sem verificação.');
   out.push('');
   if (r.risk) out.push(...riskMd(r));
+  if (r.threatModel) out.push(...threatMd(r));
   if (k) {
     out.push('## Maturidade', '');
     out.push(`**Nível ${k.level}: ${k.levelName}.** Regra do nível: ${k.levelRule}.`, '');
@@ -345,4 +396,9 @@ function redactReport(report, terms) {
   return walk(report);
 }
 
-module.exports = { formatReport, formatMarkdown, redactReport, validateRedactTerms };
+/** Só a seção de modelo de ameaças, em Markdown (para `lastro threat-model --out`). */
+function threatMarkdown(r) {
+  return [`# Modelo de ameaças: ${md(r.profile.name)}`, '', ...threatMd(r)];
+}
+
+module.exports = { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown };

@@ -80,7 +80,7 @@ O arquivo é tratado como dado não confiável: tamanho e quantidade são limita
 
 ## O que o modelo de ameaças muda
 
-Hoje a probabilidade é genérica. O modelo de ameaças ([THREAT-MODEL.md](THREAT-MODEL.md)) é o que a torna específica:
+Sem modelo, a probabilidade é genérica. O modelo de ameaças assistido ([THREAT-MODEL-ASSISTIDO.md](THREAT-MODEL-ASSISTIDO.md)) é o que a torna específica: a `likelihood` que uma pessoa informa numa ameaça substitui a estimativa genérica dos controles que a mitigam. Em geral, o modelo:
 
 - diz **quem** ataca e **por onde** (fronteiras de confiança, pontos de entrada), então a probabilidade deixa de depender só da exposição declarada;
 - encontra riscos de **desenho** que nenhuma varredura vê: autorização, lógica de negócio, abuso de fluxo. Foram essas as falhas que mais custaram nos aplicativos reais que originaram o kit;
