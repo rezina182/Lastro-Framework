@@ -244,12 +244,14 @@ function riskMd(r) {
   if (r.dependencyVulns) {
     const v = r.dependencyVulns;
     out.push('### Vulnerabilidades conhecidas em dependências', '');
-    out.push(`Fonte: ${v.source}. ${v.total} pacote(s): ${v.bySeverity.critical} crítico(s), ${v.bySeverity.high} alto(s), ${v.bySeverity.medium} médio(s), ${v.bySeverity.low} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso.`, '');
-    if (v.items.length) {
-      out.push('| Pacote | Gravidade | Aviso (GHSA) | CWE | CVSS | CVE | Correção |', '|---|---|---|---|---|---|---|');
-      for (const i of v.items.slice(0, 40)) {
+    out.push(`Fonte: ${v.source}. ${v.total} pacote(s) com aviso próprio (${v.bySeverity.critical} crítico(s), ${v.bySeverity.high} alto(s), ${v.bySeverity.medium} médio(s), ${v.bySeverity.low} baixo(s)), de ${v.packagesAffected === undefined ? v.total : v.packagesAffected} pacote(s) afetados${v.devKnown ? `; ${v.devOnly} só em desenvolvimento` : ''}. O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso.`, '');
+    const own = v.items.filter((i) => !i.inherited);
+    if (own.length) {
+      out.push('| Pacote | Gravidade | Onde entra | Aviso (GHSA) | CWE | CVSS | CVE | Afeta | Correção |', '|---|---|---|---|---|---|---|---|---|');
+      for (const i of own.slice(0, 40)) {
         const a = i.advisories[0];
-        out.push(`| ${md(i.package)}${i.direct ? '' : ' (indireta)'} | ${SEV_PT[i.severity]} | ${a ? (ghsaMd(a.id) || md(a.title || '-')) : '-'} | ${a ? cweText(a.cwe) : '-'} | ${a && a.cvss !== null ? a.cvss : '-'} | ${a ? cveMd(a.cve) : 'ver o aviso'} | ${md(i.fix)} |`);
+        const where = i.devOnly === true ? 'só desenvolvimento' : i.devOnly === false ? 'produção' : '-';
+        out.push(`| ${md(i.package)}${i.direct ? '' : ' (indireta)'} | ${SEV_PT[i.severity]} | ${where} | ${a ? (ghsaMd(a.id) || md(a.title || '-')) : '-'} | ${a ? cweText(a.cwe) : '-'} | ${a && a.cvss !== null ? a.cvss : '-'} | ${a ? cveMd(a.cve) : 'ver o aviso'} | ${md((i.effects || []).slice(0, 4).join(', ') || '-')} | ${md(i.fix)} |`);
       }
       out.push('');
     }

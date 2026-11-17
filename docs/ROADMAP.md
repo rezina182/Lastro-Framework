@@ -1,5 +1,15 @@
 # Roadmap
 
+> A visão consolidada (estado atual, o que os testes reais mostraram, uso no dia a dia e a ordem dos próximos passos) está em [ESTADO-E-PLANOS.md](ESTADO-E-PLANOS.md). Este arquivo guarda o histórico item a item.
+
+## Prioridades depois dos testes reais
+
+1. Banco de falhas plantadas para medir o recall do kit a cada versão.
+2. Sondas autenticadas com contas de teste (cookies de sessão, logout, expiração, acesso por objeto entre duas contas, CSRF), só em local ou staging.
+3. Modo "corrigir": correções determinísticas numa branch própria, com teste verde e permissão antes do PR.
+4. Agente do Kiro que conduz o ciclo (verificar, corrigir, escrever os testes do playbook, preparar as decisões humanas) e pede permissão antes do PR.
+5. Histórico em `.lastro/history/` e portal estático (`lastro site`) com a evolução, a arquitetura e o modelo de ameaças.
+
 ## Próximo (v0.2)
 
 - Adaptador Kiro: steering por tipo de arquivo, hooks que falham fechado (sem rede) e skills de threat model e de adoção.

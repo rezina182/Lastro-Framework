@@ -11,6 +11,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const schema = require('./schema');
+const { stripBom } = require('./util');
 const { buildContext, runCheck, ConfigError } = require('./engine');
 const { loadCatalog } = require('./catalog');
 const { discover } = require('./discover');
@@ -65,7 +66,7 @@ function findRepoDirs(dir, { repos = null, match = null } = {}) {
 function loadDeclaredProfile(dir) {
   const file = path.join(dir, '.lastro', 'profile.json');
   try {
-    const p = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const p = JSON.parse(stripBom(fs.readFileSync(file, 'utf8')));
     return schema.validateProfile(p).length ? null : p;
   } catch (e) {
     return null;

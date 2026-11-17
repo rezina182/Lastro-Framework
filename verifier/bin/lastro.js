@@ -295,7 +295,7 @@ async function main(argv) {
     }
     let system = null;
     if (flags.system && flags.system !== true) {
-      try { system = JSON.parse(fs.readFileSync(path.resolve(String(flags.system)), 'utf8')); } catch (e) { console.error(`system ilegível: ${e.message}`); return 3; }
+      try { system = JSON.parse(require('../src/util').stripBom(fs.readFileSync(path.resolve(String(flags.system)), 'utf8'))); } catch (e) { console.error(`system ilegível: ${e.message}`); return 3; }
     }
     const repos = flags.repos && flags.repos !== true ? String(flags.repos).split(',').map((s) => s.trim()).filter(Boolean) : null;
     const { group, reports } = await analyzeGroup({ dir: root, name, repos, match: flags.match && flags.match !== true ? String(flags.match) : null, system, allowExternal: !!flags['allow-external-repos'] });

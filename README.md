@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Estado e planos
+
+O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em aplicações reais), como usar no dia a dia e os próximos passos: [docs/ESTADO-E-PLANOS.md](docs/ESTADO-E-PLANOS.md).
+
 ## Playbook dos testes manuais
 
 `lastro playbook --out playbook.html` gera o roteiro passo a passo de cada controle manual que ainda não tem prova: o que preparar, os passos, o que conferir, a evidência, o que fazer se falhar e o trecho pronto da atestação. Veja [docs/PLAYBOOK.md](docs/PLAYBOOK.md).

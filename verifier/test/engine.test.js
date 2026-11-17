@@ -232,3 +232,19 @@ test('sondas ativas: com confirmação e alvo que não é produção, rodam, com
     await server.close();
   }
 });
+
+test('Windows: perfil gravado com BOM (PowerShell, Bloco de Notas) é lido normalmente, e o audit em UTF-16 também', async () => {
+  const { makeProject: mk, profileJson: pj, cleanup: cl } = require('./helpers');
+  const { loadAuditFile } = require('../src/audit');
+  const fs = require('node:fs');
+  const root = mk({ '.lastro/profile.json': `\uFEFF${pj({ webApp: true })}`, 'a.js': 'const a = 1;\n' });
+  try {
+    const rep = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z') });
+    assert.equal(rep.profile.flags.webApp, true);
+    const audit = { vulnerabilities: { x: { severity: 'low', via: [{ title: 'aviso de teste', severity: 'low', cwe: [] }] } } };
+    fs.writeFileSync(path.join(root, 'a8.json'), `\uFEFF${JSON.stringify(audit)}`);
+    fs.writeFileSync(path.join(root, 'a16.json'), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(JSON.stringify(audit), 'utf16le')]));
+    assert.equal(loadAuditFile(path.join(root, 'a8.json')).value.total, 1);
+    assert.equal(loadAuditFile(path.join(root, 'a16.json')).value.total, 1);
+  } finally { cl(root); }
+});

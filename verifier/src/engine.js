@@ -20,7 +20,7 @@ const { computeScore } = require('./score');
 const { deriveContext, describeScope } = require('./context');
 const { engineeringFacts } = require('./engineering');
 const { analyzeRisk } = require('./risk');
-const { loadAuditFile } = require('./audit');
+const { loadAuditFile, directDeps } = require('./audit');
 const TM = require('./threatmodel');
 const { buildArchitecture, buildSystemArchitecture } = require('./architecture');
 const { loadSystem, resolveRepos, FILE: SYSTEM_FILE } = require('./system');
@@ -269,7 +269,7 @@ async function runCheck(opts = {}) {
   const blockingCauses = new Set(controls.filter((x) => x.findings.some((f) => f.blocking)).map((x) => x.id)).size;
   let audit = null;
   if (opts.auditFile) {
-    const a = loadAuditFile(path.resolve(String(opts.auditFile)));
+    const a = loadAuditFile(path.resolve(String(opts.auditFile)), directDeps(ctx.read('package.json')));
     if (!a.ok) throw new ConfigError(`--audit-file: ${a.error}`);
     audit = a.value;
   }

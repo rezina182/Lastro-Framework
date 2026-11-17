@@ -294,3 +294,42 @@ test('relatórios: Markdown, texto e HTML mostram a análise de risco sem script
     fs.rmSync(file, { force: true });
   }
 });
+
+// Formato real do npm audit (npm 10): um aviso no minimatch, herdado por eslint e @eslint/config-array, só em devDependencies.
+const REAL_AUDIT = {
+  auditReportVersion: 2,
+  vulnerabilities: {
+    '@eslint/config-array': { name: '@eslint/config-array', severity: 'moderate', isDirect: false, via: ['minimatch'], effects: [], fixAvailable: true },
+    eslint: { name: 'eslint', severity: 'moderate', isDirect: true, via: ['minimatch'], effects: [], fixAvailable: { name: 'eslint', version: '10.15.0', isSemVerMajor: false } },
+    minimatch: { name: 'minimatch', severity: 'moderate', isDirect: false, via: [{ title: 'minimatch has potential denial of service via globparts amplification', url: 'https://github.com/advisories/GHSA-g3hv-75wg-m249', severity: 'moderate', cwe: ['CWE-405'], cvss: { score: 0, vectorString: null } }], effects: ['@eslint/config-array', 'eslint'], fixAvailable: true },
+  },
+};
+
+test('dependências: aviso herdado não conta três vezes, devDependency não vira risco crítico, CVSS 0 é "não calculado"', () => {
+  const deps = { prod: new Set(['express', 'pg']), dev: new Set(['eslint', 'jest']) };
+  const a = parseAudit(JSON.stringify(REAL_AUDIT), deps).value;
+  assert.equal(a.total, 1, 'um pacote com aviso próprio');
+  assert.equal(a.packagesAffected, 3);
+  assert.equal(a.advisories, 1);
+  assert.equal(a.devOnly, 1);
+  const mm = a.items.find((i) => i.package === 'minimatch');
+  assert.equal(mm.devOnly, true);
+  assert.deepEqual(mm.via, ['eslint']);
+  assert.equal(mm.advisories[0].cvss, null);
+  assert.ok(a.items.find((i) => i.package === 'eslint').inherited);
+  const r = run([], { publicInternet: true, personalData: true, minorsData: true }, {}, a);
+  const vulns = r.security.filter((i) => i.type === 'vuln');
+  assert.equal(vulns.length, 1);
+  assert.equal(vulns[0].likelihood, 1);
+  assert.deepEqual(vulns[0].pillars, ['D'], 'CWE-405 é disponibilidade');
+  assert.equal(vulns[0].impact, 2, 'disponibilidade não sobe com dado pessoal');
+  assert.equal(vulns[0].class, 'low');
+  assert.match(vulns[0].reasons.likelihood.join(' '), /desenvolvimento/);
+  const prod = parseAudit(JSON.stringify(REAL_AUDIT), { prod: new Set(['eslint']), dev: new Set() }).value;
+  assert.equal(prod.items.find((i) => i.package === 'minimatch').devOnly, false, 'em produção não é rebaixado');
+  const desconhecida = JSON.parse(JSON.stringify(REAL_AUDIT));
+  desconhecida.vulnerabilities.minimatch.via[0].cwe = ['CWE-9999'];
+  const v2 = run([], { publicInternet: true, personalData: true, minorsData: true }, {}, parseAudit(JSON.stringify(desconhecida)).value).security[0];
+  assert.deepEqual(v2.pillars, []);
+  assert.equal(v2.impact, 2, 'CWE sem pilar não infla o impacto com dado pessoal');
+});

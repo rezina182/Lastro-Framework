@@ -4,7 +4,12 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Corrigido (teste de ponta a ponta numa aplicação real)
+- Perfil, system.json e resultado do `npm audit` gravados no Windows (UTF-8 com BOM ou UTF-16) agora são lidos normalmente.
+- Dependências vulneráveis: um aviso herdado por outros pacotes conta uma vez só; dependência só de desenvolvimento tem probabilidade baixa e não vira risco crítico; CWE sem pilar mapeado não infla o impacto com dado pessoal; CVSS 0 é tratado como "não calculado". O relatório mostra onde o pacote entra (produção ou só desenvolvimento) e quem ele afeta.
+
 ### Adicionado
+- `docs/ESTADO-E-PLANOS.md`: estado do kit, efetividade medida nas aplicações reais, uso no dia a dia e planos.
 - `lastro playbook`: roteiro passo a passo para testar cada controle manual sem prova, com o que preparar, os passos numerados, a lista do que conferir, a evidência a guardar, o que fazer se falhar e o trecho pronto da atestação (validade sugerida de 180 dias para alto e crítico). Por escopo (`--scope`), por controle (`--only`) ou todos (`--all`), em Markdown ou HTML. Veja `docs/PLAYBOOK.md`.
 - `lastro app --name "App X" --root PASTA`: você diz o nome da aplicação e a pasta com os repositórios, e o kit identifica sozinho o papel de cada um (frontend, backend, gateway, worker, infraestrutura, aplicativo móvel, biblioteca), com motivo e confiança; deriva um perfil provisório para quem não tem `.lastro/profile.json`; verifica cada repositório (só leitura, nada é gravado neles); infere bancos, serviços externos e as ligações; e gera um relatório único (HTML ou Markdown) com a arquitetura, os riscos de todos os repositórios, privacidade, avisos e legenda. `--write-system` grava o rascunho do system.json para corrigir, `--system` o reaproveita, `--out-dir` grava o relatório completo de cada repositório. Veja `docs/APLICACAO.md`.
 - Aplicação com vários repositórios ou componentes: `.lastro/system.json` (componentes, papéis, exposição, classes de dado e fluxos) combinado com a descoberta de cada repositório. Cada repositório com perfil é verificado por conta própria, só leitura; o que foi descoberto e não declarado aparece marcado; fluxos sem declaração são inferidos pelos papéis. Repositório fora da pasta analisada só é lido com `--allow-external-repos`. O desenho é dinâmico (zonas, vários componentes e uma faixa de entrega por repositório).

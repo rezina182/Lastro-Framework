@@ -246,13 +246,15 @@ function riskHtml(r) {
   if (r.dependencyVulns) {
     const v = r.dependencyVulns;
     out.push('<h3>Vulnerabilidades conhecidas em dependências</h3>');
-    out.push(`<p>Fonte: ${h(v.source)}. ${num(v.total)} pacote(s): ${num(v.bySeverity.critical)} crítico(s), ${num(v.bySeverity.high)} alto(s), ${num(v.bySeverity.medium)} médio(s), ${num(v.bySeverity.low)} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso (clique no GHSA).</p>`);
-    if (v.items.length) {
-      out.push(table('Pacotes com aviso conhecido', ['Pacote', 'Gravidade', 'Aviso (GHSA)', 'CWE', 'CVSS', 'CVE', 'Correção'],
-        v.items.slice(0, 40).map((i) => {
+    out.push(`<p>Fonte: ${h(v.source)}. ${num(v.total)} pacote(s) com aviso próprio (${num(v.bySeverity.critical)} crítico(s), ${num(v.bySeverity.high)} alto(s), ${num(v.bySeverity.medium)} médio(s), ${num(v.bySeverity.low)} baixo(s)), de ${num(v.packagesAffected === undefined ? v.total : v.packagesAffected)} pacote(s) afetados${v.devKnown ? `; ${num(v.devOnly)} só em desenvolvimento` : ''}. O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso (clique no GHSA).</p>`);
+    const own = v.items.filter((i) => !i.inherited);
+    if (own.length) {
+      out.push(table('Pacotes com aviso conhecido', ['Pacote', 'Gravidade', 'Onde entra', 'Aviso (GHSA)', 'CWE', 'CVSS', 'CVE', 'Afeta', 'Correção'],
+        own.slice(0, 40).map((i) => {
           const a = i.advisories[0];
           const ghsa = a ? ghsaLink(a.id, a.title || '-') : '-';
-          return [`<strong>${h(i.package)}</strong>${i.direct ? '' : ' (indireta)'}`, sevBadge(i.severity), ghsa, a ? cweLinks(a.cwe) : '-', a && a.cvss !== null ? h(String(a.cvss)) : '-', a ? cveLinks(a.cve) : 'ver o aviso', h(i.fix)];
+          const where = i.devOnly === true ? 'só desenvolvimento' : i.devOnly === false ? 'produção' : '-';
+          return [`<strong>${h(i.package)}</strong>${i.direct ? '' : ' (indireta)'}`, sevBadge(i.severity), h(where), ghsa, a ? cweLinks(a.cwe) : '-', a && a.cvss !== null ? h(String(a.cvss)) : '-', a ? cveLinks(a.cve) : 'ver o aviso', h((i.effects || []).slice(0, 4).join(', ') || '-'), h(i.fix)];
         })));
     }
   }

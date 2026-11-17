@@ -80,8 +80,11 @@ function readText(root, rel, maxBytes = MAX_READ_BYTES) {
   }
 }
 
+/** Tira o BOM do início: editores e o PowerShell no Windows gravam UTF-8 com BOM, e o JSON.parse o recusa. */
+const stripBom = (t) => (typeof t === 'string' && t.charCodeAt(0) === 0xfeff ? t.slice(1) : t);
+
 function readJson(root, rel) {
-  const t = readText(root, rel);
+  const t = stripBom(readText(root, rel));
   if (t === null) return { ok: false, error: 'arquivo ausente ou grande demais' };
   try {
     return { ok: true, value: JSON.parse(t) };
@@ -118,6 +121,7 @@ module.exports = {
   readText,
   readJson,
   exists,
+  stripBom,
   parseDate,
   nowIso,
   hasPrefix,

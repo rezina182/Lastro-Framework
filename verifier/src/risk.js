@@ -49,7 +49,13 @@ const REACH_PT = {
   internal: 'depende de acesso interno, de um vazamento prévio ou de erro de operação',
   pipeline: 'ataca o desenvolvimento, o CI ou a cadeia de suprimentos',
 };
-const CWE_PILLARS = { 79: 'IC', 89: 'CI', 78: 'CID', 94: 'CID', 22: 'C', 918: 'CI', 400: 'D', 770: 'D', 1333: 'D', 601: 'I', 352: 'I', 1321: 'I', 20: 'I', 502: 'CID', 611: 'CID', 200: 'C', 287: 'A', 295: 'CI', 347: 'AI', 345: 'I' };
+// Pilares por CWE das vulnerabilidades de dependência. CWE fora da tabela não infla o impacto: fica sem pilar
+// declarado (o relatório mostra "não informado") e o impacto sai só da gravidade do aviso.
+const CWE_PILLARS = {
+  79: 'IC', 89: 'CI', 78: 'CID', 94: 'CID', 95: 'CID', 22: 'C', 23: 'C', 918: 'CI', 601: 'I', 352: 'I', 1321: 'I', 20: 'I', 502: 'CID', 611: 'CID',
+  200: 'C', 201: 'C', 209: 'C', 532: 'C', 287: 'A', 306: 'A', 295: 'CI', 347: 'AI', 345: 'I', 284: 'CI', 285: 'CI', 862: 'CI', 863: 'CI', 639: 'CI',
+  400: 'D', 405: 'D', 407: 'D', 770: 'D', 674: 'D', 835: 'D', 1333: 'D', 185: 'D', 1050: 'D', 444: 'IC', 113: 'I', 93: 'I', 74: 'CI', 77: 'CID', 327: 'C', 328: 'C', 330: 'CA',
+};
 
 /** Classe de risco pela matriz 4x4: probabilidade x impacto (1 a 16). */
 function classOf(score) {
@@ -120,20 +126,23 @@ function asvsIds(catalog, id) {
 
 function vulnItems(audit, d) {
   if (!audit) return [];
-  return audit.items.map((v) => {
+  // Um risco por pacote que tem aviso próprio; os que só herdam o aviso aparecem como "afeta".
+  return audit.items.filter((v) => !v.inherited).map((v) => {
     const cwe = [...new Set(v.advisories.flatMap((a) => a.cwe))].slice(0, 8);
-    const pillars = [...new Set(cwe.flatMap((n) => (CWE_PILLARS[n] || 'CID').split('')))].join('') || 'CID';
+    const pillars = [...new Set(cwe.flatMap((n) => (CWE_PILLARS[n] || '').split('')))].join('');
     let l = v.severity === 'low' ? 2 : 3;
     const lWhy = ['vulnerabilidade pública e conhecida'];
-    if (!d.publicInternet) { l -= 1; lWhy.push('o perfil diz que a aplicação não está exposta à internet'); }
+    if (v.devOnly) { l = 1; lWhy.push(`só entra por dependência de desenvolvimento (${(v.via || []).join(', ') || 'devDependencies'}): não vai para produção`); }
+    else if (!d.publicInternet) { l -= 1; lWhy.push('o perfil diz que a aplicação não está exposta à internet'); }
+    if (!pillars) lWhy.push('CWE sem pilar mapeado: o impacto vem só da gravidade do aviso');
     const imp = impactOf({ severity: v.severity, pillars }, d);
     const likelihood = clamp(l);
     const score = likelihood * imp.value;
     return {
       type: 'vuln', id: `VULN:${v.package}`, title: `Dependência vulnerável: ${v.package}`, kind: 'security', pack: 'deps',
       state: 'failed', severity: v.severity, likelihood, impact: imp.value, score, class: classOf(score), assumed: false, accepted: false,
-      pillars: pillars.split(''), cwe, lgpd: null, privacy: false, reach: 'internet', findings: v.advisories.length, locations: [], asvs: [],
-      reasons: { likelihood: lWhy, impact: imp.why }, direct: v.direct, fix: v.fix,
+      pillars: pillars ? pillars.split('') : [], cwe, lgpd: null, privacy: false, reach: 'internet', findings: v.advisories.length, locations: [], asvs: [],
+      reasons: { likelihood: lWhy, impact: imp.why }, direct: v.direct, fix: v.fix, devOnly: v.devOnly, affects: v.effects || [],
       advisories: v.advisories.slice(0, 6).map((a) => ({ id: a.id, url: a.url, title: a.title, cvss: a.cvss, cve: a.cve })),
     };
   });
