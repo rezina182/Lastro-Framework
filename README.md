@@ -28,7 +28,11 @@ O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em apli
 
 ## Efetividade medida
 
-`lastro bench` roda o kit contra um banco de falhas plantadas, com gêmeas limpas, e mostra quantas ele detecta, quantas viram pergunta e quantas perde. Hoje ele detecta 29 de 29 falhas de código, configuração e HTTP. Nas 6 falhas de lógica, ele não detecta nenhuma: todas viram pergunta. Veja [docs/BENCH.md](docs/BENCH.md).
+`lastro bench` roda o kit contra um banco de falhas plantadas, com gêmeas limpas, e mostra quantas ele detecta, quantas viram pergunta e quantas perde. Hoje ele detecta 29 de 29 falhas de código, configuração e HTTP. Nas falhas de lógica, ele detecta as 4 que testa em execução com as sondas autenticadas e transforma em pergunta as 4 que só existem no código. Veja [docs/BENCH.md](docs/BENCH.md).
+
+## Sondas autenticadas
+
+`lastro check --url STAGING --auth --confirm-non-production` entra com duas contas de teste e prova acesso por objeto entre contas, CSRF e logout, e analisa o cookie do login. Só em staging ou local. Veja [docs/SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md).
 
 ## Playbook dos testes manuais
 

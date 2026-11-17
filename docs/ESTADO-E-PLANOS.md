@@ -146,12 +146,16 @@ Os itens 5.1 a 5.7 abaixo continuam como estavam; 5.8 a 5.10 são novos.
 | Primeira medição (2026-11-17) | Resultado |
 |---|---|
 | Código, configuração e HTTP | 29 de 29 detectadas |
-| Lógica (acesso por objeto, atribuição em massa, CSRF, logout) | 0 de 6 detectadas; as 6 viram pergunta |
+| Lógica (acesso por objeto, atribuição em massa, CSRF, logout) | 0 de 6 detectadas; as 6 viram pergunta (depois das sondas autenticadas: 4 de 4 em execução detectadas; as 4 só no código seguem como pergunta) |
 | Falsos positivos nas aplicações limpas | 0 de 23 |
 
 A primeira execução achou uma falha do kit: o CORE-059 não pegava `"... name = '" + nome + "'"`. Foi corrigida, com teste. Próximos casos: variações das regras atuais, upload sem limite, redirecionamento aberto e SSRF. O 0 de 6 na lógica é a meta do 5.2.
 
 ### 5.2 Sondas autenticadas (staging ou local)
+
+**Feito:** `lastro check --auth` ([SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md)) prova acesso por objeto entre duas contas e sem login (AUTH-027), CSRF (WEB-013), logout que encerra a sessão (AUTH-023) e passa o cookie do login pela análise de cookies (AUTH-003). No banco de falhas, as 4 falhas de lógica em execução passaram de pergunta a detectadas, com 0 falso positivo. **Falta:** acesso por campo e atribuição em massa (AUTH-028), expiração por inatividade (AUTH-024), login federado e descoberta das rotas a partir do código (hoje o perfil declara as rotas).
+
+Plano original, mantido para referência:
 
 Configuração opcional de **contas de teste** no perfil (nunca reais, só staging ou local, com a mesma trava das sondas ativas). Com elas o kit prova automaticamente:
 

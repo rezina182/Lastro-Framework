@@ -4,6 +4,10 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (sondas autenticadas)
+- `lastro check --auth`: entra com duas contas de teste e prova o acesso por objeto entre contas e sem login (AUTH-027), o CSRF (WEB-013) e o logout que encerra a sessão (AUTH-023), e passa o cookie do login pela análise de cookies (AUTH-003). Só com `--url` e `--confirm-non-production`, recusada contra `urls.production`. O perfil ganha o bloco opcional `authProbes`, que guarda só os nomes das variáveis de ambiente das contas, nunca a senha. Achar a falha vale mais que uma atestação e o controle falha; passar não verifica o controle (só vira nota), e dúvida vira "inconclusivo". Veja `docs/SONDAS-AUTENTICADAS.md`.
+- No banco de falhas: servidores com login e sessão, 4 falhas de lógica em execução (todas detectadas) e 3 gêmeas limpas. Recall geral: 33 de 37; 0 falso positivo em 26 controles limpos.
+
 ### Adicionado (efetividade medida)
 - `lastro bench` e o banco de falhas plantadas (`fixtures/planted/`): 35 falhas conhecidas (código, configuração, HTTP e lógica) e 23 gêmeas limpas, com servidores de teste que só sobem em `127.0.0.1`. Mede quantas falhas o kit detecta, quantas viram pergunta e quantas perde, e os falsos positivos. O resultado esperado de cada caso é a linha de base: piorar sai com 1 e quebra o `npm test`. Primeira medição: 29 de 29 em código, configuração e HTTP; 0 de 6 na lógica (as 6 viram pergunta); 0 falso positivo. Veja `docs/BENCH.md`.
 - Plano com a visão do kit como base do ciclo de desenvolvimento com IA (aplicação nova e existente), fase de desenho, pipeline e revisão dos frameworks de mercado, em `docs/ESTADO-E-PLANOS.md`.

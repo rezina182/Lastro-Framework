@@ -4,6 +4,7 @@
 // Cada função devolve uma lista de erros (vazia = válido). Campos desconhecidos são recusados.
 
 const { parseDate } = require('./util');
+const { validateAuthProbes } = require('./authschema');
 
 const FLAGS = [
   'webApp', 'hasAuth', 'anonymousUsers', 'realtime', 'uploads', 'personalData',
@@ -188,7 +189,8 @@ function validateLessons(l) {
 function validateProfile(p) {
   const errs = [];
   if (!isObj(p)) return ['profile.json: deve ser objeto'];
-  checkKeys(p, ['schemaVersion', 'name', 'flags'], ['urls', 'paths', 'thresholds', 'scan', 'agent', 'context'], 'profile', errs);
+  checkKeys(p, ['schemaVersion', 'name', 'flags'], ['urls', 'paths', 'thresholds', 'scan', 'agent', 'context', 'authProbes'], 'profile', errs);
+  if (p.authProbes !== undefined) errs.push(...validateAuthProbes(p.authProbes));
   if (p.context !== undefined) {
     if (!isObj(p.context)) errs.push('profile.context: deve ser objeto');
     else {

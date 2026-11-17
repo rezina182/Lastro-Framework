@@ -93,6 +93,9 @@ Opções de check, baseline e backlog:
   --delay MS           intervalo mínimo entre requisições à aplicação (padrão 150, mínimo 50)
   --active             liga sondas ativas (TRACE, OPTIONS com Origin falsa, JSON malformado).
                        Exige --url e --confirm-non-production, e é recusada contra a URL de produção do perfil.
+  --auth               liga as sondas autenticadas (cookie de sessão, acesso por objeto entre duas contas, CSRF, logout).
+                       Exige --url, --confirm-non-production e o bloco authProbes no perfil. As contas de teste vêm de
+                       variáveis de ambiente; o perfil só guarda os nomes delas. Recusada contra a URL de produção.
   --confirm-non-production   confirma que o alvo é staging ou homologação sob seu controle
   --audit-file ARQ     resultado de "npm audit --json" gerado por você (o kit não consulta a internet). Traz as
                        vulnerabilidades conhecidas das dependências (GHSA, CWE, CVSS) para a análise de risco.
@@ -108,7 +111,7 @@ Saída: 0 aprovado | 1 falha | 2 incompleto | 3 erro de uso ou configuração.`;
 
 /** Opções de segurança das verificações HTTP, repassadas ao motor. */
 function httpOptions(flags) {
-  const opts = { url: flags.url, active: !!flags.active, confirmNonProduction: !!flags['confirm-non-production'] };
+  const opts = { url: flags.url, active: !!flags.active, auth: !!flags.auth, confirmNonProduction: !!flags['confirm-non-production'] };
   if (flags.delay !== undefined) opts.delayMs = Number(flags.delay);
   if (flags['audit-file'] && flags['audit-file'] !== true) opts.auditFile = flags['audit-file'];
   if (flags['allow-external-repos']) opts.allowExternalRepos = true;
@@ -130,6 +133,7 @@ function printHttpNotice(root, flags) {
   }
   lines.push('- Modo passivo: requisições GET (cerca de 30), 1 a cada 150 ms por padrão, com teto de 120 no total.');
   if (flags.active) lines.push('- SONDAS ATIVAS LIGADAS (TRACE, OPTIONS com Origin falsa, JSON malformado). Use só em staging que você controla.');
+  if (flags.auth) lines.push('- SONDAS AUTENTICADAS LIGADAS: entram com duas contas de TESTE (variáveis de ambiente nomeadas em authProbes), fazem login, logout e requisições de escrita nas rotas declaradas no perfil. Use só em staging ou local, com contas descartáveis.');
   console.error(lines.join('\n'));
 }
 

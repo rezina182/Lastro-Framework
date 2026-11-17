@@ -60,6 +60,12 @@ function validateManifest(m) {
     for (const [name, a] of Object.entries(m.apps)) {
       if (!isObj(a) || !isRelativeInside(a.dir)) errs.push(`apps.${name}.dir: caminho relativo, sem ".."`);
       if (isObj(a) && a.server !== undefined && !isRelativeInside(a.server)) errs.push(`apps.${name}.server: caminho relativo, sem ".."`);
+      if (isObj(a) && a.auth !== undefined && typeof a.auth !== 'boolean') errs.push(`apps.${name}.auth: use true ou false`);
+      if (isObj(a) && a.auth === true && !a.server) errs.push(`apps.${name}.auth: as sondas autenticadas precisam de um servidor de teste (server)`);
+      if (isObj(a) && a.env !== undefined) {
+        if (!isObj(a.env)) errs.push(`apps.${name}.env: deve ser objeto (contas de teste FALSAS)`);
+        else for (const [k, v] of Object.entries(a.env)) if (!/^BENCH_[A-Z0-9_]{1,40}$/.test(k) || typeof v !== 'string' || v.length > 64) errs.push(`apps.${name}.env.${k}: use nomes BENCH_* e texto de até 64 caracteres`);
+      }
     }
   }
   if (!Array.isArray(m.cases) || m.cases.length === 0) {
@@ -80,6 +86,7 @@ function validateManifest(m) {
     if (c.file !== undefined && !isRelativeInside(c.file)) errs.push(`${where}.file: caminho relativo, sem ".."`);
     if (c.messageIncludes !== undefined && (typeof c.messageIncludes !== 'string' || c.messageIncludes.length === 0)) errs.push(`${where}.messageIncludes: texto não vazio`);
     if (c.cwe !== undefined && !/^CWE-\d+$/.test(String(c.cwe))) errs.push(`${where}.cwe: use CWE-89`);
+    if (c.probe !== undefined && (typeof c.probe !== 'boolean' || c.kind !== 'clean')) errs.push(`${where}.probe: só em caso limpo, com true ou false`);
     if (c.kind === 'planted') {
       if (!PLANTED_OUTCOMES.includes(c.expect)) errs.push(`${where}.expect: use ${PLANTED_OUTCOMES.join(', ')}`);
       if (!CATEGORIES.includes(c.category)) errs.push(`${where}.category: use ${CATEGORIES.join(', ')}`);
@@ -100,6 +107,10 @@ function evaluateCase(c, report) {
       return { outcome: 'false-positive', detail: f ? `${f.location || '-'}: ${f.message}` : 'controle falhou sem achado' };
     }
     if (ctl.state === 'verified') return { outcome: 'clean', detail: 'verificado' };
+    // Controle manual provado por sonda: a sonda passar não o verifica (fica sem prova), mas mostra que ela rodou e não achou nada.
+    if (c.probe && ctl.state === 'unverified' && (ctl.notes || []).some((n) => n.startsWith('Sonda autenticada: passou'))) {
+      return { outcome: 'clean', detail: 'a sonda autenticada rodou e passou' };
+    }
     return { outcome: 'unmeasured', detail: `estado ${ctl.state}: o controle não foi medido` };
   }
   if (!ctl) return { outcome: 'missed', detail: 'o controle não se aplica ao perfil' };
@@ -207,7 +218,7 @@ async function runApp(baseDir, app, now) {
   if (!app.server) return runCheck({ root: dir, now });
   const srv = await startServer(dir, app.server);
   try {
-    return await runCheck({ root: dir, now, url: srv.url, active: true, confirmNonProduction: true, delayMs: 50 });
+    return await runCheck({ root: dir, now, url: srv.url, active: true, auth: !!app.auth, env: app.env || {}, confirmNonProduction: true, delayMs: 50 });
   } finally {
     await srv.stop();
   }

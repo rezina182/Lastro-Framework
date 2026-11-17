@@ -7,7 +7,7 @@
 Visão: o LASTRO como base do ciclo de desenvolvimento com IA, para aplicação nova (requisitos e desenho antes do código) e existente (medir, corrigir, governar). Detalhes em [ESTADO-E-PLANOS.md](ESTADO-E-PLANOS.md), seção 5.
 
 1. Banco de falhas plantadas para medir o recall do kit a cada versão. Feito: `lastro bench` (35 falhas, 23 limpas; veja [BENCH.md](BENCH.md)). Falta: mais variações e falhas de upload, redirecionamento e SSRF.
-2. Sondas autenticadas com contas de teste (cookies de sessão, logout, expiração, acesso por objeto entre duas contas, CSRF), só em local ou staging.
+2. Sondas autenticadas com contas de teste (cookies de sessão, logout, expiração, acesso por objeto entre duas contas, CSRF), só em local ou staging. Feito: `--auth` com cookie, acesso por objeto, CSRF e logout ([SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md)). Falta: AUTH-028 (acesso por campo), AUTH-024 (expiração), login federado e descoberta das rotas a partir do código.
 3. Modo "corrigir": correções determinísticas numa branch própria, com teste verde e permissão antes do PR.
 4. Fase de desenho: requisitos, decisões de arquitetura e testes por funcionalidade, antes do código (aplicação nova).
 5. Agente do Kiro que conduz o ciclo nos fluxos "nova" e "existente" (verificar, corrigir, escrever os testes do playbook, preparar as decisões humanas) e pede permissão antes do PR.

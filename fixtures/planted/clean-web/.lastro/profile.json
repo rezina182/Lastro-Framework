@@ -16,5 +16,19 @@
     "tokenAuth": false,
     "oauthProvider": false
   },
-  "paths": { "health": "/health", "login": "/login" }
+  "paths": { "health": "/health", "login": "/login" },
+  "authProbes": {
+    "login": { "path": "/login" },
+    "accounts": {
+      "a": { "userEnv": "BENCH_A_USER", "passwordEnv": "BENCH_A_PASS" },
+      "b": { "userEnv": "BENCH_B_USER", "passwordEnv": "BENCH_B_PASS" }
+    },
+    "protected": "/api/me",
+    "logout": { "path": "/logout", "method": "POST" },
+    "objects": [
+      { "path": "/api/orders/{id}", "ids": { "a": "1", "b": "2" } },
+      { "path": "/api/invoices/{id}", "ids": { "a": "1", "b": "2" } }
+    ],
+    "csrf": [{ "path": "/api/profile", "method": "POST", "body": { "nome": "teste" } }]
+  }
 }

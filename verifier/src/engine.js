@@ -16,6 +16,7 @@ const schema = require('./schema');
 const { loadCatalog, validateCatalog } = require('./catalog');
 const { registry } = require('./checks');
 const { request } = require('./http');
+const { runAuthProbes, readAccounts } = require('./authprobe');
 const { computeScore } = require('./score');
 const { deriveContext, describeScope } = require('./context');
 const { engineeringFacts } = require('./engineering');
@@ -162,6 +163,17 @@ function evaluateManual(control, status, now) {
   };
 }
 
+/**
+ * Combina o resultado de um controle manual com o da sonda autenticada. A sonda que acha a falha vence a atestação
+ * (prova de máquina contra autodeclaração). A que passa só acrescenta uma nota: o estado manual continua valendo.
+ */
+function overlayProbe(r, probe, now) {
+  if (probe.findings.length) {
+    return { state: 'failed', findings: probe.findings, notes: [...probe.notes, ...r.notes], evidence: { source: 'verifier-http', collectedAt: now.toISOString() } };
+  }
+  return { ...r, notes: [...probe.notes, ...r.notes] };
+}
+
 async function runCheck(opts = {}) {
   const root = path.resolve(opts.root || process.cwd());
   const now = opts.now || new Date();
@@ -192,12 +204,31 @@ async function runCheck(opts = {}) {
       throw new ConfigError(`A URL informada é a de produção do perfil (${prod}). Sondas ativas nunca rodam em produção: use a URL de staging.`);
     }
   }
+  // Sondas autenticadas entram com contas de teste e mudam estado (login, logout, escrita). Mesma trava das ativas.
+  let authAccounts = null;
+  if (opts.auth) {
+    if (!opts.url) throw new ConfigError('--auth exige --url.');
+    if (!opts.confirmNonProduction) {
+      throw new ConfigError('As sondas autenticadas entram com contas de teste e mudam estado (login, logout e requisições de escrita). Rode-as só em staging ou local que você controla, e confirme com --confirm-non-production.');
+    }
+    const prodUrl = profile.urls && profile.urls.production;
+    if (prodUrl && sameOrigin(prodUrl, opts.url)) {
+      throw new ConfigError(`A URL informada é a de produção do perfil (${prodUrl}). Sondas autenticadas nunca rodam em produção: use a URL de staging.`);
+    }
+    if (!profile.authProbes) throw new ConfigError('--auth exige o bloco "authProbes" no perfil (veja docs/SONDAS-AUTENTICADAS.md).');
+    const read = readAccounts(profile.authProbes, opts.env || process.env);
+    if (read.missing.length) throw new ConfigError(`Defina as variáveis de ambiente das contas de teste (só os nomes são mostrados): ${read.missing.join(', ')}.`);
+    if (read.sameUser) throw new ConfigError('As duas contas de teste têm o mesmo usuário: a sonda de acesso por objeto precisa de duas contas diferentes.');
+    authAccounts = read.accounts;
+  }
   const delayMs = opts.delayMs === undefined ? DEFAULT_DELAY_MS : opts.delayMs;
   if (!Number.isInteger(delayMs) || delayMs < MIN_DELAY_MS) throw new ConfigError(`--delay deve ser um inteiro de pelo menos ${MIN_DELAY_MS} ms.`);
 
   const ctx = buildContext({ root, profile, catalog, url: opts.url || null, active: opts.active, now, delayMs, maxRequests: opts.maxRequests || DEFAULT_MAX_REQUESTS });
   const only = opts.only ? new Set(opts.only) : null;
   const warnings = [];
+  // As sondas rodam antes dos controles: o login e as respostas ficam no cache e alimentam a análise dos cookies (AUTH-003).
+  const authProbe = authAccounts ? await runAuthProbes(ctx, profile.authProbes, authAccounts) : null;
   const validRisk = (rk) => U.parseDate(rk.expires) > now.getTime();
 
   const controls = [];
@@ -221,6 +252,8 @@ async function runCheck(opts = {}) {
       r.evidence = { source: chk.kind === 'http' ? 'verifier-http' : 'verifier-repo', collectedAt: now.toISOString() };
     } else {
       r = evaluateManual(c, status, now);
+      const probe = authProbe && authProbe.results[c.id];
+      if (probe) r = overlayProbe(r, probe, now);
     }
 
     const controlRisk = risks.find((rk) => rk.control === c.id && rk.scope === 'control' && validRisk(rk)) || null;
@@ -319,7 +352,8 @@ async function runCheck(opts = {}) {
     tool: { name: 'lastro', version: kitVersion() },
     catalogVersion: catalog.version,
     generatedAt: now.toISOString(),
-    target: { root: path.basename(root), url: opts.url || null, active: !!opts.active, requestsSent: ctx.requestCount(), delayMs },
+    target: { root: path.basename(root), url: opts.url || null, active: !!opts.active, authProbes: !!authProbe, requestsSent: ctx.requestCount(), delayMs },
+    authProbe: authProbe ? { ran: true, inconclusive: authProbe.inconclusive } : null,
     profile: { name: profile.name, flags: profile.flags, derived: !!opts.profile },
     verdict,
     summary,

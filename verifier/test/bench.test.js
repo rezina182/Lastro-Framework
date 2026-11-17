@@ -92,3 +92,28 @@ test('bench: o banco de falhas plantadas do kit não regride (recall, perguntas 
   // As falhas de lógica precisam pelo menos virar pergunta: perder uma delas é pior que não detectar.
   assert.equal(res.summary.planted.byCategory.logic.missed, 0);
 });
+
+test('bench: caso limpo com sonda só vale como limpo se a sonda rodou e passou (controle manual segue sem prova)', () => {
+  const c = clean({ control: 'AUTH-027', probe: true });
+  const passed = report([{ id: 'AUTH-027', state: 'unverified', findings: [], notes: ['Sonda autenticada: passou em 3 teste(s). Isso não verifica o controle.'] }]);
+  assert.equal(B.evaluateCase(c, passed).outcome, 'clean');
+  const notRun = report([{ id: 'AUTH-027', state: 'unverified', findings: [], notes: ['Sonda autenticada: inconclusiva: login recusado.'] }]);
+  assert.equal(B.evaluateCase(c, notRun).outcome, 'unmeasured');
+  const found = report([{ id: 'AUTH-027', state: 'failed', findings: [{ location: '/x', message: 'm' }], notes: [] }]);
+  assert.equal(B.evaluateCase(c, found).outcome, 'false-positive');
+  // Sem "probe", o mesmo estado manual sem prova não conta como limpo.
+  assert.equal(B.evaluateCase(clean({ control: 'AUTH-027' }), passed).outcome, 'unmeasured');
+});
+
+test('bench: manifesto valida auth, env (só contas falsas BENCH_*) e probe', () => {
+  const base = { schemaVersion: 1, referenceDate: '2026-11-17' };
+  const ok = { ...base, apps: { a: { dir: 'a', server: 's.js', auth: true, env: { BENCH_A_USER: 'alice' } } }, cases: [clean({ app: 'a', probe: true })] };
+  assert.deepEqual(B.validateManifest(ok), []);
+  const bad = {
+    ...base,
+    apps: { a: { dir: 'a', auth: true, env: { HOME: 'x' } }, b: { dir: 'b', server: 's.js', auth: 'sim' } },
+    cases: [planted({ app: 'a', probe: true }), clean({ id: 'C-002', app: 'b', probe: 'sim' })],
+  };
+  const errs = B.validateManifest(bad).join('\n');
+  for (const re of [/precisam de um servidor de teste/, /nomes BENCH_/, /auth: use true ou false/, /probe: só em caso limpo/]) assert.match(errs, re);
+});

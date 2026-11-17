@@ -4,8 +4,8 @@
   "apps": {
     "vuln-static": { "dir": "vuln-static" },
     "clean-static": { "dir": "clean-static" },
-    "vuln-web": { "dir": "vuln-web", "server": "server.js" },
-    "clean-web": { "dir": "clean-web", "server": "server.js" }
+    "vuln-web": { "dir": "vuln-web", "server": "server.js", "auth": true, "env": { "BENCH_A_USER": "alice", "BENCH_A_PASS": "senha-alice-falsa", "BENCH_B_USER": "bob", "BENCH_B_PASS": "senha-bob-falsa" } },
+    "clean-web": { "dir": "clean-web", "server": "server.js", "auth": true, "env": { "BENCH_A_USER": "alice", "BENCH_A_PASS": "senha-alice-falsa", "BENCH_B_USER": "bob", "BENCH_B_PASS": "senha-bob-falsa" } }
   },
   "cases": [
     { "id": "P-001", "app": "vuln-static", "kind": "planted", "category": "code", "control": "CORE-059", "file": "src/sql-concat.js", "cwe": "CWE-89", "title": "SQL montado por concatenação com dado da requisição", "expect": "detected" },
@@ -31,8 +31,10 @@
     { "id": "L-002", "app": "vuln-static", "kind": "planted", "category": "logic", "control": "AUTH-028", "file": "src/routes.js", "cwe": "CWE-915", "title": "Atribuição em massa: o corpo inteiro vira o usuário (campo role)", "expect": "question" },
     { "id": "L-003", "app": "vuln-static", "kind": "planted", "category": "logic", "control": "WEB-013", "file": "src/routes.js", "cwe": "CWE-352", "title": "Rota que muda estado com cookie de sessão e sem token anti-CSRF", "expect": "question" },
     { "id": "L-004", "app": "vuln-static", "kind": "planted", "category": "logic", "control": "AUTH-023", "file": "src/routes.js", "cwe": "CWE-613", "title": "Logout só apaga o cookie; a sessão segue válida no servidor", "expect": "question" },
-    { "id": "L-005", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "AUTH-027", "cwe": "CWE-639", "title": "Pedido de outro usuário legível sem login (em execução)", "expect": "question" },
-    { "id": "L-006", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "WEB-013", "cwe": "CWE-352", "title": "POST que muda estado aceito de qualquer origem, sem token (em execução)", "expect": "question" },
+    { "id": "L-005", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "AUTH-027", "messageIncludes": "sem login em /api/orders/{id}", "cwe": "CWE-639", "title": "Pedido de outro usuário legível sem login (em execução)", "expect": "detected" },
+    { "id": "L-006", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "WEB-013", "messageIncludes": "POST /api/profile", "cwe": "CWE-352", "title": "POST que muda estado aceito de origem estranha, sem token (em execução)", "expect": "detected" },
+    { "id": "L-007", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "AUTH-027", "messageIncludes": "a conta a leu o objeto da conta b em /api/invoices/{id}", "cwe": "CWE-639", "title": "Com login, a conta A lê a nota fiscal da conta B (BOLA, em execução)", "expect": "detected" },
+    { "id": "L-008", "app": "vuln-web", "kind": "planted", "category": "logic", "control": "AUTH-023", "messageIncludes": "Depois do logout", "cwe": "CWE-613", "title": "Logout só apaga o cookie; o cookie antigo segue válido (em execução)", "expect": "detected" },
 
     { "id": "D-001", "app": "vuln-web", "kind": "planted", "category": "http", "control": "AUTH-003", "messageIncludes": "sem HttpOnly", "cwe": "CWE-1004", "title": "Cookie de sessão sem HttpOnly", "expect": "detected" },
     { "id": "D-002", "app": "vuln-web", "kind": "planted", "category": "http", "control": "AUTH-003", "messageIncludes": "sem SameSite", "cwe": "CWE-1275", "title": "Cookie de sessão sem SameSite", "expect": "detected" },
@@ -68,6 +70,9 @@
     { "id": "C-020", "app": "clean-web", "kind": "clean", "control": "WEB-006", "title": "/health mínimo (gêmeo de D-010)", "expect": "clean" },
     { "id": "C-021", "app": "clean-web", "kind": "clean", "control": "WEB-007", "title": "Erros genéricos (gêmeo de D-007)", "expect": "clean" },
     { "id": "C-022", "app": "clean-web", "kind": "clean", "control": "WEB-008", "title": "Arquivos sensíveis não servidos (gêmeo de D-008)", "expect": "clean" },
-    { "id": "C-023", "app": "clean-web", "kind": "clean", "control": "WEB-009", "title": "CORS e métodos restritos (gêmeo de D-009)", "expect": "clean" }
+    { "id": "C-023", "app": "clean-web", "kind": "clean", "control": "WEB-009", "title": "CORS e métodos restritos (gêmeo de D-009)", "expect": "clean" },
+    { "id": "C-024", "app": "clean-web", "kind": "clean", "probe": true, "control": "AUTH-027", "title": "Cada conta só lê o próprio objeto, e anônimo é recusado (gêmeo de L-005 e L-007)", "expect": "clean" },
+    { "id": "C-025", "app": "clean-web", "kind": "clean", "probe": true, "control": "WEB-013", "title": "Origem estranha é recusada (gêmeo de L-006)", "expect": "clean" },
+    { "id": "C-026", "app": "clean-web", "kind": "clean", "probe": true, "control": "AUTH-023", "title": "Logout encerra a sessão no servidor (gêmeo de L-008)", "expect": "clean" }
   ]
 }

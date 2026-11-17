@@ -32,10 +32,10 @@ Sai com `1` se algum caso **piorou** em relação ao esperado, e com `0` nos dem
 | Código | 11 | SQL por concatenação (com e sem aspas internas), template literal e f-string; `Math.random` para token; MD5 em senha; chave da AWS e senha literais; TLS desligado; `eval`; `innerHTML` |
 | Configuração | 7 | Action por tag; workflow sem `permissions`; sem varredura de segredos; sem auditoria de dependências; sem SECURITY.md; sem modelo de ameaças; dependência com faixa e sem lockfile |
 | HTTP | 11 | Cookie de sessão sem HttpOnly, SameSite e prefixo; sem CSP e sem diretivas complementares; sem nosniff; X-Powered-By; stack trace no erro; `.env` servido; CORS refletido com credenciais; `/health` com dados internos |
-| Lógica | 6 | Acesso por objeto (estático e em execução); atribuição em massa; CSRF (estático e em execução); logout que não encerra a sessão |
-| Limpas | 23 | Uma gêmea para cada controle acima |
+| Lógica | 8 | Quatro só no código (acesso por objeto, atribuição em massa, CSRF, logout), que o kit só transforma em pergunta; quatro em execução (pedido legível sem login, nota fiscal de outra conta, POST de origem estranha, logout que não encerra a sessão), que as [sondas autenticadas](SONDAS-AUTENTICADAS.md) detectam |
+| Limpas | 26 | Uma gêmea para cada controle acima. Em três delas (`probe: true`), o controle é manual: a sonda rodou e passou, e o controle continua "sem prova" |
 
-Os servidores de teste (`vuln-web` e `clean-web`) usam só `node:http`. O bench os sobe em `127.0.0.1`, numa porta livre, com ambiente mínimo (sem herdar as variáveis do seu terminal), roda as sondas passivas e ativas contra eles e os encerra no fim. Nenhuma requisição sai da máquina.
+Os servidores de teste (`vuln-web` e `clean-web`) usam só `node:http`. O bench os sobe em `127.0.0.1`, numa porta livre, com ambiente mínimo (sem herdar as variáveis do seu terminal), roda as sondas passivas, as ativas e as autenticadas contra eles e os encerra no fim. As duas contas de teste são **falsas** e ficam no manifesto (`env`, só nomes `BENCH_*`). Nenhuma requisição sai da máquina.
 
 ## Primeira medição (v0.1.0, 2026-11-17)
 
@@ -48,7 +48,21 @@ Os servidores de teste (`vuln-web` e `clean-web`) usam só `node:http`. O bench 
 
 A primeira execução achou uma falha do próprio kit: o CORE-059 não pegava a injeção clássica com aspas simples dentro do texto SQL (`"... name = '" + nome + "'"`). A regra foi corrigida e ganhou teste.
 
-Leia o número com cuidado. As falhas de código e de configuração foram escritas por quem conhece as regras do kit, então 100% ali mostra que as regras funcionam nos casos óbvios, não que o kit pega variações. O número que importa é o da **lógica**: 0 de 6. É ele que as sondas autenticadas (plano 5.2) precisam subir.
+## Depois das sondas autenticadas (2026-11-17)
+
+| | Resultado |
+|---|---|
+| Recall geral | 33 de 37 (89%) |
+| Código, configuração e HTTP | 29 de 29 (100%) |
+| Lógica em execução (com `--auth`) | 4 de 4 detectadas |
+| Lógica só no código | 0 de 4 detectadas; as 4 viram pergunta |
+| Falsos positivos nas limpas | 0 de 26 |
+
+O ganho em lógica vem das sondas autenticadas e só vale para o que elas testam: as rotas declaradas no perfil, com login e servidor em execução. Falha de lógica escondida no código, sem servidor, continua sem detecção. A comparação com a primeira medição não é de maçã com maçã, porque os casos em execução foram acrescentados junto com as sondas. Os 4 casos só de código continuam como estavam.
+
+## Primeira medição (v0.1.0, 2026-11-17)
+
+Leia o número com cuidado. As falhas de código e de configuração foram escritas por quem conhece as regras do kit, então 100% ali mostra que as regras funcionam nos casos óbvios, não que o kit pega variações. O número que importa é o da **lógica**: 0 de 6. Foi ele que as sondas autenticadas (plano 5.2) atacaram, como mostra a seção acima.
 
 ## Como acrescentar um caso
 

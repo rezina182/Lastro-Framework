@@ -20,6 +20,10 @@ Descreve a aplicação. Os flags decidem quais pacotes e controles se aplicam.
 
 O pacote `core` sempre se aplica.
 
+## Sondas autenticadas
+
+O bloco opcional `authProbes` declara o login, os nomes das variáveis de ambiente com duas contas de teste e as rotas que as sondas autenticadas vão testar (`lastro check --auth`). Veja [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md). O perfil nunca guarda senha, só o nome da variável.
+
 ## Campos opcionais
 
 ```json
