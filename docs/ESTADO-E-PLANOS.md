@@ -189,6 +189,10 @@ Regras: nunca na branch principal, nunca push sem autorização, sempre com test
 
 ### 5.4 Agente, skills, steering e hooks para o ciclo automático
 
+**Feito (primeira etapa):** `lastro adapter kiro --write` instala o agente `lastro`, cinco skills (`lastro-requisitos`, `lastro-triagem`, `lastro-corrigir`, `lastro-testes`, `lastro-pr`) e dois hooks novos: `lastro-publish` bloqueia push, PR e publicação vindos do agente, e `lastro-stop` roda o `lastro check` quando o agente termina. Veja [KIRO.md](KIRO.md). **Falta:** testar dentro do Kiro numa aplicação real, e o fluxo AppSec para tech lead com o PR aberto pela pessoa.
+
+Plano original, mantido para referência:
+
 Um **agente do Kiro dedicado ao LASTRO** que conduz o ciclo inteiro e para nos pontos de decisão humana:
 
 1. roda `lastro check` e `lastro threat-model`;

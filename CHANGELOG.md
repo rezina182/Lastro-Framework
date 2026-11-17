@@ -4,6 +4,13 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (agente do Kiro)
+- `lastro adapter kiro` passa a instalar o agente `lastro` (`.kiro/agents/lastro.md`), que conduz os fluxos "aplicação nova" (requisitos antes do código) e "aplicação existente" (medir, corrigir, provar, preparar PR) e tem `git commit`, `git push` e `gh pr` negados nas permissões.
+- Cinco skills: `lastro-requisitos`, `lastro-triagem`, `lastro-corrigir`, `lastro-testes` e `lastro-pr`.
+- Hook `lastro-publish`: bloqueia push, PR, merge, release e publicação de pacote vindos do agente (saída 2).
+- Hook `lastro-stop`: roda `lastro check` quando o agente termina e, com achado novo alto ou crítico, faz o agente continuar, uma vez por sessão. Acha o kit por `LASTRO_CLI` e nunca grava caminho pessoal no repositório.
+- `docs/KIRO.md` reescrito, com os limites do formato do Kiro conferidos na documentação oficial.
+
 ### Adicionado (modo corrigir)
 - `lastro fix`: correções determinísticas numa branch nova (`lastro/fix-...`), prontas para um PR que uma pessoa revisa. Sem `--write` só mostra o plano. Corrige Action por tag (CORE-006, troca pelo SHA do commit com a tag em comentário, com `--allow-network`), workflow sem `permissions` (CORE-010) e SECURITY.md ausente (CORE-011, modelo com campos `LASTRO-PREENCHER`). Recusa árvore suja, nunca mexe na branch atual, nunca faz push nem abre PR, e só commita com `--commit` e autor informado. `--run-tests` roda os testes do projeto e desfaz tudo se falharem. `--pr-body` grava, fora do repositório, a descrição do PR com o que muda, a validação, as atenções do revisor e um checklist. Veja `docs/CORRIGIR.md`.
 - CORE-011 recusa SECURITY.md que ainda tenha o marcador `LASTRO-PREENCHER`: modelo em branco não é canal de reporte.

@@ -54,7 +54,8 @@ test('adaptador do Kiro: mostra o plano sem gravar, grava com --write e nunca so
     r = cli(root, 'adapter', 'kiro', '--write');
     assert.equal(r.status, 0, r.stderr);
     for (const f of ['lastro-escopo-auth.md', 'lastro-escopo-dados.md', 'lastro-escopo-web.md', 'lastro-escopo-upload.md', 'lastro-escopo-tempo-real.md', 'lastro-revisao-ameacas.md']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'steering', f)), f);
-    for (const f of ['lastro-protect.json', 'lastro-protect.js']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'hooks', f)), f);
+    for (const f of ['lastro-protect.json', 'lastro-protect.js', 'lastro-publish.json', 'lastro-publish.js', 'lastro-stop.json', 'lastro-stop.js']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'hooks', f)), f);
+    assert.ok(fs.existsSync(path.join(root, '.kiro', 'agents', 'lastro.md')));
     assert.equal(fs.readFileSync(path.join(root, '.kiro', 'steering', 'lastro-base.md'), 'utf8'), 'meu texto\n', 'arquivo existente fica como está');
 
     r = cli(root, 'adapter', 'kiro', '--write');
@@ -76,6 +77,7 @@ test('arquivos do adaptador: front matter correto, sem caractere oculto, o sempr
     assert.ok(!/[\u200b-\u200f\u202a-\u202e\u2060\ufeff]/.test(t), `${f.name}: caractere oculto`);
     assert.ok(!/hardtech|lynx|quiz/i.test(t), `${f.name}: marca de empresa`);
   }
+  for (const f of listFiles('kiro')) assert.ok(!/hardtech|lynx|quiz/i.test(fs.readFileSync(f.file, 'utf8')), `${f.folder}/${f.name}: marca de empresa`);
   const base = files.find((f) => f.name === 'lastro-base.md');
   assert.ok(fs.statSync(base.file).size < 4096, 'steering sempre ativo deve ser pequeno');
   assert.match(fs.readFileSync(base.file, 'utf8'), /Nunca faça commit nem push sem o usuário autorizar/);
@@ -108,6 +110,7 @@ test('hook do Kiro: pede confirmação ao citar atestação, risco aceito, decis
   assert.equal(run('texto .lastro/status.json solto').stdout.includes('"ask"'), true, 'entrada fora do formato ainda é conferida');
   assert.equal(run('').status, 0);
   const cfg = JSON.parse(fs.readFileSync(listFiles('kiro', 'hooks').find((f) => f.name === 'lastro-protect.json').file, 'utf8'));
+  assert.ok(cfg.hooks[0].matcher.includes('execute_pwsh'));
   assert.equal(cfg.version, 'v1');
   assert.equal(cfg.hooks[0].trigger, 'PreToolUse');
   assert.match(cfg.hooks[0].action.command, /lastro-protect\.js/);

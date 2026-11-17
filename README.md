@@ -52,7 +52,7 @@ Os relatórios trazem uma legenda no final (o que é `CORE`, `AUTH`, estados, cl
 
 ## Uso com o Kiro e por assunto
 
-`lastro scope auth` mostra só os controles de um assunto, e `lastro adapter kiro --write` leva as regras do kit para o steering do Kiro do projeto. Veja [docs/KIRO.md](docs/KIRO.md).
+`lastro scope auth` mostra só os controles de um assunto. `lastro adapter kiro --write` instala no projeto o agente `lastro`, as skills por tarefa, o steering e os hooks. O agente conduz a aplicação nova (requisitos antes do código) e a existente (medir, corrigir, provar, preparar o PR), e quem publica é sempre você. Veja [docs/KIRO.md](docs/KIRO.md).
 
 ## Maturidade
 
