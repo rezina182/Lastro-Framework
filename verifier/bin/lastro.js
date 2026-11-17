@@ -61,6 +61,12 @@ Uso:
                                              o que preparar, passos, o que conferir, evidência, o que fazer se
                                              falhar e o trecho pronto para registrar a atestação. Aceita --theme
                                              e --redact.
+  lastro history [--write]                   compara a execução de agora com o último registro de .lastro/history/;
+                                             --write grava o registro (só números, IDs e estados de controle)
+  lastro site --out PASTA [--theme ARQ.css] [--redact a,b]
+                                             portal estático (sem script e sem servidor): visão geral para o dev e
+                                             para o time de segurança, evolução, relatório atual, playbook e
+                                             histórico. Só grava em pasta vazia, nova ou num portal gerado antes.
   lastro fix [--root DIR] [--only CORE-006,CORE-010,CORE-011] [--write] [--allow-network] [--run-tests]
              [--test-cmd "npm test"] [--branch lastro/nome] [--commit --commit-name N --commit-email E] [--pr-body ARQ.md]
                                              correções determinísticas numa BRANCH nova, para um PR que uma pessoa revisa.
@@ -386,6 +392,59 @@ async function main(argv) {
       fs.writeFileSync(outFile, text);
       console.log(`Playbook gravado em ${outFile}`);
     } else console.log(text);
+    return 0;
+  }
+
+  if (cmd === 'history') {
+    const HIST = require('../src/history');
+    printHttpNotice(root, flags);
+    const report = await runCheck({ root, ...httpOptions(flags) });
+    const snap = HIST.snapshot(report);
+    const { items, warnings } = HIST.loadHistory(root);
+    for (const w of warnings) console.error(`AVISO: ${w}`);
+    const prev = items.length ? items[items.length - 1] : null;
+    const d = HIST.diff(prev, snap);
+    console.log(`Agora: portão ${report.verdict}, nível ${snap.level}, provado ${snap.provenPct}%, falhando ${snap.failedPct}%, ${snap.summary.blocking} bloqueante(s). Histórico: ${items.length} registro(s).`);
+    if (prev) console.log(`Desde ${prev.generatedAt.slice(0, 10)}: ${d.improved.length} controle(s) melhoraram, ${d.worsened.length} pioraram, ${d.added.length} entraram, ${d.removed.length} saíram.${d.worsened.length ? ` Pioraram: ${d.worsened.map((x) => x.id).join(', ')}.` : ''}`);
+    if (!flags.write) { console.log(`Rode com --write para gravar o registro em ${HIST.DIR}/ (só números, IDs e estados; nada de caminho nem mensagem).`); return 0; }
+    console.log(`Registro gravado em ${HIST.writeSnapshot(root, snap)}.`);
+    return 0;
+  }
+
+  if (cmd === 'site') {
+    const HIST = require('../src/history');
+    const { buildSite, writeSite } = require('../src/site');
+    const outDir = flags.out && flags.out !== true ? String(flags.out) : null;
+    if (!outDir) { console.error('Informe a pasta do portal: lastro site --out PASTA (vazia, nova ou um portal gerado antes).'); return 3; }
+    let theme = null;
+    if (flags.theme) {
+      try { theme = fs.readFileSync(path.resolve(String(flags.theme)), 'utf8'); } catch (e) { console.error(`Não foi possível ler o tema: ${e.message}`); return 3; }
+      const te = validateTheme(theme);
+      if (te.length) { console.error(`Tema recusado:\n- ${te.join('\n- ')}`); return 3; }
+    }
+    let redact = null;
+    if ('redact' in flags) {
+      redact = typeof flags.redact === 'string' ? flags.redact.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      const re = validateRedactTerms(redact);
+      if (re.length) { console.error(`--redact recusado:\n- ${re.join('\n- ')}`); return 3; }
+    }
+    printHttpNotice(root, flags);
+    const raw = await runCheck({ root, ...httpOptions(flags) });
+    const report = redact ? redactReport(raw, redact) : raw;
+    const { items, warnings } = HIST.loadHistory(root);
+    for (const w of warnings) console.error(`AVISO: ${w}`);
+    const history = redact ? items.map((s) => redactReport(s, redact)) : items;
+    const current = HIST.snapshot(report);
+    const cat = loadCatalog();
+    const states = new Map(report.controls.map((c) => [c.id, c.state]));
+    const coverage = asvsLib.coverage(cat.controls, cat.asvsMap, { level: 2, states });
+    const playbook = buildPlaybook(report, cat, {});
+    const { tickets } = loadTickets(root);
+    const pages = buildSite({ report, history, current, playbook, tickets, coverage, theme });
+    let target;
+    try { target = writeSite(outDir, pages); } catch (e) { console.error(e.message); return 3; }
+    console.log(`Portal gravado em ${target} (${Object.keys(pages).length} páginas, sem script e sem servidor). Abra index.html no navegador.`);
+    if (!items.length) console.log('Dica: grave o histórico a cada versão (lastro history --write) para o portal mostrar a evolução.');
     return 0;
   }
 

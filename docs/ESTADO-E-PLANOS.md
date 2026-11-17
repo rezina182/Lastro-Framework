@@ -205,7 +205,7 @@ Peças: skills por tarefa (triagem, correção, testes do playbook, revisão de 
 
 ### 5.5 Histórico e portal estático (a "interface")
 
-Ver a seção 6.
+**Feito:** `lastro history --write` grava em `.lastro/history/` só números, IDs e estados; `lastro site --out PASTA` gera quatro páginas sem script nem servidor (visão geral com a parte do dev e a do time de segurança, relatório atual, playbook e histórico com o que piorou e melhorou). Veja [PORTAL.md](PORTAL.md). **Falta:** portal de uma aplicação com vários repositórios e um job de exemplo no CI. Ver também a seção 6.
 
 ### 5.6 Vários repositórios, segunda etapa
 

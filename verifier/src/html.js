@@ -614,11 +614,13 @@ function archSectionHtml(a) {
 }
 
 /** Documento HTML completo com o mesmo estilo dos relatórios (sem script, CSP restritiva, tema opcional). */
-function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null }) {
+function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null, siteNav = null }) {
   const out = ['<!doctype html>', '<html lang="pt-BR">', '<head>', '<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">'];
   out.push(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">`);
   out.push(`<title>${h(title)}</title>`, `<style>${BASE_CSS}${theme ? `\n/* tema */\n${theme}` : ''}</style>`, '</head>', '<body>');
-  out.push('<a class="skip" href="#principal">Ir para o conteúdo</a>', '<header class="hero"><div class="wrap">');
+  out.push('<a class="skip" href="#principal">Ir para o conteúdo</a>');
+  if (siteNav) out.push(siteNav);
+  out.push('<header class="hero"><div class="wrap">');
   out.push(`<p class="eyebrow">${h(eyebrow)}</p>`, `<h1>${h(title)}</h1>`);
   for (const m of meta) out.push(`<p class="meta">${h(m)}</p>`);
   out.push('<nav class="toc" aria-label="Seções do relatório">', ...nav.map(([id, text]) => `<a href="#${h(id)}">${h(text)}</a>`), '</nav>', '</div></header>');

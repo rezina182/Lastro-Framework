@@ -34,6 +34,10 @@ O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em apli
 
 `lastro check --url STAGING --auth --confirm-non-production` entra com duas contas de teste e prova acesso por objeto entre contas, CSRF e logout, e analisa o cookie do login. Só em staging ou local. Veja [docs/SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md).
 
+## Histórico e portal
+
+`lastro history --write` grava a evolução em `.lastro/history/` (só números e estados). `lastro site --out ../portal` gera um portal estático, sem script nem servidor, com a visão do dev (o que fazer agora), a do time de segurança (prazos e decisões), o relatório, o playbook e o histórico. Veja [docs/PORTAL.md](docs/PORTAL.md).
+
 ## Modo corrigir
 
 `lastro fix` mostra o que tem correção previsível. `lastro fix --write --allow-network --run-tests --pr-body ../pr.md` aplica numa branch nova, roda os testes e prepara a descrição do PR para o tech lead revisar. O kit nunca faz push, nunca abre PR e nunca mexe na branch atual. Veja [docs/CORRIGIR.md](docs/CORRIGIR.md).

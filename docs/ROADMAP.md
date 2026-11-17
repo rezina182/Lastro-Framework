@@ -12,7 +12,7 @@ Visão: o LASTRO como base do ciclo de desenvolvimento com IA, para aplicação 
 4. Fase de desenho: requisitos, decisões de arquitetura e testes por funcionalidade, antes do código (aplicação nova). Feito em parte: skill `lastro-requisitos`. Falta: ADR registrado em `.lastro/`, arquitetura-alvo por tipo de aplicação e integração com a spec do Kiro.
 5. Agente do Kiro que conduz o ciclo nos fluxos "nova" e "existente" (verificar, corrigir, escrever os testes do playbook, preparar as decisões humanas) e pede permissão antes do PR. Feito: agente `lastro`, cinco skills e os hooks `lastro-publish` e `lastro-stop` ([KIRO.md](KIRO.md)). Falta: testar dentro do Kiro numa aplicação real e confirmar o campo do comando no evento do terminal.
 6. Pipeline como produto: Action reutilizável, SARIF e comentário no PR.
-7. Histórico em `.lastro/history/` e portal estático (`lastro site`) com a evolução, a arquitetura e o modelo de ameaças, com visão por papel (dev e segurança).
+7. Histórico em `.lastro/history/` e portal estático (`lastro site`) com a evolução, a arquitetura e o modelo de ameaças, com visão por papel (dev e segurança). Feito: `lastro history` e `lastro site` ([PORTAL.md](PORTAL.md)). Falta: portal de vários repositórios (`lastro app`) e job de exemplo no CI.
 8. Revisão dos frameworks de mercado (AI-DLC, SAMM, OWASP LLM e Agentic, NIST AI RMF, ISO 42001, SLSA, Scorecard, SBOM), cada um com leitura da fonte oficial.
 
 ## Próximo (v0.2)

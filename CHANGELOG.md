@@ -4,6 +4,10 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (histórico e portal)
+- `lastro history [--write]`: compara a execução de agora com o último registro e, com `--write`, grava em `.lastro/history/` um registro só com números, IDs e estados de controle (nada de caminho, mensagem, URL ou segredo). Nunca sobrescreve; registro inválido é ignorado com aviso.
+- `lastro site --out PASTA`: portal estático com quatro páginas (visão geral, relatório atual, playbook e histórico), sem script nem servidor, com CSP restritiva, links em lista fechada e `--theme`/`--redact`. A visão geral separa o que fazer agora (dev) das decisões e prazos (segurança: atestações que vencem, riscos aceitos, dívida, ameaças sem decisão, tickets). O histórico mostra os controles que pioraram e melhoraram. Só grava em pasta nova, vazia ou que já seja portal. Veja `docs/PORTAL.md`.
+
 ### Adicionado (agente do Kiro)
 - `lastro adapter kiro` passa a instalar o agente `lastro` (`.kiro/agents/lastro.md`), que conduz os fluxos "aplicação nova" (requisitos antes do código) e "aplicação existente" (medir, corrigir, provar, preparar PR) e tem `git commit`, `git push` e `gh pr` negados nas permissões.
 - Cinco skills: `lastro-requisitos`, `lastro-triagem`, `lastro-corrigir`, `lastro-testes` e `lastro-pr`.
