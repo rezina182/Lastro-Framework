@@ -6,7 +6,7 @@ const { buildArchitecture, toMermaid, toSvg } = require('../src/architecture');
 const { runCheck } = require('../src/engine');
 const { formatMarkdown } = require('../src/report');
 const { formatHtml } = require('../src/html');
-const { makeProject, profileJson, cleanup } = require('./helpers');
+const { makeProject, profileJson, cleanup, badHrefs } = require('./helpers');
 
 const NOW = new Date('2026-11-12T12:00:00Z');
 const FILES = (flags = {}) => ({
@@ -91,7 +91,8 @@ test('relatórios: Markdown traz o bloco Mermaid e a tabela de fluxos; HTML traz
     const html = formatHtml(r);
     for (const s of ['Arquitetura: fluxo de dados e fronteiras de confiança', '<svg', 'class="arch"', 'Fluxos, ameaças e controles exigidos', 'Linha vermelha']) assert.ok(html.includes(s), `faltou no HTML: ${s}`);
     assert.ok(!/<script|<link|<iframe|<img/i.test(html));
-    assert.ok(!/(?:src|href)=["'](?!#)/i.test(html));
+    assert.deepEqual(badHrefs(html), []);
+    assert.ok(!/\bsrc=/i.test(html));
   } finally { cleanup(root); }
 });
 

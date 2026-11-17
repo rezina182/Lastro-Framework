@@ -47,12 +47,14 @@ test('adaptador do Kiro: mostra o plano sem gravar, grava com --write e nunca so
     let r = cli(root, 'adapter', 'kiro');
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /seria criado: .*lastro-escopo-auth\.md/);
+    assert.match(r.stdout, /seria criado: .*lastro-protect\.js/);
     assert.match(r.stdout, /já existe, mantido: .*lastro-base\.md/);
     assert.ok(!fs.existsSync(path.join(root, '.kiro', 'steering', 'lastro-escopo-auth.md')));
 
     r = cli(root, 'adapter', 'kiro', '--write');
     assert.equal(r.status, 0, r.stderr);
-    for (const f of ['lastro-escopo-auth.md', 'lastro-escopo-dados.md', 'lastro-revisao-ameacas.md']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'steering', f)), f);
+    for (const f of ['lastro-escopo-auth.md', 'lastro-escopo-dados.md', 'lastro-escopo-web.md', 'lastro-escopo-upload.md', 'lastro-escopo-tempo-real.md', 'lastro-revisao-ameacas.md']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'steering', f)), f);
+    for (const f of ['lastro-protect.json', 'lastro-protect.js']) assert.ok(fs.existsSync(path.join(root, '.kiro', 'hooks', f)), f);
     assert.equal(fs.readFileSync(path.join(root, '.kiro', 'steering', 'lastro-base.md'), 'utf8'), 'meu texto\n', 'arquivo existente fica como está');
 
     r = cli(root, 'adapter', 'kiro', '--write');
@@ -62,8 +64,8 @@ test('adaptador do Kiro: mostra o plano sem gravar, grava com --write e nunca so
 });
 
 test('arquivos do adaptador: front matter correto, sem caractere oculto, o sempre ativo é pequeno e nada identifica empresa', () => {
-  const files = listFiles('kiro');
-  assert.equal(files.length, 4);
+  const files = listFiles('kiro', 'steering');
+  assert.equal(files.length, 7);
   for (const f of files) {
     const t = fs.readFileSync(f.file, 'utf8');
     assert.ok(t.startsWith('---\n'), `${f.name}: front matter`);
@@ -77,4 +79,36 @@ test('arquivos do adaptador: front matter correto, sem caractere oculto, o sempr
   const base = files.find((f) => f.name === 'lastro-base.md');
   assert.ok(fs.statSync(base.file).size < 4096, 'steering sempre ativo deve ser pequeno');
   assert.match(fs.readFileSync(base.file, 'utf8'), /Nunca faça commit nem push sem o usuário autorizar/);
+});
+
+test('hook do Kiro: pede confirmação ao citar atestação, risco aceito, decisão de ameaça ou baseline; ignora o resto e entrada inválida', () => {
+  const hook = listFiles('kiro', 'hooks').find((f) => f.name === 'lastro-protect.js').file;
+  const run = (input) => spawnSync(process.execPath, [hook], { input, encoding: 'utf8' });
+  const ask = (payload) => {
+    const r = run(JSON.stringify(payload));
+    assert.equal(r.status, 0);
+    return r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null;
+  };
+  for (const p of [
+    { tool_name: 'fs_write', tool_input: { path: 'C:\\app\\.lastro\\status.json', text: '{}' } },
+    { tool_name: 'str_replace', tool_input: { path: '/app/.lastro/threat-model.json' } },
+    { tool_name: 'fs_write', tool_input: { path: '/app/.lastro/risks/RISK-0001.json' } },
+    { tool_name: 'execute_pwsh', tool_input: { command: 'node lastro.js baseline --write' } },
+  ]) {
+    const out = ask(p);
+    assert.equal(out && out.permissionDecision, 'ask', JSON.stringify(p));
+    assert.match(out.permissionDecisionReason, /decisões de uma pessoa/);
+  }
+  for (const p of [
+    { tool_name: 'fs_write', tool_input: { path: '/app/src/server.js', text: 'const a = 1;' } },
+    { tool_name: 'execute_pwsh', tool_input: { command: 'npm test' } },
+    { tool_name: 'fs_write', tool_input: { path: '/app/.lastro/profile.json' } },
+  ]) assert.equal(ask(p), null, JSON.stringify(p));
+  assert.equal(run('texto que não é json').stdout, '');
+  assert.equal(run('texto .lastro/status.json solto').stdout.includes('"ask"'), true, 'entrada fora do formato ainda é conferida');
+  assert.equal(run('').status, 0);
+  const cfg = JSON.parse(fs.readFileSync(listFiles('kiro', 'hooks').find((f) => f.name === 'lastro-protect.json').file, 'utf8'));
+  assert.equal(cfg.version, 'v1');
+  assert.equal(cfg.hooks[0].trigger, 'PreToolUse');
+  assert.match(cfg.hooks[0].action.command, /lastro-protect\.js/);
 });

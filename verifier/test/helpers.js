@@ -57,4 +57,10 @@ function serve(handler) {
   });
 }
 
-module.exports = { ALL_FALSE, makeProject, profileJson, cleanup, ctxFor, runOne, serve, DEFAULT_THRESHOLDS };
+/** Hrefs de um HTML que não são âncora interna nem fonte oficial permitida (deve ser sempre vazio). */
+function badHrefs(html) {
+  const { ALLOWED_HREF } = require('../src/links');
+  return [...html.matchAll(/\bhref="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&')).filter((u) => !u.startsWith('#') && !ALLOWED_HREF.test(u));
+}
+
+module.exports = { badHrefs, ALL_FALSE, makeProject, profileJson, cleanup, ctxFor, runOne, serve, DEFAULT_THRESHOLDS };

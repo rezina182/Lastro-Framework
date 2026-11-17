@@ -22,7 +22,10 @@ const { engineeringFacts } = require('./engineering');
 const { analyzeRisk } = require('./risk');
 const { loadAuditFile } = require('./audit');
 const TM = require('./threatmodel');
-const { buildArchitecture } = require('./architecture');
+const { buildArchitecture, buildSystemArchitecture } = require('./architecture');
+const { loadSystem, resolveRepos, FILE: SYSTEM_FILE } = require('./system');
+const { discover } = require('./discover');
+const { packLegend } = require('./legend');
 
 class ConfigError extends Error {}
 
@@ -277,6 +280,33 @@ async function runCheck(opts = {}) {
   }
   const threatModel = TM.buildThreatModel({ ctx, controls, riskMap: catalog.riskMap, profile, persisted: tmPersisted, now });
   threatModel.architecture = buildArchitecture({ model: threatModel, profile, controls });
+
+  // Sistema com mais de um componente ou repositório, descrito em .lastro/system.json.
+  const sys = opts.noSystem ? null : loadSystem(root);
+  if (sys && !sys.ok) warnings.push(`${SYSTEM_FILE} inválido (${sys.error}): usado o desenho automático.`);
+  if (sys && sys.ok) {
+    const repos = resolveRepos(root, sys.value, { allowExternal: !!opts.allowExternalRepos });
+    const primary = { model: threatModel, controls, disc: threatModel.discovery, flags: profile.flags, name: path.basename(root), dir: root };
+    const perRepo = new Map();
+    for (const [key, r] of repos) {
+      if (r.status !== 'ok') continue;
+      if (r.same) { perRepo.set(key, primary); continue; }
+      let hasProfile = false;
+      try { hasProfile = fs.existsSync(path.join(r.dir, '.lastro', 'profile.json')); } catch (e) { hasProfile = false; }
+      if (hasProfile) {
+        try {
+          const sub = await runCheck({ root: r.dir, now, noSystem: true, catalogDir: opts.catalogDir });
+          perRepo.set(key, { model: sub.threatModel, controls: sub.controls, disc: sub.threatModel.discovery, flags: sub.profile.flags, name: path.basename(r.dir), dir: r.dir });
+          continue;
+        } catch (e) {
+          warnings.push(`Repositório "${key}": a verificação falhou (${String(e.message).split('\n')[0].slice(0, 120)}). Usada só a descoberta.`);
+        }
+      } else warnings.push(`Repositório "${key}" não tem .lastro/profile.json: o kit leu o código, mas as ameaças e os controles vêm do repositório principal. Rode "lastro init" nele para um modelo próprio.`);
+      const subCtx = buildContext({ root: r.dir, profile, catalog, url: null, active: false, now });
+      perRepo.set(key, { model: threatModel, controls, disc: discover(subCtx), flags: profile.flags, name: path.basename(r.dir), dir: r.dir });
+    }
+    threatModel.architecture = buildSystemArchitecture({ system: sys.value, repos, perRepo, primary });
+  }
   const risk = analyzeRisk({ controls }, { riskMap: catalog.riskMap, catalog, profile, audit, threatLikelihood: TM.likelihoodOverrides(threatModel) });
   const baselineView = blocking > 0 ? { findings: blocking, causes: blockingCauses, verdictIfAdopted: incomplete ? 'incomplete' : 'pass' } : null;
   return {
@@ -291,6 +321,7 @@ async function runCheck(opts = {}) {
     context,
     scope: describeScope(catalog.packs, profile.flags),
     baselineView,
+    legend: { packs: packLegend(catalog) },
     risk,
     threatModel,
     dependencyVulns: audit,

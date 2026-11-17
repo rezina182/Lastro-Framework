@@ -63,6 +63,42 @@ Para cada fluxo o relatório traz o número de ameaças e quantas estão exposta
 
 O kit desenha o que descobriu e o que o perfil declara. Ele **não inventa a arquitetura**: onde colocar um proxy reverso, como segmentar a rede, como separar ambientes e onde guardar segredos são decisões de uma pessoa, que o modelo de ameaças ajuda a justificar. A versão atual desenha só fluxos externos e entre zonas; o detalhe interno da aplicação (módulos, filas) não é descoberto.
 
+## Aplicação com mais de um repositório ou componente
+
+Ler um repositório já gera o modelo e o desenho. Quando a aplicação tem **vários repositórios** (frontend, API, worker, infraestrutura) ou componentes que o código não mostra (banco, fila, serviço de terceiros), descreva o sistema em `.lastro/system.json` no repositório principal. O que você declara manda no desenho; o kit combina com o que descobre lendo cada repositório.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Plataforma de exemplo",
+  "components": [
+    { "id": "web", "name": "Frontend", "role": "frontend", "repo": "../app-web", "exposure": "internet" },
+    { "id": "api", "name": "API", "role": "backend", "repo": ".", "exposure": "internet", "dataClasses": ["pessoal", "menores"] },
+    { "id": "db", "name": "PostgreSQL", "role": "database", "exposure": "privada" },
+    { "id": "pay", "name": "Gateway de pagamento", "role": "external" }
+  ],
+  "flows": [
+    { "from": "user", "to": "web", "label": "Navegação", "protocol": "https" },
+    { "from": "web", "to": "api", "label": "API REST", "protocol": "https" },
+    { "from": "api", "to": "db", "label": "Consultas", "protocol": "sql" },
+    { "from": "api", "to": "pay", "label": "Cobrança", "protocol": "https" }
+  ]
+}
+```
+
+- **Papéis** (`role`): `frontend`, `mobile`, `backend`, `gateway`, `worker`, `queue`, `database`, `storage`, `external`, `infra`. Só componente com código tem `repo`. **Exposição**: `internet`, `interna` ou `privada`. **Classes de dado** (`dataClasses`): `pessoal`, `menores`, `sensivel`, `credencial`, `financeiro`.
+- **Atores** que podem aparecer nos fluxos: `user` (usuário na internet) e `dev` (desenvolvedor).
+- **Fluxos**: `protocol` opcional (`https`, `wss`, `sql`...). O kit deduz a superfície de ameaças pelo papel e pelo protocolo; `surfaces` (`web`, `auth`, `data`, `realtime`, `uploads`, `pipeline`, `agent`) sobrescreve. **Sem `flows`**, o kit infere o básico pelos papéis e marca como `inferido`.
+- **Cada repositório** que tem `.lastro/profile.json` é verificado por conta própria (só leitura), e os fluxos dele usam as ameaças e os controles dele. Repositório sem perfil é lido, mas usa as ameaças do principal, com aviso.
+- **Origem de cada fluxo e componente**: `declarado` (você descreveu), `descoberto` (o kit viu no código e você não declarou, como um banco ou um host externo que faltou) e `inferido`. O descoberto aparece com borda tracejada, para você confirmar ou declarar.
+- **Segurança da leitura**: o arquivo pode vir de um repositório de terceiros, então repositórios **fora da pasta analisada só são lidos com `--allow-external-repos`**, e o kit nunca grava neles. Dentro da pasta (monorepo), a leitura é sempre permitida.
+
+Sem `system.json`, o desenho é o automático de um repositório.
+
+## Rotas e middleware de autenticação
+
+A descoberta liga a **montagem do roteador** ao arquivo das rotas: em `app.use('/api', requireAuth, require('./rotas'))` ou `app.use('/api', requireAuth, rotas)` (com `const rotas = require('./rotas')` ou `import`), as rotas de `rotas.js`, e as dos roteadores que ele monta, contam como "autenticação na montagem do roteador". Também vale `router.use(auth)` dentro do arquivo e `app.use(auth)` antes das rotas. Fica de fora o que o texto não mostra: importação dinâmica, fábrica de roteador com lógica própria e montagem em várias linhas. Isso é pista, não prova.
+
 ## Comandos
 
 ```bash

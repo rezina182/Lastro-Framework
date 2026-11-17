@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Legenda
+
+Os relatórios trazem uma legenda no final (o que é `CORE`, `AUTH`, estados, classes de risco, pilares, STRIDE e siglas), e cada CWE, CVE e GHSA leva à fonte oficial. A mesma legenda está em [docs/GLOSSARIO.md](docs/GLOSSARIO.md).
+
 ## Uso com o Kiro e por assunto
 
 `lastro scope auth` mostra só os controles de um assunto, e `lastro adapter kiro --write` leva as regras do kit para o steering do Kiro do projeto. Veja [docs/KIRO.md](docs/KIRO.md).

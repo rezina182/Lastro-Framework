@@ -11,7 +11,7 @@ const { runCheck } = require('../src/engine');
 const { formatMarkdown } = require('../src/report');
 const { formatHtml } = require('../src/html');
 const { loadTickets } = require('../src/backlog');
-const { makeProject, profileJson, cleanup, ctxFor } = require('./helpers');
+const { makeProject, profileJson, cleanup, ctxFor, badHrefs } = require('./helpers');
 
 const CLI = path.join(__dirname, '..', 'bin', 'lastro.js');
 const NOW = new Date('2026-11-12T12:00:00Z');
@@ -100,6 +100,63 @@ test('descoberta: middleware global de autenticação cobre as rotas seguintes',
     assert.equal(d.routes.byAuth['nao-vista'], 1);
     assert.equal(d.routes.byAuth.global, 1);
     assert.equal(d.routes.authMounts, 1, 'só a montagem com autenticação conta');
+    assert.equal(d.routes.byAuth.montagem, 0, 'a montagem não aponta para um arquivo de rotas');
+  } finally { cleanup(root); }
+});
+
+test('descoberta: autenticação aplicada na montagem do roteador cobre o arquivo de rotas e os roteadores montados por ele', () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ webApp: true }),
+    'src/app.js': [
+      "const rotas = require('./rotas');",
+      "const sub = require('./sub');",
+      "app.use('/api', requireAuth, rotas);",
+      "app.use('/adm', requireAdmin, require('./admin2'));",
+      "app.use('/livre', sub);",
+      '',
+    ].join('\n'),
+    'src/rotas.js': "const inner = require('./inner');\nrouter.get('/a', h);\nrouter.use('/in', inner);\n",
+    'src/inner.js': "router.post('/x', h);\n",
+    'src/admin2.js': "router.get('/z', h);\n",
+    'src/sub.js': "router.get('/s', h);\n",
+  });
+  try {
+    const d = discover(ctxFor(root));
+    assert.equal(d.routes.total, 4);
+    assert.equal(d.routes.byAuth.montagem, 3, 'rotas, inner (por herança) e admin2 (require direto na montagem)');
+    assert.equal(d.routes.byAuth['nao-vista'], 1);
+    assert.deepEqual(d.routes.examples.map((x) => x.path), ['/s']);
+    assert.equal(d.routes.authMounts, 2);
+  } finally { cleanup(root); }
+});
+
+test('descoberta: middleware em português e lista de middlewares guardada numa variável também contam como autenticação', () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ webApp: true }),
+    'src/app.js': [
+      "const { criarRotasAcesso } = require('./acesso/rotas');",
+      "const { criarRotasPub } = require('./pub/rotas');",
+      'const sessao = exigirSessao(pool, config);',
+      'const professor = [',
+      '  verificarOrigem,',
+      '  sessao,',
+      '  csrfEmMutacao,',
+      '];',
+      "app.use('/api/acesso', professor, criarRotasAcesso(pool));",
+      "app.use('/api/publico', criarRotasPub(pool));",
+      "app.get('/api/painel', sessao, painel);",
+      '',
+    ].join('\n'),
+    'src/acesso/rotas.js': "router.post('/convites', h);\n",
+    'src/pub/rotas.js': "router.get('/vitrine', h);\n",
+  });
+  try {
+    const d = discover(ctxFor(root));
+    assert.equal(d.routes.byAuth.montagem, 1, 'a lista professor traz sessao, e sessao vem de exigirSessao');
+    assert.equal(d.routes.byAuth.visivel, 1, 'sessao na própria rota');
+    assert.equal(d.routes.byAuth['nao-vista'], 1);
+    assert.deepEqual(d.routes.examples.map((x) => x.path), ['/vitrine']);
+    assert.equal(d.routes.authMounts, 1);
   } finally { cleanup(root); }
 });
 
@@ -264,7 +321,8 @@ test('relatórios: Markdown e HTML mostram o modelo de ameaças, com as pistas, 
     const html = formatHtml(r);
     for (const s of ['id="ameacas"', 'Modelo de ameaças', 'DELETE /api/clientes/:id', 'não quer dizer desprotegida', 'confirme se há dado sensível']) assert.ok(html.includes(s), `faltou no HTML: ${s}`);
     assert.ok(!/<script|<link|<iframe|<img/i.test(html));
-    assert.ok(!/(?:src|href)=["'](?!#)/i.test(html));
+    assert.deepEqual(badHrefs(html), []);
+    assert.ok(!/\bsrc=/i.test(html));
     const out = cli(root, 'threat-model', '--out', path.join(root, 'tm.md'));
     assert.equal(out.status, 0, out.stderr);
     assert.match(fs.readFileSync(path.join(root, 'tm.md'), 'utf8'), /^# Modelo de ameaças/);

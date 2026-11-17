@@ -74,6 +74,9 @@ Opções de check, baseline e backlog:
   --confirm-non-production   confirma que o alvo é staging ou homologação sob seu controle
   --audit-file ARQ     resultado de "npm audit --json" gerado por você (o kit não consulta a internet). Traz as
                        vulnerabilidades conhecidas das dependências (GHSA, CWE, CVSS) para a análise de risco.
+  --allow-external-repos
+                       permite ler, só leitura, os repositórios de .lastro/system.json que ficam FORA da pasta
+                       analisada. Sem a opção, só repositórios dentro da pasta são lidos.
   --only ID,ID         limita a alguns controles
   --json               saída em JSON
   --out ARQUIVO        grava o relatório JSON
@@ -86,6 +89,7 @@ function httpOptions(flags) {
   const opts = { url: flags.url, active: !!flags.active, confirmNonProduction: !!flags['confirm-non-production'] };
   if (flags.delay !== undefined) opts.delayMs = Number(flags.delay);
   if (flags['audit-file'] && flags['audit-file'] !== true) opts.auditFile = flags['audit-file'];
+  if (flags['allow-external-repos']) opts.allowExternalRepos = true;
   return opts;
 }
 
@@ -288,7 +292,7 @@ async function main(argv) {
       if (errs.length) { console.error(`${TM.FILE} inválido:\n- ${errs.slice(0, 10).join('\n- ')}`); return 3; }
       persisted = raw.value;
     }
-    const report = await runCheck({ root });
+    const report = await runCheck({ root, allowExternalRepos: !!flags['allow-external-repos'] });
     const t = report.threatModel;
     console.log(`Modelo de ameaças de "${report.profile.name}": ${t.counts.threats} ameaça(s) (${t.counts.exposed} exposta(s), ${t.counts.unproven} sem prova, ${t.counts.mitigated} mitigada(s)), ${t.counts.pending} sem decisão.`);
     console.log(`Descoberta: ${t.discovery.routes.total} rota(s), ${t.discovery.routes.byAuth['nao-vista']} sem autenticação vista; armazenamento: ${t.discovery.stores.join(', ') || 'nenhum encontrado'}; tempo real: ${t.discovery.realtime.join(', ') || 'não'}; uploads: ${t.discovery.uploads.join(', ') || 'não'}.`);

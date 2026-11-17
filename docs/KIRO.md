@@ -23,8 +23,16 @@ lastro scope core      # controles de base
 
 Os escopos são os pacotes do catálogo: `core`, `web`, `auth`, `pii`, `realtime`, `uploads`, `assets` e `agent`. Um escopo que o perfil não ativa diz quais flags faltam.
 
+Além dos escopos de autenticação e dados, há `lastro-escopo-web.md` (arquivos com `route` no caminho), `lastro-escopo-upload.md` (`upload`) e `lastro-escopo-tempo-real.md` (`socket`).
+
+## Hook de confirmação
+
+`lastro adapter kiro --write` também cria `.kiro/hooks/lastro-protect.json` e `lastro-protect.js`. O hook roda antes das ferramentas de escrita e de terminal (`PreToolUse`) e, se o evento citar `.lastro/status.json`, `.lastro/risks/`, `.lastro/threat-model.json`, `.lastro/baseline.json`, `.lastro/system.json` ou `lastro baseline --write`, **pede a confirmação do usuário** antes de seguir. Atestação, risco aceito, decisão de ameaça e baseline são decisões de uma pessoa; o hook garante que ela veja e confirme. Ele só pergunta, não bloqueia, e usa só Node, sem rede.
+
+Se o script falhar, o Kiro segue sem perguntar (limite do formato de hook). Por isso a regra também está no steering `lastro-base.md`, e a trava de verdade fica no CI.
+
 ## O que o adaptador não faz
 
 - Não decide por você. O agente propõe o texto de uma atestação, de um risco aceito ou de uma decisão de ameaça, e quem confirma é uma pessoa.
 - Não impede nada sozinho: steering é orientação, não trava. A trava está no CI, onde `lastro check` bloqueia o que for novo e grave.
-- Hooks de bloqueio do agente (por exemplo, impedir escrita em `.lastro/status.json`) ainda não vêm no adaptador: dependem do formato de hook de cada versão do Kiro e entram depois de testados.
+- Não bloqueia por hook: o hook só pede confirmação. Bloquear de vez depende do formato de hook de cada versão do Kiro; o teste do hook cobre o script e o formato `v1`, não a execução dentro do Kiro.

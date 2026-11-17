@@ -94,6 +94,9 @@ details li{margin:6px 0;overflow-wrap:anywhere}
 .arch-zona{fill:none;stroke:var(--border);stroke-width:1.5;stroke-dasharray:6 4}
 .arch-titulo{fill:var(--muted);font-size:12px}
 .arch-no{fill:var(--surface);stroke:var(--accent);stroke-width:1.5}
+.arch-desc{stroke-dasharray:5 3;stroke:var(--warn)}
+.arch-inferido{stroke-dasharray:3 3}
+.arch-rotulo{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .arch-notexto{fill:var(--text);font-size:12px}
 .arch-fluxo{stroke:var(--muted);stroke-width:1.5;fill:none}
 .arch-exposto{stroke:var(--bad);stroke-width:2.5}
@@ -139,8 +142,13 @@ const R = require('./risk');
 
 const CLASS_CSS = { critical: 'bad', high: 'bad', medium: 'warn', low: 'info' };
 const classBadge = (cls) => `<span class="badge ${CLASS_CSS[cls] || 'info'}">${h(R.CLASS_PT[cls] || cls)}</span>`;
-// Sem links externos: o arquivo continua autocontido. A CWE N se consulta em cwe.mitre.org/data/definitions/N.html.
-const cweLinks = (list) => (list.length ? list.filter((n) => Number.isInteger(n) && n > 0).map((n) => `<code>CWE-${n}</code>`).join(', ') : '-');
+// O arquivo continua autocontido (sem script, fonte ou imagem externa). Os únicos links são para fontes oficiais,
+// montados a partir de identificadores validados (links.js): CWE (MITRE), CVE (NVD), GHSA (GitHub) e a LGPD (Planalto).
+const L = require('./links');
+const ext = (url, text) => (url ? `<a href="${h(url)}" rel="noopener noreferrer">${h(text)}</a>` : h(text));
+const cweLinks = (list) => (list.length ? list.filter((n) => Number.isInteger(n) && n > 0).map((n) => ext(L.cweUrl(n), `CWE-${n}`)).join(', ') : '-');
+const ghsaLink = (id, fallback = 'aviso') => (id ? ext(L.ghsaUrl(id), id) : h(fallback));
+const cveLinks = (list) => (list && list.length ? list.map((c) => ext(L.cveUrl(c), c)).join(', ') : 'ver o aviso');
 const pillarsText = (codes) => codes.map((c) => R.PILLARS[c] || c).join(', ');
 const stateText = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
 
@@ -148,7 +156,7 @@ function riskRows(list, limit) {
   return list.slice(0, limit).map((i) => {
     let where;
     if (i.type === 'vuln') {
-      where = i.advisories.map((a) => `<code>${h(a.id || a.title || 'aviso')}</code>`).join(', ');
+      where = i.advisories.map((a) => ghsaLink(a.id, a.title || 'aviso')).join(', ');
       where += ` (${i.direct ? 'dependência direta' : 'indireta'}; correção: ${h(i.fix)})`;
     } else where = i.locations.length ? i.locations.map((l) => `<code>${h(l)}</code>`).join(', ') : '';
     const why = `Probabilidade ${i.likelihood} (${R.LIKELIHOOD_PT[i.likelihood]}): ${i.reasons.likelihood.join('; ')}. Impacto ${i.impact} (${R.IMPACT_PT[i.impact]}): ${i.reasons.impact.join('; ')}.${i.reasons.reach ? ` Alcance: ${i.reasons.reach}.` : ''}`;
@@ -234,13 +242,13 @@ function riskHtml(r) {
   if (r.dependencyVulns) {
     const v = r.dependencyVulns;
     out.push('<h3>Vulnerabilidades conhecidas em dependências</h3>');
-    out.push(`<p>Fonte: ${h(v.source)}. ${num(v.total)} pacote(s): ${num(v.bySeverity.critical)} crítico(s), ${num(v.bySeverity.high)} alto(s), ${num(v.bySeverity.medium)} médio(s), ${num(v.bySeverity.low)} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso (github.com/advisories/GHSA-...).</p>`);
+    out.push(`<p>Fonte: ${h(v.source)}. ${num(v.total)} pacote(s): ${num(v.bySeverity.critical)} crítico(s), ${num(v.bySeverity.high)} alto(s), ${num(v.bySeverity.medium)} médio(s), ${num(v.bySeverity.low)} baixo(s). O npm audit informa o aviso do GitHub (GHSA), a CWE e o CVSS, mas não o CVE: o CVE está na página do aviso (clique no GHSA).</p>`);
     if (v.items.length) {
       out.push(table('Pacotes com aviso conhecido', ['Pacote', 'Gravidade', 'Aviso (GHSA)', 'CWE', 'CVSS', 'CVE', 'Correção'],
         v.items.slice(0, 40).map((i) => {
           const a = i.advisories[0];
-          const ghsa = a ? `<code>${h(a.id || a.title || '-')}</code>` : '-';
-          return [`<strong>${h(i.package)}</strong>${i.direct ? '' : ' (indireta)'}`, sevBadge(i.severity), ghsa, a ? cweLinks(a.cwe) : '-', a && a.cvss !== null ? h(String(a.cvss)) : '-', a && a.cve.length ? h(a.cve.join(', ')) : 'ver o aviso', h(i.fix)];
+          const ghsa = a ? ghsaLink(a.id, a.title || '-') : '-';
+          return [`<strong>${h(i.package)}</strong>${i.direct ? '' : ' (indireta)'}`, sevBadge(i.severity), ghsa, a ? cweLinks(a.cwe) : '-', a && a.cvss !== null ? h(String(a.cvss)) : '-', a ? cveLinks(a.cve) : 'ver o aviso', h(i.fix)];
         })));
     }
   }
@@ -287,7 +295,7 @@ function threatHtml(r) {
   out.push(table('Ativos a proteger', ['Id', 'Ativo', 'Tipo', 'Origem'], t.assets.map((a) => [h(a.id), `${h(a.name)}${a.note ? `<p class="why">${h(a.note)}</p>` : ''}`, h(a.kind), h(a.source)])));
 
   out.push('<h3>O que o kit encontrou no código</h3>', '<ul>');
-  out.push(`<li>Rotas HTTP: ${num(d.routes.total)}${d.routes.total ? ` (autenticação visível ${num(d.routes.byAuth.visivel)}, middleware global ${num(d.routes.byAuth.global)}, públicas esperadas ${num(d.routes.byAuth['publica-esperada'])}, <strong>não vista ${num(d.routes.byAuth['nao-vista'])}</strong>)` : ''}.</li>`);
+  out.push(`<li>Rotas HTTP: ${num(d.routes.total)}${d.routes.total ? ` (autenticação visível ${num(d.routes.byAuth.visivel)}, middleware global ${num(d.routes.byAuth.global)}, autenticação na montagem do roteador ${num(d.routes.byAuth.montagem || 0)}, públicas esperadas ${num(d.routes.byAuth['publica-esperada'])}, <strong>não vista ${num(d.routes.byAuth['nao-vista'])}</strong>)` : ''}.</li>`);
   if (d.stores.length) out.push(`<li>Armazenamento: ${h(d.stores.join(', '))}.</li>`);
   if (d.realtime.length) out.push(`<li>Tempo real: ${h(d.realtime.join(', '))}.</li>`);
   if (d.uploads.length) out.push(`<li>Upload de arquivos: ${h(d.uploads.join(', '))}.</li>`);
@@ -297,7 +305,7 @@ function threatHtml(r) {
   out.push('</ul>');
   if (d.routes.examples.length) {
     out.push('<details><summary>Rotas sem autenticação vista <span class="count">pistas para revisar a autorização, não um veredito</span></summary><ul>');
-    if (d.routes.authMounts) out.push(`<li>Atenção: ${num(d.routes.authMounts)} montagem(ns) de roteador com middleware de autenticação foram encontradas. As rotas desses roteadores podem estar protegidas por elas, e o kit não faz essa ligação.</li>`);
+    if (d.routes.authMounts) out.push(`<li>Atenção: há ${num(d.routes.authMounts)} montagem(ns) de roteador com autenticação, mas o kit não ligou todas as rotas a elas (importação dinâmica ou fábrica de roteador, por exemplo). Estas rotas podem estar protegidas.</li>`);
     for (const x of d.routes.examples) out.push(`<li><code>${h(x.method)} ${h(x.path)}</code> (${h(x.location)})</li>`);
     if (d.routes.byAuth['nao-vista'] > d.routes.examples.length) out.push(`<li class="empty">... e mais ${num(d.routes.byAuth['nao-vista'] - d.routes.examples.length)}.</li>`);
     out.push('</ul><p class="why">"Não vista" não quer dizer desprotegida: o kit lê texto e não enxerga toda forma de proteger uma rota.</p></details>');
@@ -306,11 +314,15 @@ function threatHtml(r) {
   if (t.architecture && t.architecture.flows.length) {
     const a = t.architecture;
     out.push('<h3>Arquitetura: fluxo de dados e fronteiras de confiança</h3>');
-    out.push('<p>O kit desenha o que descobriu no código e o que o perfil declara, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
+    out.push(`<p>${a.mode === 'declarado'
+      ? `Desenho <strong>declarado</strong> em <code>.lastro/system.json</code> (${h(a.name)}), combinado com o que o kit descobriu em ${num(a.repos.length || 1)} repositório(s). Origem do fluxo: declarado (você descreveu), descoberto (o kit viu no código e você não declarou) ou inferido (o kit deduziu pelos papéis). Borda tracejada: componente descoberto e não declarado.`
+      : 'Desenho <strong>automático</strong>, só pelo que o kit descobriu em um repositório e pelo perfil. Para descrever vários repositórios ou componentes, crie <code>.lastro/system.json</code> (veja docs/THREAT-MODEL-ASSISTIDO.md).'}</p>`);
+    out.push('<p>O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
     out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`);
-    out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
-      a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
+    out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Origem', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
+      a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), h(f.source || '-'), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
         `${num(f.controls)}: ${num(f.verified)} verificado(s), ${num(f.failed)} falhando, ${num(f.unverified)} sem prova`, f.failing.length ? h(f.failing.join(', ')) : '-', h(f.note || '-')])));
+    if ((a.warnings || []).length) out.push('<ul>', ...a.warnings.map((w) => `<li>Atenção: ${h(w)}</li>`), '</ul>');
   }
   out.push('<h3>Ameaças (STRIDE por superfície)</h3>');
   const order = { exposed: 0, unproven: 1, mitigated: 2 };
@@ -327,6 +339,31 @@ function threatHtml(r) {
   }
   if (t.orphans.length) out.push(`<p class="empty">Decisões de ameaças que não existem mais (a superfície sumiu do perfil ou do código): ${h(t.orphans.join(', '))}.</p>`);
   out.push('</section>');
+  return out;
+}
+
+const { staticLegend } = require('./legend');
+
+function legendHtml(r) {
+  const s = staticLegend();
+  const out = ['<section id="legenda" aria-labelledby="t-legenda"><h2 id="t-legenda">Legenda</h2>', '<p>Para quem lê o relatório sem conhecer o kit.</p>'];
+  out.push('<h3>Pacotes e prefixos dos controles</h3>', '<p>Todo controle tem um id com o prefixo do pacote: <code>CORE-012</code> é o controle 12 do pacote Base.</p>');
+  out.push(table('Pacotes do catálogo', ['Prefixo', 'Pacote', 'O que cobre', 'Quando se aplica', 'Controles'],
+    r.legend.packs.map((p) => [`<code>${h(p.prefix)}</code>`, `<strong>${h(p.name)}</strong>`, h(p.what), p.requires.length ? h(`só se o perfil declara: ${p.requires.join(', ')}`) : 'sempre', String(num(p.controls))]), [4]));
+  out.push('<details><summary>Estados, natureza e classes de risco</summary>');
+  out.push(table('Estados de um controle', ['Estado', 'Significa'], s.states.map(([a, b]) => [`<strong>${h(a)}</strong>`, h(b)])));
+  out.push(table('Natureza do item', ['Natureza', 'Significa'], s.kinds.map(([a, b]) => [`<strong>${h(a)}</strong>`, h(b)])));
+  out.push(table('Classes de risco', ['Classe', 'Regra'], [...s.classes, ...s.scales].map(([a, b]) => [`<strong>${h(a)}</strong>`, h(b)])));
+  out.push('</details>');
+  out.push('<details><summary>Pilares, STRIDE e superfícies</summary>');
+  out.push(table('Pilares da segurança da informação', ['Pilar', 'Significa'], s.pillars.map(([a, b]) => [`<strong>${h(a)}</strong>`, h(b)])));
+  out.push(table('Categorias STRIDE', ['Categoria', 'Pergunta'], s.stride.map(([a, b]) => [`<strong>${h(a)}</strong>`, h(b)])));
+  out.push(`<p>Superfícies: ${h(s.surfaces.map(([, v]) => v).join('; '))}.</p>`);
+  out.push('</details>');
+  out.push('<details open><summary>Siglas e identificadores</summary>');
+  out.push(table('Siglas', ['Sigla', 'O que é'], s.terms.map(([a, b, url]) => [`<strong>${ext(url, a)}</strong>`, h(b)])));
+  out.push(table('Identificadores', ['Formato', 'O que é'], s.ids.map(([a, b]) => [`<code>${h(a)}</code>`, h(b)])));
+  out.push('</details>', '</section>');
   return out;
 }
 
@@ -360,6 +397,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   if (coverage) links.push(['asvs', 'ASVS']);
   if (r.engineering) links.push(['engenharia', 'Engenharia']);
   links.push(['limites', 'Limites']);
+  if (r.legend) links.push(['legenda', 'Legenda']);
   for (const [id, text] of links) out.push(`<a href="#${id}">${text}</a>`);
   out.push('</nav>', '</div></header>', '<main><div class="wrap">');
 
@@ -546,7 +584,8 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push('<li>A pontuação e a cobertura medem evidência e progresso do kit. Elas não certificam a aplicação nem provam conformidade com o ASVS.</li>');
   out.push('<li>Atestação é autodeclaração com prazo. Quem escreveu o código não deve ser o único a atestar controles de nível alto.</li>');
   out.push('</ul></section>');
-  out.push('</div></main>', '<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas.</footer>', '</body>', '</html>');
+  if (r.legend) out.push(...legendHtml(r));
+  out.push('</div></main>', '<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</footer>', '</body>', '</html>');
   return `${out.join('\n')}\n`;
 }
 

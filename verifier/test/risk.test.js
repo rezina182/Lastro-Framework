@@ -12,7 +12,7 @@ const { loadCatalog } = require('../src/catalog');
 const { runCheck } = require('../src/engine');
 const { formatMarkdown, formatReport, redactReport } = require('../src/report');
 const { formatHtml } = require('../src/html');
-const { ALL_FALSE, makeProject, profileJson, cleanup } = require('./helpers');
+const { ALL_FALSE, makeProject, profileJson, cleanup, badHrefs } = require('./helpers');
 
 const cat = loadCatalog();
 const ctl = (id, pack, severity, state, over = {}) => ({ id, title: `Controle ${id}`, pack, severity, state, notes: [], findings: [], evidence: null, remediation: 'corrigir', ...over });
@@ -278,7 +278,16 @@ test('relatórios: Markdown, texto e HTML mostram a análise de risco sem script
     const html = formatHtml(rep, { coverage: null });
     for (const t of ['id="risco"', 'Matriz de risco', 'heat-', 'Privacidade e LGPD', 'CWE-295', 'GHSA-p6mc-m468-83gw', 'Pilares da segurança da informação']) assert.ok(html.includes(t), `faltou no HTML: ${t}`);
     assert.ok(!/<script|<link|<iframe|<img/i.test(html));
-    assert.ok(!/(?:src|href)=["'](?!#)/i.test(html), 'só âncoras internas, mesmo com CWE e GHSA');
+    assert.deepEqual(badHrefs(html), [], 'só âncoras internas e fontes oficiais');
+    assert.ok(!/\bsrc=/i.test(html));
+    assert.ok(html.includes('href="https://cwe.mitre.org/data/definitions/295.html"'), 'CWE leva à página oficial');
+    assert.ok(html.includes('href="https://github.com/advisories/GHSA-p6mc-m468-83gw"'), 'GHSA leva ao aviso');
+    assert.ok(html.includes('href="https://nvd.nist.gov/vuln/detail/CVE-2020-8203"'), 'CVE leva ao NVD');
+    assert.ok(md.includes('[CWE-295](https://cwe.mitre.org/data/definitions/295.html)'));
+    assert.ok(md.includes('[GHSA-p6mc-m468-83gw](https://github.com/advisories/GHSA-p6mc-m468-83gw)'));
+    assert.ok(md.includes('[CVE-2020-8203](https://nvd.nist.gov/vuln/detail/CVE-2020-8203)'));
+    for (const s of ['## Legenda', 'Pacotes e prefixos dos controles', '| `AUTH` |', '| `CORE` |', 'Estados de um controle', 'Siglas']) assert.ok(md.includes(s), `faltou a legenda no Markdown: ${s}`);
+    for (const s of ['id="legenda"', 'Pacotes do catálogo', 'Autenticação e sessão']) assert.ok(html.includes(s), `faltou a legenda no HTML: ${s}`);
     const red = redactReport(rep, ['lodash']);
     assert.ok(!formatMarkdown(red).includes('lodash'));
   } finally {

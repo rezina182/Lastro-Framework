@@ -70,7 +70,37 @@ const { groupCauses } = require('./causes');
 const { FLAG_LABELS } = require('./context');
 const R = require('./risk');
 
-const cweText = (list) => (list.length ? list.map((n) => `CWE-${n}`).join(', ') : '-');
+const L = require('./links');
+const { staticLegend } = require('./legend');
+
+function legendMd(r) {
+  const s = staticLegend();
+  const out = ['## Legenda', '', 'Para quem lê o relatório sem conhecer o kit.', ''];
+  out.push('### Pacotes e prefixos dos controles', '', 'Todo controle tem um id com o prefixo do pacote: `CORE-012` é o controle 12 do pacote Base.', '');
+  out.push('| Prefixo | Pacote | O que cobre | Quando se aplica | Controles |', '|---|---|---|---|---|');
+  for (const p of r.legend.packs) out.push(`| \`${p.prefix}\` | ${md(p.name)} | ${md(p.what)} | ${p.requires.length ? md(`só se o perfil declara: ${p.requires.join(', ')}`) : 'sempre'} | ${p.controls} |`);
+  out.push('', '### Estados de um controle', '', '| Estado | Significa |', '|---|---|');
+  for (const [a, b] of s.states) out.push(`| ${a} | ${b} |`);
+  out.push('', '### Natureza do item', '', '| Natureza | Significa |', '|---|---|');
+  for (const [a, b] of s.kinds) out.push(`| ${a} | ${md(b)} |`);
+  out.push('', '### Classes de risco', '', '| Classe | Regra |', '|---|---|');
+  for (const [a, b] of [...s.classes, ...s.scales]) out.push(`| ${a} | ${b} |`);
+  out.push('', '### Pilares da segurança da informação', '', '| Pilar | Significa |', '|---|---|');
+  for (const [a, b] of s.pillars) out.push(`| ${a} | ${md(b)} |`);
+  out.push('', '### STRIDE e superfícies', '', '| Categoria | Pergunta |', '|---|---|');
+  for (const [a, b] of s.stride) out.push(`| ${a} | ${md(b)} |`);
+  out.push('', `Superfícies: ${s.surfaces.map(([, v]) => v).join('; ')}.`);
+  out.push('', '### Siglas', '', '| Sigla | O que é |', '|---|---|');
+  for (const [a, b, url] of s.terms) out.push(`| ${url ? `[${a}](${url})` : a} | ${md(b)} |`);
+  out.push('', '### Identificadores', '', '| Formato | O que é |', '|---|---|');
+  for (const [a, b] of s.ids) out.push(`| \`${a}\` | ${b} |`);
+  out.push('');
+  return out;
+}
+
+const cweText = (list) => (list.length ? list.map((n) => L.mdLink(`CWE-${n}`, L.cweUrl(n))).join(', ') : '-');
+const ghsaMd = (id) => (id ? L.mdLink(id, L.ghsaUrl(id)) : null);
+const cveMd = (list) => (list.length ? list.map((c) => L.mdLink(c, L.cveUrl(c))).join(', ') : 'ver o aviso');
 const pillarText = (codes) => codes.map((c) => R.PILLARS[c]).join(', ');
 const stateWord = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
 
@@ -78,6 +108,12 @@ const TMX = require('./threatmodel');
 const { toMermaid } = require('./architecture');
 const TM_STATE = { exposed: 'exposta (controle falhando)', unproven: 'sem prova', mitigated: 'mitigada (controles verificados)' };
 const tmDecision = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
+
+function archModeLine(a) {
+  return a.mode === 'declarado'
+    ? `Desenho **declarado** em \`.lastro/system.json\` ("${md(a.name)}"), combinado com o que o kit descobriu em ${a.repos.length || 1} repositório(s). Origem do fluxo: declarado (você descreveu), descoberto (o kit viu no código e você não declarou) ou inferido (o kit deduziu pelos papéis).`
+    : 'Desenho **automático**, só pelo que o kit descobriu em um repositório e pelo perfil. Para descrever vários repositórios ou componentes, crie `.lastro/system.json` (veja docs/THREAT-MODEL-ASSISTIDO.md).';
+}
 
 function tmStatusLine(t) {
   if (t.reviewed) return `Modelo revisado por ${t.reviewedBy} em ${String(t.reviewedAt).slice(0, 10)}, com todas as ameaças decididas.`;
@@ -94,7 +130,7 @@ function threatMd(r) {
   out.push('### Ativos', '', '| Id | Ativo | Tipo | Origem |', '|---|---|---|---|');
   for (const a of t.assets) out.push(`| ${a.id} | ${md(a.name)}${a.note ? ` (${md(a.note)})` : ''} | ${a.kind} | ${a.source} |`);
   out.push('', '### O que o kit encontrou no código', '');
-  out.push(`- Rotas HTTP: ${d.routes.total}${d.routes.total ? ` (autenticação visível ${d.routes.byAuth.visivel}, middleware global ${d.routes.byAuth.global}, públicas esperadas ${d.routes.byAuth['publica-esperada']}, **não vista ${d.routes.byAuth['nao-vista']}**)` : ''}.`);
+  out.push(`- Rotas HTTP: ${d.routes.total}${d.routes.total ? ` (autenticação visível ${d.routes.byAuth.visivel}, middleware global ${d.routes.byAuth.global}, autenticação na montagem do roteador ${d.routes.byAuth.montagem || 0}, públicas esperadas ${d.routes.byAuth['publica-esperada']}, **não vista ${d.routes.byAuth['nao-vista']}**)` : ''}.`);
   if (d.stores.length) out.push(`- Armazenamento: ${d.stores.join(', ')}.`);
   if (d.realtime.length) out.push(`- Tempo real: ${d.realtime.join(', ')}.`);
   if (d.uploads.length) out.push(`- Upload de arquivos: ${d.uploads.join(', ')}.`);
@@ -103,7 +139,7 @@ function threatMd(r) {
   for (const h of d.dataHints) out.push(`- Indício de dado: ${h.name}${h.sensitive ? ' (**confirme se há dado sensível e declare `context.sensitiveData`**)' : ''} em ${h.files.slice(0, 3).map((f) => `\`${md(f)}\``).join(', ')}.`);
   if (d.routes.examples.length) {
     out.push('', '**Rotas sem autenticação vista** (pistas para revisar a autorização, não um veredito; "não vista" não quer dizer desprotegida):', '');
-    if (d.routes.authMounts) out.push(`- Atenção: ${d.routes.authMounts} montagem(ns) de roteador com middleware de autenticação foram encontradas. As rotas desses roteadores podem estar protegidas por elas, e o kit não faz essa ligação.`);
+    if (d.routes.authMounts) out.push(`- Atenção: há ${d.routes.authMounts} montagem(ns) de roteador com autenticação, mas o kit não ligou todas as rotas a elas (importação dinâmica ou fábrica de roteador, por exemplo). Estas rotas podem estar protegidas.`);
     for (const x of d.routes.examples) out.push(`- \`${md(x.method)} ${md(x.path)}\` (${md(x.location)})`);
     if (d.routes.byAuth['nao-vista'] > d.routes.examples.length) out.push(`- ... e mais ${d.routes.byAuth['nao-vista'] - d.routes.examples.length}.`);
   }
@@ -117,12 +153,14 @@ function threatMd(r) {
   if (t.architecture && t.architecture.flows.length) {
     const m = toMermaid(t.architecture);
     out.push('', '### Arquitetura: fluxo de dados e fronteiras de confiança', '');
-    out.push('O kit desenha o que descobriu no código e o que o perfil declara, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Cole o diagrama em qualquer visualizador de Mermaid.', '');
+    out.push(archModeLine(t.architecture), '');
+    out.push('O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Cole o diagrama em qualquer visualizador de Mermaid.', '');
     out.push('```mermaid', m.code, '```', '');
-    out.push('| Fluxo | Fronteira | Ameaças | Controles exigidos | Falhando agora | Observação |', '|---|---|---|---|---|---|');
+    out.push('| Fluxo | Fronteira | Origem | Ameaças | Controles exigidos | Falhando agora | Observação |', '|---|---|---|---|---|---|---|');
     for (const f of t.architecture.flows) {
-      out.push(`| ${f.id} ${md(f.label)} | ${md(f.boundary)} | ${f.threats} (${f.exposed} exposta(s), ${f.pending} sem decisão) | ${f.controls}: ${f.verified} verificado(s), ${f.failed} falhando, ${f.unverified} sem prova | ${f.failing.length ? f.failing.join(', ') : '-'} | ${md(f.note || '-')} |`);
+      out.push(`| ${f.id} ${md(f.label)} | ${md(f.boundary)} | ${f.source || '-'} | ${f.threats} (${f.exposed} exposta(s), ${f.pending} sem decisão) | ${f.controls}: ${f.verified} verificado(s), ${f.failed} falhando, ${f.unverified} sem prova | ${f.failing.length ? f.failing.join(', ') : '-'} | ${md(f.note || '-')} |`);
     }
+    for (const w of t.architecture.warnings || []) out.push('', `- Atenção: ${md(w)}`);
     out.push('');
   }
   out.push('', 'Perguntas para a revisão:', '');
@@ -166,7 +204,7 @@ function riskMd(r) {
       out.push('| Classe | P x I | Controle | Pilares | CWE | ASVS | Onde / por quê |', '|---|---|---|---|---|---|---|');
       for (const i of list.slice(0, limit)) {
         const where = i.type === 'vuln'
-          ? `${i.advisories.map((a) => a.id || a.title).join(', ').slice(0, 90)} (${i.direct ? 'direta' : 'indireta'}; correção: ${i.fix})`
+          ? `${i.advisories.slice(0, 3).map((a) => ghsaMd(a.id) || md(String(a.title).slice(0, 40))).join(', ')} (${i.direct ? 'direta' : 'indireta'}; correção: ${i.fix})`
           : (i.locations.length ? i.locations.join(', ') : i.reasons.likelihood[0]);
         out.push(`| ${R.CLASS_PT[i.class]}${i.accepted ? ' (aceito)' : ''} | ${i.likelihood} x ${i.impact} = ${i.score} | ${i.id} ${md(i.title)} | ${pillarText(i.pillars)} | ${cweText(i.cwe)} | ${i.asvs.slice(0, 3).join(', ') || '-'} | ${md(where)} |`);
       }
@@ -206,7 +244,7 @@ function riskMd(r) {
       out.push('| Pacote | Gravidade | Aviso (GHSA) | CWE | CVSS | CVE | Correção |', '|---|---|---|---|---|---|---|');
       for (const i of v.items.slice(0, 40)) {
         const a = i.advisories[0];
-        out.push(`| ${md(i.package)}${i.direct ? '' : ' (indireta)'} | ${SEV_PT[i.severity]} | ${md(a && (a.id || a.title) ? (a.id || a.title) : '-')} | ${a ? cweText(a.cwe) : '-'} | ${a && a.cvss !== null ? a.cvss : '-'} | ${a && a.cve.length ? a.cve.join(', ') : 'ver o aviso'} | ${md(i.fix)} |`);
+        out.push(`| ${md(i.package)}${i.direct ? '' : ' (indireta)'} | ${SEV_PT[i.severity]} | ${a ? (ghsaMd(a.id) || md(a.title || '-')) : '-'} | ${a ? cweText(a.cwe) : '-'} | ${a && a.cvss !== null ? a.cvss : '-'} | ${a ? cveMd(a.cve) : 'ver o aviso'} | ${md(i.fix)} |`);
       }
       out.push('');
     }
@@ -378,6 +416,7 @@ function formatMarkdown(r, { coverage = null } = {}) {
   out.push('- As varreduras de código são heurísticas por texto, linha a linha: erram para os dois lados e não substituem revisão.');
   out.push('- A pontuação e a cobertura medem evidência e progresso do kit. Elas não certificam a aplicação nem provam conformidade com o ASVS.');
   out.push('- Atestação é autodeclaração com prazo. Quem escreveu o código não deve ser o único a atestar controles de nível alto.', '');
+  if (r.legend) out.push(...legendMd(r));
   return out.join('\n');
 }
 

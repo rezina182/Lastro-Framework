@@ -20,7 +20,7 @@ const MAX_EXAMPLES = 12;
 const JS_ROUTE = /\b([A-Za-z_$][\w$]*)\.(get|post|put|patch|delete|all)\s*\(\s*(['"`])(\/[^'"`]*)\3\s*(.*)$/;
 const JS_GLOBAL_USE = /\b(?:app|server|api|router)\.use\s*\(\s*([^)]*)\)/;
 const PY_ROUTE = /^\s*@\s*\w+\.(?:route|get|post|put|patch|delete)\s*\(\s*(['"])(\/[^'"]*)\1(.*)$/;
-const AUTH_HINT = /(auth|login|session|token|jwt|passport|protect|guard|role|permission|admin|verify|credential)/i;
+const AUTH_HINT = /(auth|login|session|sess[aã]o|autentic|autoriz|exigir|permiss|logado|token|jwt|passport|protect|guard|role|admin|verify|credential)/i;
 const PUBLIC_PATH = /(^\/$|login|logout|signin|signup|register|health|status|ping|public|webhook|callback|manifest|robots|favicon|\.well-known|static|assets|nps|reset|forgot|recover|verify-email|sw\.js)/i;
 
 const STORE_DEPS = {
@@ -48,10 +48,13 @@ function codeFiles(ctx) {
 
 function depNames(ctx) {
   const names = new Set();
-  try {
-    const pkg = JSON.parse(ctx.read('package.json') || 'null');
-    if (pkg) for (const k of ['dependencies', 'devDependencies', 'optionalDependencies']) for (const n of Object.keys(pkg[k] || {})) names.add(n);
-  } catch (e) { /* package.json inválido: segue sem dependências */ }
+  const pkgFiles = ctx.files.filter((f) => /(^|\/)package\.json$/.test(f) && f.split('/').length <= 3);
+  for (const f of pkgFiles) {
+    try {
+      const pkg = JSON.parse(ctx.read(f) || 'null');
+      if (pkg) for (const k of ['dependencies', 'devDependencies', 'optionalDependencies']) for (const n of Object.keys(pkg[k] || {})) names.add(n);
+    } catch (e) { /* package.json inválido: segue sem dependências */ }
+  }
   for (const f of ctx.files.filter((x) => /(^|\/)requirements[\w.-]*\.txt$/.test(x))) {
     for (const line of (ctx.read(f) || '').split(/\r?\n/)) {
       const m = /^\s*([A-Za-z0-9_.-]+)/.exec(line);
@@ -61,8 +64,108 @@ function depNames(ctx) {
   return names;
 }
 
+// --- Ligação entre a montagem do roteador e o arquivo das rotas (Express e semelhantes) ---
+
+const EXT_TRY = ['', '.js', '.mjs', '.cjs', '.ts', '/index.js', '/index.mjs', '/index.ts'];
+
+function resolveSpec(fileSet, fromFile, spec) {
+  if (!spec.startsWith('.')) return null;
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), spec));
+  for (const e of EXT_TRY) if (fileSet.has(base + e)) return base + e;
+  return null;
+}
+
+/** Nomes importados por arquivo: identificador -> caminho resolvido (const x = require('./y'), import x from './y', desestruturação). */
+function importMap(ctx, fileSet, file, text) {
+  const map = new Map();
+  const add = (names, spec) => {
+    const target = resolveSpec(fileSet, file, spec);
+    if (target) for (const n of names) map.set(n, target);
+  };
+  for (const m of text.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g)) add([m[1]], m[2]);
+  for (const m of text.matchAll(/(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g)) add(m[1].split(',').map((s) => s.split(':').pop().trim()).filter(Boolean), m[2]);
+  for (const m of text.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]/g)) add([m[1]], m[2]);
+  for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s+['"]([^'"]+)['"]/g)) add(m[1].split(',').map((s) => s.split(/\s+as\s+/).pop().trim()).filter(Boolean), m[2]);
+  return map;
+}
+
+function splitArgs(s) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of s) {
+    if ('([{'.includes(ch)) depth += 1;
+    else if (')]}'.includes(ch)) depth -= 1;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/** Texto do valor atribuído a `nome` no arquivo (const nome = ...;), até o ponto e vírgula do mesmo nível. */
+function definitionOf(text, name) {
+  const m = new RegExp(`(?:const|let|var)\\s+${name.replace(/[$]/g, '\\$')}\\s*=\\s*`).exec(text);
+  if (!m) return '';
+  let depth = 0;
+  let i = m.index + m[0].length;
+  const start = i;
+  for (; i < text.length && i - start < 800; i += 1) {
+    const ch = text[i];
+    if ('([{'.includes(ch)) depth += 1;
+    else if (')]}'.includes(ch)) depth -= 1;
+    else if (ch === ';' && depth <= 0) break;
+  }
+  return text.slice(start, i);
+}
+
+/** O middleware tem pista de autenticação, pelo nome ou, se for uma variável do mesmo arquivo, pela definição dela. */
+function isAuthMiddleware(mw, text) {
+  if (AUTH_HINT.test(mw)) return true;
+  const id = /^([A-Za-z_$][\w$]*)$/.exec(mw.trim());
+  return !!(id && AUTH_HINT.test(definitionOf(text, id[1])));
+}
+
+/**
+ * Arquivos de rotas cobertos por um middleware de autenticação aplicado na montagem, como
+ * app.use('/api', requireAuth, require('./rotas')) ou router.use('/x', auth, sub). A cobertura desce pelos roteadores
+ * montados por um arquivo coberto. Heurística de texto: não segue importações dinâmicas nem fábricas complexas.
+ */
+function authMountedFiles(ctx, files) {
+  const fileSet = new Set(ctx.files);
+  const edges = [];
+  for (const f of files) {
+    if (f.endsWith('.py')) continue;
+    const text = ctx.read(f);
+    if (!text || !text.includes('.use(')) continue;
+    const imports = importMap(ctx, fileSet, f, text);
+    for (const line of text.split(/\r?\n/)) {
+      const m = /\.use\s*\(\s*(['"`])\/[^'"`]*\1\s*,(.*)\)\s*;?\s*$/.exec(line);
+      if (!m) continue;
+      const args = splitArgs(m[2]);
+      if (!args.length) continue;
+      const target = args[args.length - 1];
+      const mws = args.slice(0, -1);
+      let file = null;
+      const req = /require\(\s*['"]([^'"]+)['"]\s*\)/.exec(target);
+      if (req) file = resolveSpec(fileSet, f, req[1]);
+      else {
+        const id = /^([A-Za-z_$][\w$]*)/.exec(target);
+        if (id && imports.has(id[1])) file = imports.get(id[1]);
+      }
+      if (file) edges.push({ from: f, to: file, auth: mws.some((a) => isAuthMiddleware(a, text)) });
+    }
+  }
+  const covered = new Set(edges.filter((e) => e.auth).map((e) => e.to));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const e of edges) if (covered.has(e.from) && !covered.has(e.to)) { covered.add(e.to); changed = true; }
+  }
+  return covered;
+}
+
 function discoverRoutes(ctx, files) {
   const routes = [];
+  const mounted = authMountedFiles(ctx, files);
   for (const f of files) {
     const text = ctx.read(f);
     if (!text) continue;
@@ -97,6 +200,7 @@ function discoverRoutes(ctx, files) {
       if (PUBLIC_PATH.test(route)) auth = 'publica-esperada';
       else if (AUTH_HINT.test(rest)) auth = 'visivel';
       else if (!isPy && i + 1 > globalAuthLine) auth = 'global';
+      else if (mounted.has(f)) auth = 'montagem';
       else auth = 'nao-vista';
       routes.push({ method, path: route.slice(0, 120), file: f, line: i + 1, auth });
     });
@@ -109,9 +213,10 @@ function countAuthMounts(ctx, files) {
   let n = 0;
   for (const f of files) {
     if (f.endsWith('.py')) continue;
-    for (const line of (ctx.read(f) || '').split(/\r?\n/)) {
+    const text = ctx.read(f) || '';
+    for (const line of text.split(/\r?\n/)) {
       const m = /\.use\s*\(\s*(['"`])\/[^'"`]*\1\s*,(.*)\)/.exec(line);
-      if (m && AUTH_HINT.test(m[2])) n += 1;
+      if (m && splitArgs(m[2]).slice(0, -1).some((a) => isAuthMiddleware(a, text))) n += 1;
     }
   }
   return n;
@@ -170,7 +275,7 @@ function discover(ctx) {
   const deps = depNames(ctx);
   const routes = discoverRoutes(ctx, files);
   const withoutAuth = routes.filter((r) => r.auth === 'nao-vista');
-  const byAuth = { visivel: 0, global: 0, 'publica-esperada': 0, 'nao-vista': 0 };
+  const byAuth = { visivel: 0, global: 0, montagem: 0, 'publica-esperada': 0, 'nao-vista': 0 };
   for (const r of routes) byAuth[r.auth] += 1;
   const pick = (map) => [...new Set([...deps].filter((d) => map[d]).map((d) => map[d]))];
   const sse = files.some((f) => /text\/event-stream/.test(ctx.read(f) || ''));

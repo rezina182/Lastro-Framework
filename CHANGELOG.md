@@ -5,6 +5,11 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 ## [0.1.0] - não publicado
 
 ### Adicionado
+- Aplicação com vários repositórios ou componentes: `.lastro/system.json` (componentes, papéis, exposição, classes de dado e fluxos) combinado com a descoberta de cada repositório. Cada repositório com perfil é verificado por conta própria, só leitura; o que foi descoberto e não declarado aparece marcado; fluxos sem declaração são inferidos pelos papéis. Repositório fora da pasta analisada só é lido com `--allow-external-repos`. O desenho é dinâmico (zonas, vários componentes e uma faixa de entrega por repositório).
+- Links para as fontes oficiais nos relatórios: CWE (MITRE), CVE (NVD), GHSA (GitHub), ASVS e LGPD. Só endereços montados pelo kit a partir de identificadores validados viram link; o relatório segue sem script, fonte ou imagem externa.
+- Legenda nos relatórios (pacotes e prefixos, estados, natureza, classes, pilares, STRIDE, siglas e identificadores) e `docs/GLOSSARIO.md`.
+- A descoberta liga a montagem do roteador (`app.use('/api', auth, rotas)`) ao arquivo das rotas, inclusive os roteadores montados por ele, o que reduz as rotas "sem autenticação vista".
+- Hook do Kiro que pede confirmação antes de o agente mexer em atestações, riscos aceitos, decisões de ameaças e baseline, e steering de escopo para web, upload e tempo real.
 - `lastro scope <pacote>`: só os controles de um assunto (auth, web, pii, realtime, uploads, assets, agent, core), com o estado e como provar ou corrigir cada um.
 - `lastro adapter kiro [--write]` e `adapters/kiro/steering/`: regras do agente (sempre ativas), escopos de autenticação e de dados (carregados pelo tipo de arquivo) e a condução da revisão do modelo de ameaças. Nunca sobrescreve arquivo existente. Veja `docs/KIRO.md`.
 - Taxa de aprovação dos controles automáticos no relatório: separa melhor duas aplicações do que o nível de maturidade. O que não rodou (como as sondas HTTP sem `--url`) fica fora da taxa e nunca conta como aprovado.
