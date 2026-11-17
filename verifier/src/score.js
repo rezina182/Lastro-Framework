@@ -68,6 +68,16 @@ function computeScore(report, { packTitles = {} } = {}) {
     }
   }
 
+  // Controles automáticos: o que a máquina de fato rodou. Separa quem passou de quem falhou, e o que não rodou
+  // (por exemplo, as sondas HTTP sem --url) fica de fora da taxa, sem virar aprovação.
+  const auto = report.controls.filter((c) => c.state !== 'not_applicable' && c.checkType === 'automated');
+  const autoVerified = auto.filter((c) => c.state === 'verified').length;
+  const autoFailed = auto.filter((c) => c.state === 'failed').length;
+  const autoNotRun = auto.filter((c) => c.state === 'unverified').length;
+  const automated = {
+    controls: auto.length, verified: autoVerified, failed: autoFailed, notRun: autoNotRun,
+    passRatePct: autoVerified + autoFailed === 0 ? null : pct(autoVerified, autoVerified + autoFailed),
+  };
   const provenPct = pct(sum.machine + sum.attested, sum.total);
   const blocking = (report.summary && report.summary.blocking) || 0;
   let level;
@@ -102,6 +112,7 @@ function computeScore(report, { packTitles = {} } = {}) {
     failedPct: pct(sum.failed, sum.total),
     unverifiedPct: pct(sum.unverified, sum.total),
     highOrCriticalOpen: open.length,
+    automated,
     nextStep,
     byPhase: PHASES.map(([k]) => byPhase[k]).filter((b) => b.controls > 0).map((b) => ({
       phase: b.phase,

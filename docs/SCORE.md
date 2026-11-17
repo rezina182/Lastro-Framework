@@ -78,3 +78,9 @@ Para a conversa sobre qualidade de desenvolvimento, o relatório lista fatos obj
 - Certificar, auditar ou declarar conformidade com ASVS, SSDF ou qualquer padrão.
 - Comparar aplicações de perfis diferentes como se fossem equivalentes.
 - Cobrar uma meta numérica sem olhar quais controles estão abertos: a lista de controles sem prova e o próximo passo importam mais que o percentual.
+
+## Taxa de aprovação dos controles automáticos
+
+O nível de maturidade depende de muita prova manual e por isso separa pouco duas aplicações que ainda não têm atestações. O relatório mostra também, à parte, o que a **máquina rodou**: quantos controles automáticos passaram, quantos falharam e a taxa de aprovação entre os que rodaram. Os que não rodaram (por exemplo, as sondas HTTP sem `--url`) ficam fora da taxa e nunca contam como aprovados. Sem nenhum controle automático rodado, não há taxa (nem 0%, nem 100%).
+
+Esta taxa não é nota de segurança: um controle automático cobre um ponto estreito, e passar em todos não prova que a aplicação é segura.

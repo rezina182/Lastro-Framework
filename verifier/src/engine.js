@@ -22,6 +22,7 @@ const { engineeringFacts } = require('./engineering');
 const { analyzeRisk } = require('./risk');
 const { loadAuditFile } = require('./audit');
 const TM = require('./threatmodel');
+const { buildArchitecture } = require('./architecture');
 
 class ConfigError extends Error {}
 
@@ -227,7 +228,7 @@ async function runCheck(opts = {}) {
       };
     });
     controls.push({
-      id: c.id, title: c.title, pack: c.pack, tier: c.tier, severity: c.severity, enforcement: c.enforcement, phase: c.phase, remediation: c.remediation,
+      id: c.id, title: c.title, pack: c.pack, tier: c.tier, severity: c.severity, enforcement: c.enforcement, phase: c.phase, remediation: c.remediation, checkType: c.check.type,
       state: r.state, notes: r.notes || [], evidence: r.evidence || null, findings,
       controlRiskAccepted: r.state === 'unverified' && !!controlRisk ? controlRisk.id : null,
     });
@@ -275,6 +276,7 @@ async function runCheck(opts = {}) {
     }
   }
   const threatModel = TM.buildThreatModel({ ctx, controls, riskMap: catalog.riskMap, profile, persisted: tmPersisted, now });
+  threatModel.architecture = buildArchitecture({ model: threatModel, profile, controls });
   const risk = analyzeRisk({ controls }, { riskMap: catalog.riskMap, catalog, profile, audit, threatLikelihood: TM.likelihoodOverrides(threatModel) });
   const baselineView = blocking > 0 ? { findings: blocking, causes: blockingCauses, verdictIfAdopted: incomplete ? 'incomplete' : 'pass' } : null;
   return {

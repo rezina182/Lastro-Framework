@@ -14,6 +14,7 @@ function formatReport(r) {
   if (r.score) {
     const k = r.score;
     out.push(`Maturidade: nível ${k.level} (${k.levelName}) | provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%`);
+    if (k.automated && k.automated.controls) out.push(`  Automáticos: ${k.automated.verified} passaram, ${k.automated.failed} falharam${k.automated.passRatePct === null ? '' : ` (taxa ${k.automated.passRatePct}%)`}, ${k.automated.notRun} não rodaram`);
     out.push(`  ${k.nextStep}`);
     out.push(`  ${k.disclaimer}`);
   }
@@ -74,6 +75,7 @@ const pillarText = (codes) => codes.map((c) => R.PILLARS[c]).join(', ');
 const stateWord = (i) => (i.state === 'failed' ? (i.type === 'vuln' ? 'vulnerável' : 'confirmado') : 'sem prova');
 
 const TMX = require('./threatmodel');
+const { toMermaid } = require('./architecture');
 const TM_STATE = { exposed: 'exposta (controle falhando)', unproven: 'sem prova', mitigated: 'mitigada (controles verificados)' };
 const tmDecision = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
 
@@ -111,6 +113,17 @@ function threatMd(r) {
   const order = { exposed: 0, unproven: 1, mitigated: 2 };
   for (const x of [...t.threats].sort((a, b) => order[a.state] - order[b.state] || a.id.localeCompare(b.id))) {
     out.push(`| ${x.id} ${md(x.strideName)} | ${md(x.surfaceName)} | ${TM_STATE[x.state]} | ${x.controls.length} | ${tmDecision(x)} |`);
+  }
+  if (t.architecture && t.architecture.flows.length) {
+    const m = toMermaid(t.architecture);
+    out.push('', '### Arquitetura: fluxo de dados e fronteiras de confiança', '');
+    out.push('O kit desenha o que descobriu no código e o que o perfil declara, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Cole o diagrama em qualquer visualizador de Mermaid.', '');
+    out.push('```mermaid', m.code, '```', '');
+    out.push('| Fluxo | Fronteira | Ameaças | Controles exigidos | Falhando agora | Observação |', '|---|---|---|---|---|---|');
+    for (const f of t.architecture.flows) {
+      out.push(`| ${f.id} ${md(f.label)} | ${md(f.boundary)} | ${f.threats} (${f.exposed} exposta(s), ${f.pending} sem decisão) | ${f.controls}: ${f.verified} verificado(s), ${f.failed} falhando, ${f.unverified} sem prova | ${f.failing.length ? f.failing.join(', ') : '-'} | ${md(f.note || '-')} |`);
+    }
+    out.push('');
   }
   out.push('', 'Perguntas para a revisão:', '');
   for (const k of Object.keys(TMX.STRIDE)) out.push(`- **${k} (${TMX.STRIDE[k].name}):** ${TMX.STRIDE[k].ask}`);
@@ -287,6 +300,10 @@ function formatMarkdown(r, { coverage = null } = {}) {
     out.push('| Provado | Por máquina | Autodeclarado | Falhando | Sem prova |', '|---|---|---|---|---|');
     out.push(`| ${k.provenPct}% | ${k.machinePct}% | ${k.attestedPct}% | ${k.failedPct}% | ${k.unverifiedPct}% |`, '');
     out.push(`Próximo passo: ${k.nextStep}`, '');
+    if (k.automated && k.automated.controls) {
+      const a = k.automated;
+      out.push(`**Controles automáticos** (o que a máquina rodou): ${a.verified} passaram, ${a.failed} falharam${a.passRatePct === null ? '' : `, taxa de aprovação ${String(a.passRatePct).replace('.', ',')}%`}; ${a.notRun} não rodaram (por exemplo, as sondas HTTP sem \`--url\`) e ficam fora da taxa, sem virar aprovação. Esta taxa separa melhor duas aplicações do que o nível, que depende de muita prova manual.`, '');
+    }
     out.push(`> ${k.disclaimer}`, '');
     out.push('### Por pacote', '', '| Pacote | Controles | Provado | Falhando | Sem prova |', '|---|---|---|---|---|');
     for (const p of k.byPack) out.push(`| ${md(p.title.split(':')[0])} | ${p.controls} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);

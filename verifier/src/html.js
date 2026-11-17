@@ -89,6 +89,17 @@ details li{margin:6px 0;overflow-wrap:anywhere}
 .heat-high{background:color-mix(in srgb,var(--bad) 20%,var(--surface))}
 .heat-critical{background:color-mix(in srgb,var(--bad) 38%,var(--surface))}}
 .kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0}
+.arch-wrap{padding:8px}
+.arch{width:100%;height:auto;max-width:850px;display:block;margin:0 auto}
+.arch-zona{fill:none;stroke:var(--border);stroke-width:1.5;stroke-dasharray:6 4}
+.arch-titulo{fill:var(--muted);font-size:12px}
+.arch-no{fill:var(--surface);stroke:var(--accent);stroke-width:1.5}
+.arch-notexto{fill:var(--text);font-size:12px}
+.arch-fluxo{stroke:var(--muted);stroke-width:1.5;fill:none}
+.arch-exposto{stroke:var(--bad);stroke-width:2.5}
+.arch-seta{fill:var(--muted)}
+.arch-rotulo{fill:var(--text);font-size:11px}
+.arch-sub{fill:var(--muted)}
 .why{color:var(--muted);font-size:.84rem;margin:4px 0 0}
 a{color:var(--accent)}
 footer{padding:24px;color:var(--muted);font-size:.85rem;text-align:center}
@@ -250,6 +261,7 @@ function riskHtml(r) {
 }
 
 const TMX = require('./threatmodel');
+const { toSvg: archSvg } = require('./architecture');
 const TM_STATE = { exposed: ['exposta', 'bad'], unproven: ['sem prova', 'warn'], mitigated: ['mitigada', 'ok'] };
 const tmDecisionText = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
 
@@ -291,6 +303,15 @@ function threatHtml(r) {
     out.push('</ul><p class="why">"Não vista" não quer dizer desprotegida: o kit lê texto e não enxerga toda forma de proteger uma rota.</p></details>');
   }
 
+  if (t.architecture && t.architecture.flows.length) {
+    const a = t.architecture;
+    out.push('<h3>Arquitetura: fluxo de dados e fronteiras de confiança</h3>');
+    out.push('<p>O kit desenha o que descobriu no código e o que o perfil declara, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
+    out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`);
+    out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
+      a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
+        `${num(f.controls)}: ${num(f.verified)} verificado(s), ${num(f.failed)} falhando, ${num(f.unverified)} sem prova`, f.failing.length ? h(f.failing.join(', ')) : '-', h(f.note || '-')])));
+  }
   out.push('<h3>Ameaças (STRIDE por superfície)</h3>');
   const order = { exposed: 0, unproven: 1, mitigated: 2 };
   for (const surface of Object.keys(TMX.SURFACES)) {
@@ -352,6 +373,10 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   if (k) {
     out.push(card('Nível de maturidade', `${num(k.level)} de 4`, k.levelName));
     out.push(card('Provado', pctText(k.provenPct), `por máquina ${pctText(k.machinePct)}, autodeclarado ${pctText(k.attestedPct)}`));
+    if (k.automated && k.automated.controls) {
+      const a = k.automated;
+      out.push(card('Controles automáticos', a.passRatePct === null ? '-' : pctText(a.passRatePct), `${num(a.verified)} passaram, ${num(a.failed)} falharam, ${num(a.notRun)} não rodaram (fora da taxa)`));
+    }
     out.push(card('Falhando', `<span class="bad">${h(pctText(k.failedPct))}</span>`));
     out.push(card('Sem prova', pctText(k.unverifiedPct), 'conta como zero'));
   }

@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Uso com o Kiro e por assunto
+
+`lastro scope auth` mostra só os controles de um assunto, e `lastro adapter kiro --write` leva as regras do kit para o steering do Kiro do projeto. Veja [docs/KIRO.md](docs/KIRO.md).
+
 ## Maturidade
 
 Todo relatório traz um nível de 0 a 4 e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
@@ -32,7 +36,7 @@ O relatório abre com a análise de risco: separa **risco de segurança**, **boa
 
 ## Modelo de ameaças
 
-`lastro threat-model` gera um rascunho (STRIDE por superfície) a partir do perfil, do catálogo e da leitura do código, com pistas como rotas sem autenticação vista e indícios de dado sensível. A pessoa decide cada ameaça e registra a revisão; só então o CORE-012 passa. Veja [docs/THREAT-MODEL-ASSISTIDO.md](docs/THREAT-MODEL-ASSISTIDO.md).
+`lastro threat-model` gera um rascunho (STRIDE por superfície) a partir do perfil, do catálogo e da leitura do código, com pistas como rotas sem autenticação vista e indícios de dado sensível, e desenha o fluxo de dados com as fronteiras de confiança e os controles exigidos em cada fluxo. A pessoa decide cada ameaça e registra a revisão; só então o CORE-012 passa. Veja [docs/THREAT-MODEL-ASSISTIDO.md](docs/THREAT-MODEL-ASSISTIDO.md).
 
 ## Uso rápido
 

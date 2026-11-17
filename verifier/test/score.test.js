@@ -169,3 +169,15 @@ test('CLI report: grava o Markdown, inclui o ASVS e cria a pasta de destino', ()
     assert.ok(stdout.stdout.includes('# Relatório LASTRO'));
   } finally { cleanup(root); }
 });
+
+test('controles automáticos: taxa de aprovação só entre os que rodaram; o que não rodou fica de fora e nunca vira aprovação', () => {
+  const { computeScore: cs } = require('../src/score');
+  const c = (id, state, checkType) => ({ id, pack: 'core', severity: 'high', state, checkType, findings: [], evidence: null, phase: ['build'] });
+  const controls = [c('A1', 'verified', 'automated'), c('A2', 'verified', 'automated'), c('A3', 'failed', 'automated'), c('A4', 'unverified', 'automated'), c('M1', 'verified', 'manual'), c('M2', 'unverified', 'manual'), c('N1', 'not_applicable', 'automated')];
+  const k = cs({ controls, summary: { blocking: 0 } });
+  assert.deepEqual(k.automated, { controls: 4, verified: 2, failed: 1, notRun: 1, passRatePct: 66.7 });
+  const semRodar = cs({ controls: [c('A4', 'unverified', 'automated')], summary: { blocking: 0 } });
+  assert.equal(semRodar.automated.passRatePct, null, 'nada rodou: sem taxa, nunca 0% nem 100%');
+  const semTipo = cs({ controls: [{ id: 'X', pack: 'core', severity: 'low', state: 'verified', findings: [], evidence: null, phase: ['build'] }], summary: { blocking: 0 } });
+  assert.equal(semTipo.automated.controls, 0, 'relatório antigo, sem checkType, não quebra');
+});

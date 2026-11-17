@@ -7,7 +7,7 @@
 - Tradução da documentação para inglês.
 - Classificação do ASVS por capítulo (meta: L2). Feito: os 17 capítulos até L2. Próximos: os 92 requisitos exclusivos do L3 e a promoção de controles `partial` a `full`. Cada requisito diz se o controle o cobre por inteiro ou em parte, com a prova.
 - Revisão independente da classificação de V6 e V7 (contexto separado de quem escreveu) e, quando possível, trocar controles manuais por testes automatizados de comportamento.
-- Escopos por assunto (`lastro scope auth`) e skills/steering do Kiro que carregam só o escopo em uso.
+- Escopos por assunto e steering do Kiro: feito (`lastro scope`, `lastro adapter kiro`). Falta: hooks de bloqueio do agente (formato depende da versão do Kiro, testar antes) e escopos para web, tempo real e upload.
 - Threat model estruturado. Feito: rascunho assistido (`lastro threat-model`), decisões em `.lastro/threat-model.json`, CORE-012 exigindo revisão, probabilidade alimentando o risco e prioridade dos tickets. Falta: fluxo de dados e fronteiras de confiança por diagrama, ligação de rota ao middleware aplicado na montagem do roteador (por framework, começando pelo Express) e skill do Kiro que conduz a revisão com a pessoa.
 - Autoaplicação completa: atestações e backlog do próprio repositório.
 

@@ -11,6 +11,8 @@ const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/ca
 const { registry } = require('../src/checks');
 const { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown } = require('../src/report');
 const TM = require('../src/threatmodel');
+const { scopeNames, scopeControlIds, formatScope } = require('../src/scope');
+const { installKiro, NAMES: ADAPTER_NAMES } = require('../src/adapter');
 const { formatHtml, validateTheme } = require('../src/html');
 const { loadProfile } = require('../src/engine');
 const { loadTickets, planBacklog, writeTickets } = require('../src/backlog');
@@ -42,6 +44,10 @@ Uso:
   lastro init [--root DIR] [--force]         cria .lastro/profile.json para você preencher
   lastro catalog validate                    valida o catálogo de controles do kit
   lastro check [opções]                      verifica o projeto e dá o veredito
+  lastro scope <auth|web|pii|realtime|uploads|assets|agent|core>
+                                             só os controles de um assunto, com estado e o que fazer em cada um
+  lastro adapter kiro [--write]              copia os arquivos de steering do Kiro para .kiro/steering do projeto
+                                             (nunca sobrescreve um arquivo existente)
   lastro threat-model [--write] [--out ARQ.md]
                                              rascunho de modelo de ameaças (STRIDE por superfície) a partir do
                                              perfil, do catálogo e da leitura do código. Só lê o repositório.
@@ -243,6 +249,32 @@ async function main(argv) {
     } else {
       console.log(text);
     }
+    return 0;
+  }
+
+  if (cmd === 'scope') {
+    const cat = loadCatalog();
+    const names = scopeNames(cat);
+    const name = pos[1];
+    if (!name || !names.includes(name)) {
+      console.error(`Informe o escopo: lastro scope <${names.join('|')}>`);
+      return 3;
+    }
+    const profile = loadProfile(root);
+    const report = await runCheck({ root, only: scopeControlIds(cat, name) });
+    console.log(formatScope(report, cat, name, profile.flags));
+    return 0;
+  }
+
+  if (cmd === 'adapter') {
+    if (pos[1] !== 'kiro') {
+      console.error(`Informe o adaptador: lastro adapter <${ADAPTER_NAMES.join('|')}> [--write]`);
+      return 3;
+    }
+    const r = installKiro(root, { write: !!flags.write });
+    for (const n of r.created) console.log(`${flags.write ? 'criado' : 'seria criado'}: ${path.join(r.target, n)}`);
+    for (const n of r.skipped) console.log(`já existe, mantido: ${path.join(r.target, n)}`);
+    if (!flags.write && r.created.length) console.log('Rode com --write para criar os arquivos. Nenhum arquivo existente é sobrescrito.');
     return 0;
   }
 

@@ -45,6 +45,24 @@ A categoria vem dos pilares e das CWE de cada controle (`catalog/risk-map.json`)
 
 Um controle pode contar em mais de uma categoria. Só controles de **segurança** entram como mitigação; boa prática e qualidade não.
 
+## Arquitetura: fluxo de dados e fronteiras de confiança
+
+O modelo também desenha o **fluxo de dados** da aplicação, com as fronteiras de confiança, e mostra em cada fluxo as ameaças e os controles que ele exige. É a parte "arquitetura segura" do modelo: onde cada controle precisa estar.
+
+| Fluxo | Fronteira | Aparece quando |
+|---|---|---|
+| F1 Requisições web e autenticação | Internet para aplicação | há aplicação web ou rotas |
+| F2 Arquivos enviados | Internet para aplicação | há upload |
+| F3 Conexão de tempo real | Internet para aplicação | há WebSocket ou SSE |
+| F4 Leitura e escrita de dados | Aplicação para dados | há armazenamento ou dado pessoal |
+| F5 Chamadas a serviços externos | Aplicação para terceiros | o código chama hosts externos |
+| F6 e F7 Código, revisão, CI e entrega | Entrega do software | sempre |
+| F8 Agente de IA escreve código | Entrega do software | o perfil declara agentes de IA |
+
+Para cada fluxo o relatório traz o número de ameaças e quantas estão expostas, quantos controles são exigidos (verificados, falhando, sem prova) e quais falham agora. A saída é o diagrama em **Mermaid** no Markdown, para colar na documentação, e um **SVG estático** (sem script) no HTML. No SVG, a linha vermelha marca o fluxo com ameaça exposta.
+
+O kit desenha o que descobriu e o que o perfil declara. Ele **não inventa a arquitetura**: onde colocar um proxy reverso, como segmentar a rede, como separar ambientes e onde guardar segredos são decisões de uma pessoa, que o modelo de ameaças ajuda a justificar. A versão atual desenha só fluxos externos e entre zonas; o detalhe interno da aplicação (módulos, filas) não é descoberto.
+
 ## Comandos
 
 ```bash
