@@ -179,11 +179,11 @@ function evidenceFor(surface, disc, profile) {
   const ev = [];
   const r = disc.routes;
   if (surface === 'web') {
-    if (r.total) ev.push(`${r.total} rota(s) HTTP encontrada(s): ${r.byAuth.visivel} com autenticação visível, ${r.byAuth.global} cobertas por middleware global, ${r.byAuth['publica-esperada']} públicas esperadas, ${r.byAuth['nao-vista']} sem autenticação vista.`);
-    if (r.authMounts && r.byAuth['nao-vista']) ev.push(`${r.authMounts} montagem(ns) de roteador com middleware de autenticação encontrada(s): as rotas "sem autenticação vista" podem estar protegidas por elas, e o kit não faz essa ligação. Confira.`);
+    if (r.total) ev.push(`${r.total} rota(s) HTTP encontrada(s): ${r.byAuth.visivel} com autenticação visível, ${r.byAuth.global} cobertas por middleware global, ${r.byAuth.montagem || 0} cobertas por autenticação na montagem do roteador, ${r.byAuth['publica-esperada']} públicas esperadas, ${r.byAuth['nao-vista']} sem autenticação vista.`);
+    if (r.authMounts && r.byAuth['nao-vista']) ev.push(`Há ${r.authMounts} montagem(ns) de roteador com autenticação, mas o kit não ligou todas as rotas a elas (importação dinâmica ou fábrica de roteador, por exemplo). As rotas "sem autenticação vista" podem estar protegidas: confira.`);
     for (const x of r.examples.slice(0, 6)) ev.push(`Sem autenticação vista: ${x.method} ${x.path} (${x.location})`);
   }
-  if (surface === 'auth' && r.total) ev.push(`${r.byAuth.visivel + r.byAuth.global} rota(s) com autenticação visível ou global; confirme a autorização por papel e por objeto nas demais.`);
+  if (surface === 'auth' && r.total) ev.push(`${r.byAuth.visivel + r.byAuth.global + (r.byAuth.montagem || 0)} rota(s) com autenticação visível, global ou na montagem; confirme a autorização por papel e por objeto nas demais.`);
   if (surface === 'data') {
     if (disc.stores.length) ev.push(`Armazenamento: ${disc.stores.join(', ')}.`);
     if (disc.externalHosts.length) ev.push(`Chamadas externas: ${disc.externalHosts.slice(0, 8).join(', ')}.`);

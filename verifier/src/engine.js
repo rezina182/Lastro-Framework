@@ -168,7 +168,13 @@ async function runCheck(opts = {}) {
   const catalog = loadCatalog(opts.catalogDir);
   const catErrors = validateCatalog(catalog, new Set(registry.keys()));
   if (catErrors.length) throw new ConfigError(`Catálogo inválido:\n- ${catErrors.slice(0, 15).join('\n- ')}`);
-  const profile = loadProfile(root);
+  // Perfil derivado (lastro app): o repositório não precisa de .lastro/profile.json. Vem validado pelo chamador.
+  let profile;
+  if (opts.profile) {
+    const perrs = schema.validateProfile(opts.profile);
+    if (perrs.length) throw new ConfigError(`perfil derivado inválido:\n- ${perrs.join('\n- ')}`);
+    profile = opts.profile;
+  } else profile = loadProfile(root);
   const baselineFile = loadOptional(root, '.lastro/baseline.json', schema.validateBaseline, null);
   const baseline = new Set(baselineFile ? baselineFile.fingerprints : []);
   const status = loadOptional(root, '.lastro/status.json', schema.validateStatus, { schemaVersion: 1, attestations: {} });
@@ -314,7 +320,7 @@ async function runCheck(opts = {}) {
     catalogVersion: catalog.version,
     generatedAt: now.toISOString(),
     target: { root: path.basename(root), url: opts.url || null, active: !!opts.active, requestsSent: ctx.requestCount(), delayMs },
-    profile: { name: profile.name, flags: profile.flags },
+    profile: { name: profile.name, flags: profile.flags, derived: !!opts.profile },
     verdict,
     summary,
     score,

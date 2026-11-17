@@ -30,7 +30,7 @@ const NODE_LABEL = {
   G: 'Agente de IA',
 };
 const NODE_ZONE = { U: 'internet', X: 'internet', A: 'app', D: 'dados', Dev: 'entrega', P: 'entrega', G: 'entrega' };
-const ROLE_ZONE = { frontend: 'app', mobile: 'app', backend: 'app', gateway: 'app', worker: 'app', infra: 'app', queue: 'dados', database: 'dados', storage: 'dados', external: 'internet' };
+const ROLE_ZONE = { frontend: 'app', mobile: 'app', backend: 'app', gateway: 'app', worker: 'app', infra: 'app', library: 'app', queue: 'dados', database: 'dados', storage: 'dados', external: 'internet' };
 const APP_ROLES = new Set(['frontend', 'mobile', 'backend', 'gateway', 'worker']);
 
 const clean = (s) => String(s).replace(/["<>\[\]{}|`\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
@@ -153,7 +153,7 @@ function buildSystemArchitecture({ system, repos, perRepo, primary }) {
       note = repo.status === 'fora-do-repositorio' ? 'repositório fora do analisado: não lido (use --allow-external-repos)' : `repositório ${repo.status.replace('-', ' ')}`;
       warnings.push(`Componente "${c.name}": repositório "${c.repo}" não foi lido (${repo.status.replace(/-/g, ' ')}). O desenho usa só o que foi declarado.`);
     } else if (c.repo && repo) note = `repo: ${repo.same ? '.' : c.repo}`;
-    addNode({ id: c.id, label: clip(c.name, 28), zone: ROLE_ZONE[c.role], source: 'declarado', note: clip(note, 40), role: c.role, exposure: c.exposure || null, dataClasses: c.dataClasses || [], hasRepo: !!info });
+    addNode({ id: c.id, label: clip(c.name, 28), zone: ROLE_ZONE[c.role], source: c.inferred ? 'inferido' : 'declarado', note: clip(note, 40), role: c.role, exposure: c.exposure || null, dataClasses: c.dataClasses || [], hasRepo: !!info });
   }
 
   const summarizeFor = (comp, surfaces) => {
@@ -183,7 +183,7 @@ function buildSystemArchitecture({ system, repos, perRepo, primary }) {
   if (declared.length) {
     for (const f of declared) {
       if (f.to === 'user') continue;
-      addFlow(f.from, f.to, f.label, defaultSurfaces(f.from, f.to, f, comps), 'declarado', f.note || '', f.protocol);
+      addFlow(f.from, f.to, f.label, defaultSurfaces(f.from, f.to, f, comps), f.inferred ? 'inferido' : 'declarado', f.note || '', f.protocol);
     }
   } else {
     // Sem fluxos declarados: o kit infere o básico a partir dos papéis e marca como inferido.
@@ -275,7 +275,7 @@ function toMermaid(arch) {
     const list = arch.nodes.filter((n) => zoneOf(n) === zone);
     if (!list.length) continue;
     out.push(`  subgraph ${zone}["${clean(title)}"]`);
-    for (const n of list) out.push(`    ${mid(n.id)}["${clean(n.label)}${n.source === 'descoberto' ? ' (descoberto)' : ''}"]`);
+    for (const n of list) out.push(`    ${mid(n.id)}["${clean(n.label)}${n.source === 'descoberto' ? ' (descoberto)' : n.source === 'inferido' ? ' (inferido)' : ''}"]`);
     out.push('  end');
   }
   for (const f of arch.flows) out.push(`  ${mid(f.from)} -->|"${clean(`${f.label} (${flowText(f)})`)}"| ${mid(f.to)}`);
@@ -360,7 +360,7 @@ function toSvg(arch, esc) {
   for (const n of arch.nodes) {
     const p = pos.get(n.id);
     if (!p) continue;
-    out.push(`<rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" rx="8" class="arch-no${n.source === 'descoberto' ? ' arch-desc' : ''}"/>`);
+    out.push(`<rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" rx="8" class="arch-no${n.source === 'descoberto' || n.source === 'inferido' ? ' arch-desc' : ''}"/>`);
     out.push(`<text x="${p.x + NODE_W / 2}" y="${p.y + (n.note ? 22 : 31)}" text-anchor="middle" class="arch-notexto">${esc(clip(n.label, 28))}</text>`);
     if (n.note) out.push(`<text x="${p.x + NODE_W / 2}" y="${p.y + 40}" text-anchor="middle" class="arch-rotulo arch-sub">${esc(clip(n.note, 34))}</text>`);
   }

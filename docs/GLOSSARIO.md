@@ -63,6 +63,8 @@ Seis categorias de ameaça, usadas no modelo de ameaças: **S** falsificação d
 | Baseline | Dívida conhecida registrada: o portão passa a bloquear só o que for novo |
 | Atestação | Declaração de uma pessoa, com responsável e validade, de que um controle manual está em dia. É autodeclaração |
 | Fronteira de confiança | Ponto em que o dado passa de uma zona para outra com mais ou menos confiança |
+| Perfil derivado | Perfil provisório montado pelo kit a partir do código, para um repositório que não tem `.lastro/profile.json`. É rascunho: o que o código não mostra (dados de menores, dados sensíveis) fica desligado |
+| system.json | Descrição da aplicação (componentes, repositórios e fluxos) que o usuário escreve ou corrige. Veja [APLICACAO.md](APLICACAO.md) |
 
 ## Identificadores
 

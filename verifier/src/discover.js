@@ -302,4 +302,4 @@ function discover(ctx) {
   };
 }
 
-module.exports = { discover, AUTH_HINT, PUBLIC_PATH };
+module.exports = { discover, depNames, AUTH_HINT, PUBLIC_PATH };

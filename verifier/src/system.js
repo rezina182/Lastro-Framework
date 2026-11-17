@@ -13,13 +13,13 @@ const path = require('node:path');
 const U = require('./util');
 
 const FILE = '.lastro/system.json';
-const ROLES = ['frontend', 'mobile', 'backend', 'gateway', 'worker', 'queue', 'database', 'storage', 'external', 'infra'];
+const ROLES = ['frontend', 'mobile', 'backend', 'gateway', 'worker', 'queue', 'database', 'storage', 'external', 'infra', 'library'];
 const EXPOSURE = ['internet', 'interna', 'privada'];
 const DATA_CLASSES = ['pessoal', 'menores', 'sensivel', 'credencial', 'financeiro'];
 const PROTOCOLS = ['https', 'http', 'wss', 'tls', 'sql', 'amqp', 'grpc', 'file', 'outro'];
 const SURFACE_IDS = ['web', 'auth', 'data', 'realtime', 'uploads', 'pipeline', 'agent'];
 const ACTORS = ['user', 'dev'];
-const CODE_ROLES = new Set(['frontend', 'mobile', 'backend', 'gateway', 'worker', 'infra']);
+const CODE_ROLES = new Set(['frontend', 'mobile', 'backend', 'gateway', 'worker', 'infra', 'library']);
 const MAX_COMPONENTS = 20;
 const MAX_FLOWS = 60;
 const MAX_REPOS = 8;
@@ -42,7 +42,8 @@ function validateSystem(s) {
     s.components.forEach((c, i) => {
       const w = `system.components[${i}]`;
       if (!isObj(c)) { errs.push(`${w}: deve ser objeto`); return; }
-      for (const k of Object.keys(c)) if (!['id', 'name', 'role', 'repo', 'exposure', 'dataClasses', 'note'].includes(k)) errs.push(`${w}: campo desconhecido "${k}"`);
+      for (const k of Object.keys(c)) if (!['id', 'name', 'role', 'repo', 'exposure', 'dataClasses', 'note', 'inferred'].includes(k)) errs.push(`${w}: campo desconhecido "${k}"`);
+      if (c.inferred !== undefined && typeof c.inferred !== 'boolean') errs.push(`${w}.inferred: true ou false`);
       if (typeof c.id !== 'string' || !ID_RE.test(c.id)) errs.push(`${w}.id: minúsculas, números e hífen (até 24, começando por letra)`);
       else if (ids.has(c.id)) errs.push(`${w}.id: repetido ou reservado (${c.id}; "user" e "dev" são reservados)`);
       else ids.add(c.id);
@@ -65,7 +66,8 @@ function validateSystem(s) {
       s.flows.forEach((f, i) => {
         const w = `system.flows[${i}]`;
         if (!isObj(f)) { errs.push(`${w}: deve ser objeto`); return; }
-        for (const k of Object.keys(f)) if (!['from', 'to', 'label', 'protocol', 'surfaces', 'note'].includes(k)) errs.push(`${w}: campo desconhecido "${k}"`);
+        for (const k of Object.keys(f)) if (!['from', 'to', 'label', 'protocol', 'surfaces', 'note', 'inferred'].includes(k)) errs.push(`${w}: campo desconhecido "${k}"`);
+        if (f.inferred !== undefined && typeof f.inferred !== 'boolean') errs.push(`${w}.inferred: true ou false`);
         for (const k of ['from', 'to']) if (typeof f[k] !== 'string' || !ids.has(f[k])) errs.push(`${w}.${k}: componente ou ator desconhecido (${String(f[k]).slice(0, 30)})`);
         if (!text(f.label, 2, 80)) errs.push(`${w}.label: texto de 2 a 80 caracteres`);
         if (f.protocol !== undefined && !PROTOCOLS.includes(f.protocol)) errs.push(`${w}.protocol: ${PROTOCOLS.join('|')}`);

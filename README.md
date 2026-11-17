@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Aplicação com vários repositórios
+
+`lastro app --name "App X" --root PASTA --out relatorio.html` identifica sozinho o papel de cada repositório da aplicação (frontend, backend, worker, infraestrutura...), verifica todos (só leitura) e gera um relatório único com a arquitetura e os riscos. Veja [docs/APLICACAO.md](docs/APLICACAO.md).
+
 ## Legenda
 
 Os relatórios trazem uma legenda no final (o que é `CORE`, `AUTH`, estados, classes de risco, pilares, STRIDE e siglas), e cada CWE, CVE e GHSA leva à fonte oficial. A mesma legenda está em [docs/GLOSSARIO.md](docs/GLOSSARIO.md).

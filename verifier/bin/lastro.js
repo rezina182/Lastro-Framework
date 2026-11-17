@@ -11,6 +11,8 @@ const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/ca
 const { registry } = require('../src/checks');
 const { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown } = require('../src/report');
 const TM = require('../src/threatmodel');
+const { analyzeGroup } = require('../src/group');
+const { formatGroupMarkdown, formatGroupHtml } = require('../src/group-report');
 const { scopeNames, scopeControlIds, formatScope } = require('../src/scope');
 const { installKiro, NAMES: ADAPTER_NAMES } = require('../src/adapter');
 const { formatHtml, validateTheme } = require('../src/html');
@@ -21,7 +23,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file']);
+const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -44,6 +46,14 @@ Uso:
   lastro init [--root DIR] [--force]         cria .lastro/profile.json para você preencher
   lastro catalog validate                    valida o catálogo de controles do kit
   lastro check [opções]                      verifica o projeto e dá o veredito
+  lastro app --name "App X" [--root PASTA] [--repos a,b] [--match 'app-x-*'] [--out ARQ.html|.md]
+                                             aplicação com vários repositórios: o kit identifica sozinho o papel de
+                                             cada um (frontend, backend, worker, infraestrutura...), verifica cada
+                                             repositório (só leitura) e gera um relatório único com a arquitetura e os
+                                             riscos. --root é a pasta onde os repositórios estão.
+                                             --write-system ARQ grava o rascunho de system.json para você corrigir;
+                                             --system ARQ usa o corrigido. --out-dir DIR grava também um relatório
+                                             por repositório. Aceita --theme, --redact e --allow-external-repos.
   lastro scope <auth|web|pii|realtime|uploads|assets|agent|core>
                                              só os controles de um assunto, com estado e o que fazer em cada um
   lastro adapter kiro [--write]              copia os arquivos de steering do Kiro para .kiro/steering do projeto
@@ -252,6 +262,72 @@ async function main(argv) {
       console.log(`Relatório gravado em ${file}`);
     } else {
       console.log(text);
+    }
+    return 0;
+  }
+
+  if (cmd === 'app') {
+    const name = flags.name && flags.name !== true ? String(flags.name) : null;
+    if (!name) {
+      console.error('Informe o nome da aplicação: lastro app --name "App X" [--root PASTA_DOS_REPOSITORIOS]');
+      return 3;
+    }
+    const outFile = flags.out && flags.out !== true ? path.resolve(String(flags.out)) : null;
+    const format = outFile && /\.html?$/i.test(outFile) ? 'html' : 'md';
+    let theme = null;
+    if (flags.theme) {
+      if (format !== 'html' && !flags['out-dir']) { console.error('--theme só vale com saída em HTML.'); return 3; }
+      try { theme = fs.readFileSync(path.resolve(String(flags.theme)), 'utf8'); } catch (e) { console.error(`Não foi possível ler o tema: ${e.message}`); return 3; }
+      const te = validateTheme(theme);
+      if (te.length) { console.error(`Tema recusado:\n- ${te.join('\n- ')}`); return 3; }
+    }
+    let redact = null;
+    if ('redact' in flags) {
+      redact = typeof flags.redact === 'string' ? flags.redact.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      const re = validateRedactTerms(redact);
+      if (re.length) { console.error(`--redact recusado:\n- ${re.join('\n- ')}`); return 3; }
+    }
+    let system = null;
+    if (flags.system && flags.system !== true) {
+      try { system = JSON.parse(fs.readFileSync(path.resolve(String(flags.system)), 'utf8')); } catch (e) { console.error(`system ilegível: ${e.message}`); return 3; }
+    }
+    const repos = flags.repos && flags.repos !== true ? String(flags.repos).split(',').map((s) => s.trim()).filter(Boolean) : null;
+    const { group, reports } = await analyzeGroup({ dir: root, name, repos, match: flags.match && flags.match !== true ? String(flags.match) : null, system, allowExternal: !!flags['allow-external-repos'] });
+
+    console.log(`Aplicação "${name}": ${group.totals.analyzed} repositório(s) analisado(s) em ${root}`);
+    for (const r of group.repos) {
+      console.log(`  ${r.name}: ${r.role}${r.fullstack ? ' (full stack)' : ''}, confiança ${r.confidence} | perfil ${r.profile} | ${r.error ? `ERRO ${r.error}` : `portão ${r.verdict}, risco confirmado ${r.confirmed.critical} crítico, ${r.confirmed.high} alto, ${r.confirmed.medium} médio`}`);
+    }
+    console.log(`Risco confirmado na aplicação: ${group.totals.confirmed.critical} crítico, ${group.totals.confirmed.high} alto, ${group.totals.confirmed.medium} médio, ${group.totals.confirmed.low} baixo | ameaças expostas: ${group.totals.threatsExposed} de ${group.totals.threats}`);
+    for (const w of group.warnings.slice(0, 8)) console.log(`AVISO: ${w}`);
+    if (group.warnings.length > 8) console.log(`... e mais ${group.warnings.length - 8} aviso(s) no relatório.`);
+
+    if (flags['write-system'] && flags['write-system'] !== true) {
+      const file = path.resolve(String(flags['write-system']));
+      if (fs.existsSync(file)) { console.error(`${file} já existe: não sobrescrevo.`); return 3; }
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${JSON.stringify(group.system, null, 2)}\n`);
+      console.log(`Rascunho do system.json gravado em ${file}. Corrija os papéis e as ligações e rode de novo com --system.`);
+    }
+    const shown = redact ? redactReport(group, redact) : group;
+    if (outFile) {
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, format === 'html' ? formatGroupHtml(shown, { theme }) : formatGroupMarkdown(shown));
+      console.log(`Relatório da aplicação gravado em ${outFile}`);
+    } else if (!flags['out-dir']) {
+      console.log('Use --out relatorio.html (ou .md) para gravar o relatório da aplicação.');
+    }
+    if (flags['out-dir'] && flags['out-dir'] !== true) {
+      const dir = path.resolve(String(flags['out-dir']));
+      fs.mkdirSync(dir, { recursive: true });
+      for (const { name: repo, report } of reports) {
+        const rep = redact ? redactReport(report, redact) : report;
+        const states = new Map(rep.controls.map((c) => [c.id, c.state]));
+        const cov = asvsLib.coverage(loadCatalog().controls, loadCatalog().asvsMap, { level: 2, states });
+        const base = String(repo).replace(/[^A-Za-z0-9._-]+/g, '_');
+        fs.writeFileSync(path.join(dir, `${base}.html`), formatHtml(rep, { coverage: cov, theme }));
+      }
+      console.log(`Relatórios por repositório gravados em ${dir}`);
     }
     return 0;
   }

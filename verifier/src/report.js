@@ -110,9 +110,26 @@ const TM_STATE = { exposed: 'exposta (controle falhando)', unproven: 'sem prova'
 const tmDecision = (t) => (t.pending ? (t.decision === 'accept' ? 'aceitação vencida' : 'pendente') : TMX.DECISION_PT[t.decision]);
 
 function archModeLine(a) {
+  if (a.mode === 'aplicação') return `Desenho da aplicação **"${md(a.name)}"**, montado pelo kit a partir de ${a.repos.length} repositório(s) lidos (papéis identificados pelo código). Origem: declarado (um system.json), descoberto (o kit viu no código), inferido (o kit deduziu pelos papéis e pelo que cada repositório usa). Confirme os papéis e as ligações.`;
   return a.mode === 'declarado'
     ? `Desenho **declarado** em \`.lastro/system.json\` ("${md(a.name)}"), combinado com o que o kit descobriu em ${a.repos.length || 1} repositório(s). Origem do fluxo: declarado (você descreveu), descoberto (o kit viu no código e você não declarou) ou inferido (o kit deduziu pelos papéis).`
     : 'Desenho **automático**, só pelo que o kit descobriu em um repositório e pelo perfil. Para descrever vários repositórios ou componentes, crie `.lastro/system.json` (veja docs/THREAT-MODEL-ASSISTIDO.md).';
+}
+
+/** Seção de arquitetura em Markdown (usada no relatório de um repositório e no da aplicação com vários). */
+function archSectionMd(a) {
+  const m = toMermaid(a);
+  const out = ['### Arquitetura: fluxo de dados e fronteiras de confiança', ''];
+  out.push(archModeLine(a), '');
+  out.push('O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Cole o diagrama em qualquer visualizador de Mermaid.', '');
+  out.push('```mermaid', m.code, '```', '');
+  out.push('| Fluxo | Fronteira | Origem | Ameaças | Controles exigidos | Falhando agora | Observação |', '|---|---|---|---|---|---|---|');
+  for (const f of a.flows) {
+    out.push(`| ${f.id} ${md(f.label)} | ${md(f.boundary)} | ${f.source || '-'} | ${f.threats} (${f.exposed} exposta(s), ${f.pending} sem decisão) | ${f.controls}: ${f.verified} verificado(s), ${f.failed} falhando, ${f.unverified} sem prova | ${f.failing.length ? f.failing.join(', ') : '-'} | ${md(f.note || '-')} |`);
+  }
+  for (const w of a.warnings || []) out.push('', `- Atenção: ${md(w)}`);
+  out.push('');
+  return out;
 }
 
 function tmStatusLine(t) {
@@ -150,19 +167,7 @@ function threatMd(r) {
   for (const x of [...t.threats].sort((a, b) => order[a.state] - order[b.state] || a.id.localeCompare(b.id))) {
     out.push(`| ${x.id} ${md(x.strideName)} | ${md(x.surfaceName)} | ${TM_STATE[x.state]} | ${x.controls.length} | ${tmDecision(x)} |`);
   }
-  if (t.architecture && t.architecture.flows.length) {
-    const m = toMermaid(t.architecture);
-    out.push('', '### Arquitetura: fluxo de dados e fronteiras de confiança', '');
-    out.push(archModeLine(t.architecture), '');
-    out.push('O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Cole o diagrama em qualquer visualizador de Mermaid.', '');
-    out.push('```mermaid', m.code, '```', '');
-    out.push('| Fluxo | Fronteira | Origem | Ameaças | Controles exigidos | Falhando agora | Observação |', '|---|---|---|---|---|---|---|');
-    for (const f of t.architecture.flows) {
-      out.push(`| ${f.id} ${md(f.label)} | ${md(f.boundary)} | ${f.source || '-'} | ${f.threats} (${f.exposed} exposta(s), ${f.pending} sem decisão) | ${f.controls}: ${f.verified} verificado(s), ${f.failed} falhando, ${f.unverified} sem prova | ${f.failing.length ? f.failing.join(', ') : '-'} | ${md(f.note || '-')} |`);
-    }
-    for (const w of t.architecture.warnings || []) out.push('', `- Atenção: ${md(w)}`);
-    out.push('');
-  }
+  if (t.architecture && t.architecture.flows.length) out.push('', ...archSectionMd(t.architecture));
   out.push('', 'Perguntas para a revisão:', '');
   for (const k of Object.keys(TMX.STRIDE)) out.push(`- **${k} (${TMX.STRIDE[k].name}):** ${TMX.STRIDE[k].ask}`);
   if (t.orphans.length) out.push('', `Decisões de ameaças que não existem mais (a superfície sumiu do perfil ou do código): ${t.orphans.join(', ')}.`);
@@ -457,4 +462,6 @@ function threatMarkdown(r) {
   return [`# Modelo de ameaças: ${md(r.profile.name)}`, '', ...threatMd(r)];
 }
 
-module.exports = { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown };
+const mdui = { md, cweText, archSectionMd, legendMd, SEV_PT, STATE_PT };
+
+module.exports = { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown, mdui };

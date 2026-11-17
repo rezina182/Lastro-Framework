@@ -589,4 +589,38 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   return `${out.join('\n')}\n`;
 }
 
-module.exports = { formatHtml, validateTheme, MAX_FINDINGS_PER_CONTROL };
+/** Seção de arquitetura em HTML (relatório da aplicação com vários repositórios). */
+function archSectionHtml(a) {
+  const out = ['<h3>Arquitetura: fluxo de dados e fronteiras de confiança</h3>'];
+  const modeText = a.mode === 'aplicação'
+    ? `Desenho da aplicação <strong>${h(a.name)}</strong>, montado pelo kit a partir de ${num(a.repos.length)} repositório(s) lidos (papéis identificados pelo código). Origem: declarado (um system.json), descoberto (o kit viu no código), inferido (o kit deduziu pelos papéis e pelo que cada repositório usa). Confirme os papéis e as ligações. Borda tracejada: componente descoberto ou inferido.`
+    : a.mode === 'declarado'
+      ? `Desenho <strong>declarado</strong> em <code>.lastro/system.json</code> (${h(a.name)}). Borda tracejada: componente descoberto ou inferido.`
+      : 'Desenho <strong>automático</strong>, só pelo que o kit descobriu em um repositório e pelo perfil.';
+  out.push(`<p>${modeText}</p>`);
+  out.push('<p>O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
+  out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`);
+  out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Origem', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
+    a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), h(f.source || '-'), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
+      `${num(f.controls)}: ${num(f.verified)} verificado(s), ${num(f.failed)} falhando, ${num(f.unverified)} sem prova`, f.failing.length ? h(f.failing.join(', ')) : '-', h(f.note || '-')])));
+  if ((a.warnings || []).length) out.push('<ul>', ...a.warnings.map((w) => `<li>Atenção: ${h(w)}</li>`), '</ul>');
+  return out;
+}
+
+/** Documento HTML completo com o mesmo estilo dos relatórios (sem script, CSP restritiva, tema opcional). */
+function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null }) {
+  const out = ['<!doctype html>', '<html lang="pt-BR">', '<head>', '<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">'];
+  out.push(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">`);
+  out.push(`<title>${h(title)}</title>`, `<style>${BASE_CSS}${theme ? `\n/* tema */\n${theme}` : ''}</style>`, '</head>', '<body>');
+  out.push('<a class="skip" href="#principal">Ir para o conteúdo</a>', '<header class="hero"><div class="wrap">');
+  out.push(`<p class="eyebrow">${h(eyebrow)}</p>`, `<h1>${h(title)}</h1>`);
+  for (const m of meta) out.push(`<p class="meta">${h(m)}</p>`);
+  out.push('<nav class="toc" aria-label="Seções do relatório">', ...nav.map(([id, text]) => `<a href="#${h(id)}">${h(text)}</a>`), '</nav>', '</div></header>');
+  out.push('<main id="principal"><div class="wrap">', ...sections, '</div></main>');
+  out.push('<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</footer>', '</body>', '</html>');
+  return `${out.join('\n')}\n`;
+}
+
+const ui = { h, num, table, card, sevBadge, classBadge, cweLinks, ext, bar, pctText, archSectionHtml, legendHtml, htmlShell };
+
+module.exports = { formatHtml, validateTheme, MAX_FINDINGS_PER_CONTROL, ui };
