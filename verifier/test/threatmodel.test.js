@@ -160,6 +160,23 @@ test('descoberta: middleware em português e lista de middlewares guardada numa 
   } finally { cleanup(root); }
 });
 
+test('descoberta: "saúde" como endpoint de saúde não é dado sensível, e text/event-stream solto não é tempo real', () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ webApp: true }),
+    'src/checks.js': "const tipos = [{ kind: 'saúde', path: '/health' }];\n// regex que procura 'text/event-stream' em outros projetos\nconst RE = 'text/event-stream';\n",
+    'src/pacientes.js': "const campos = { dados_saude: true, cpf: 1 };\n",
+    'src/sse.js': "res.writeHead(200, { 'Content-Type': 'text/event-stream' });\n",
+  });
+  const semSse = makeProject({ '.lastro/profile.json': profileJson({}), 'a.js': "const RE = 'text/event-stream';\n" });
+  try {
+    const d = discover(ctxFor(root));
+    const sens = d.dataHints.find((h) => h.category === 'sensivel');
+    assert.deepEqual(sens.files, ['src/pacientes.js'], 'só o campo dados_saude conta');
+    assert.deepEqual(d.realtime, ['SSE (text/event-stream)'], 'o cabeçalho de verdade conta');
+    assert.deepEqual(discover(ctxFor(semSse)).realtime, [], 'a string solta não conta');
+  } finally { cleanup(root); cleanup(semSse); }
+});
+
 test('motor: o relatório traz o rascunho, com ameaças de id estável, estado derivado dos controles e pistas', async () => {
   const root = makeProject(FILES());
   try {

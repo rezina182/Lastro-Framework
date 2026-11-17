@@ -17,6 +17,7 @@
     "oauthProvider": false
   },
   "scan": {
-    "excludePrefixes": ["verifier/test/"]
+    "excludePrefixes": ["verifier/test/"],
+    "safeFunctions": ["h", "num", "clamp", "pctText"]
   }
 }

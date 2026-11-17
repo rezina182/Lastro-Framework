@@ -126,22 +126,23 @@ function validateTheme(css) {
 
 const bar = (parts) => {
   const label = parts.map((p) => `${p.label} ${pctText(p.value)}`).join(', ');
-  return `<div class="bar" role="img" aria-label="${h(label)}">${parts.map((p) => `<span class="${p.cls}" style="width:${clamp(p.value)}%"></span>`).join('')}</div>`;
+  return `<div class="bar" role="img" aria-label="${h(label)}">${parts.map((p) => `<span class="${p.cls}" style="width:${clamp(p.value)}%"></span>`).join('')}</div>`; // lastro-ignore xss-sinks: p.cls vem de constantes do próprio gerador (seg-ok, seg-bad...)
 };
 
 const sevBadge = (sev) => `<span class="sev-${h(sev)}"><strong>${h(SEV_PT[sev] || sev)}</strong></span>`;
-const card = (label, value, note = '') => `<div class="card"><p class="card-label">${h(label)}</p>${value ? `<p class="card-value">${value}</p>` : ''}${note ? `<p class="card-note">${h(note)}</p>` : ''}</div>`;
+const card = (label, value, note = '') => `<div class="card"><p class="card-label">${h(label)}</p>${value ? `<p class="card-value">${value}</p>` : ''}${note ? `<p class="card-note">${h(note)}</p>` : ''}</div>`; // lastro-ignore xss-sinks: value é HTML montado pelo gerador com h() nos dados do projeto
 
+// As células (c) chegam prontas: cada chamador escapa o dado do projeto com h() antes de montar a linha.
 function table(caption, head, rows, numericCols = []) {
   const th = head.map((t, i) => `<th scope="col"${numericCols.includes(i) ? ' class="num"' : ''}>${h(t)}</th>`).join('');
-  const body = rows.map((r) => `<tr>${r.map((c, i) => `<td${numericCols.includes(i) ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join('');
-  return `<div class="table-wrap"><table><caption>${h(caption)}</caption><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const body = rows.map((r) => `<tr>${r.map((c, i) => `<td${numericCols.includes(i) ? ' class="num"' : ''}>${c}</td>`).join('')}</tr>`).join(''); // lastro-ignore xss-sinks: células já escapadas pelo chamador
+  return `<div class="table-wrap"><table><caption>${h(caption)}</caption><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`; // lastro-ignore xss-sinks: th e body montados acima com h()
 }
 
 const R = require('./risk');
 
 const CLASS_CSS = { critical: 'bad', high: 'bad', medium: 'warn', low: 'info' };
-const classBadge = (cls) => `<span class="badge ${CLASS_CSS[cls] || 'info'}">${h(R.CLASS_PT[cls] || cls)}</span>`;
+const classBadge = (cls) => `<span class="badge ${CLASS_CSS[cls] || 'info'}">${h(R.CLASS_PT[cls] || cls)}</span>`; // lastro-ignore xss-sinks: a classe CSS vem da tabela fixa CLASS_CSS
 // O arquivo continua autocontido (sem script, fonte ou imagem externa). Os únicos links são para fontes oficiais,
 // montados a partir de identificadores validados (links.js): CWE (MITRE), CVE (NVD), GHSA (GitHub) e a LGPD (Planalto).
 const L = require('./links');
@@ -188,10 +189,10 @@ function riskHtml(r) {
   out.push(`<div class="note"><p><strong>Confirmado</strong> é o que a verificação encontrou. <strong>Potencial</strong> é o que ninguém provou ainda: a probabilidade é uma suposição média, ajustada pela exposição, e não quer dizer que a falha exista. ${num(k.summary.securityVerified)} controle(s) de segurança estão verificados e não entram na conta.</p></div>`);
 
   out.push('<h3>Matriz de risco</h3>', '<p>Só os riscos confirmados entram na matriz. Os potenciais (sem prova) ficam limitados a "Alto": crítico exige evidência.</p>');
-  const head = '<thead><tr><th scope="col">Impacto \\ Probabilidade</th>' + [1, 2, 3, 4].map((l) => `<th scope="col">${l} ${h(R.LIKELIHOOD_PT[l])}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr><th scope="col">Impacto \\ Probabilidade</th>' + [1, 2, 3, 4].map((l) => `<th scope="col">${num(l)} ${h(R.LIKELIHOOD_PT[l])}</th>`).join('') + '</tr></thead>';
   const body = [4, 3, 2, 1].map((imp) => {
     const cells = k.matrix.filter((m) => m.impact === imp).sort((a, b) => a.likelihood - b.likelihood);
-    return `<tr><th scope="row">${imp} ${h(R.IMPACT_PT[imp])}</th>${cells.map((m) => `<td class="heat-${h(m.class)}">${m.count ? `${num(m.count)}<br><span class="empty">${h(R.CLASS_PT[m.class])}</span>` : '·'}</td>`).join('')}</tr>`;
+    return `<tr><th scope="row">${num(imp)} ${h(R.IMPACT_PT[imp])}</th>${cells.map((m) => `<td class="heat-${h(m.class)}">${m.count ? `${num(m.count)}<br><span class="empty">${h(R.CLASS_PT[m.class])}</span>` : '·'}</td>`).join('')}</tr>`;
   }).join('');
   out.push(`<div class="table-wrap"><table class="heat"><caption>Quantidade de riscos de segurança confirmados por probabilidade e impacto</caption>${head}<tbody>${body}</tbody></table></div>`);
 

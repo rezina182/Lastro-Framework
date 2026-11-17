@@ -37,7 +37,7 @@ const DATA_CATEGORIES = [
   { id: 'credencial', name: 'credenciais', re: /\b(senha|password|passwd|password_?hash|token_?hash|api_?key|secret)\b/i, sensitive: false },
   { id: 'financeiro', name: 'financeiro', re: /\b(cartao|cartão|card_?number|cvv|salario|salário|pix|iban|conta_?bancaria)\b/i, sensitive: false },
   { id: 'nascimento', name: 'data de nascimento', re: /\b(nascimento|birth_?date|data_?nasc|dob|idade)\b/i, sensitive: false },
-  { id: 'sensivel', name: 'possível dado sensível (LGPD, art. 5º, II)', re: /\b(saude|saúde|health_?(data|record|condition)|medical|medico|médico|prontuario|prontuário|diagnostico|diagnóstico|doenca|doença|biometri\w*|digital_?impressao|religiao|religião|etnia|raca|raça|orientacao_?sexual|filiacao_?sindical|genetic\w*)\b/i, sensitive: true },
+  { id: 'sensivel', name: 'possível dado sensível (LGPD, art. 5º, II)', re: /\b((?:dados?_?|historico_?|ficha_?)sa[uú]de|sa[uú]de_?(?:paciente|usuario|aluno|cliente|dados?)|health_?(?:data|record|condition)|medical|medico|médico|prontuario|prontuário|diagnostico|diagnóstico|doenca|doença|biometri\w*|digital_?impressao|religiao|religião|etnia|raca|raça|orientacao_?sexual|filiacao_?sindical|genetic\w*)\b/i, sensitive: true },
 ];
 
 function codeFiles(ctx) {
@@ -278,7 +278,9 @@ function discover(ctx) {
   const byAuth = { visivel: 0, global: 0, montagem: 0, 'publica-esperada': 0, 'nao-vista': 0 };
   for (const r of routes) byAuth[r.auth] += 1;
   const pick = (map) => [...new Set([...deps].filter((d) => map[d]).map((d) => map[d]))];
-  const sse = files.some((f) => /text\/event-stream/.test(ctx.read(f) || ''));
+  // SSE só conta quando a resposta é de fato configurada como text/event-stream (cabeçalho), não quando o texto aparece solto.
+  const SSE_RE = /(setHeader|writeHead|set|header|type|headers|Content-Type)[^\n]{0,60}text\/event-stream/i;
+  const sse = files.some((f) => SSE_RE.test(ctx.read(f) || ''));
   const realtime = [...pick(REALTIME_DEPS), ...(sse ? ['SSE (text/event-stream)'] : [])];
   const pyUploads = files.some((f) => f.endsWith('.py') && /request\.files/.test(ctx.read(f) || ''));
   const uploads = [...pick(UPLOAD_DEPS), ...(pyUploads ? ['request.files (Python)'] : [])];
