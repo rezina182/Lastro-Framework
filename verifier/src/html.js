@@ -71,6 +71,9 @@ thead th{border-top:0;background:var(--surface-2);font-weight:600;white-space:no
 td.num,th.num{text-align:right;white-space:nowrap}
 td .bar{min-width:140px}
 code{font:.86em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface-2);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
+pre{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;overflow-x:auto}
+pre code{background:none;padding:0}
+ol li,ul li{margin:4px 0}
 details{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;padding:0 14px}
 summary{cursor:pointer;padding:10px 0;font-weight:600}
 summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

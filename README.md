@@ -22,6 +22,10 @@ Por isso o verificador segue regras simples:
 - **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
 - **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
 
+## Playbook dos testes manuais
+
+`lastro playbook --out playbook.html` gera o roteiro passo a passo de cada controle manual que ainda não tem prova: o que preparar, os passos, o que conferir, a evidência, o que fazer se falhar e o trecho pronto da atestação. Veja [docs/PLAYBOOK.md](docs/PLAYBOOK.md).
+
 ## Aplicação com vários repositórios
 
 `lastro app --name "App X" --root PASTA --out relatorio.html` identifica sozinho o papel de cada repositório da aplicação (frontend, backend, worker, infraestrutura...), verifica todos (só leitura) e gera um relatório único com a arquitetura e os riscos. Veja [docs/APLICACAO.md](docs/APLICACAO.md).

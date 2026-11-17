@@ -12,6 +12,7 @@ const { registry } = require('../src/checks');
 const { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown } = require('../src/report');
 const TM = require('../src/threatmodel');
 const { analyzeGroup } = require('../src/group');
+const { buildPlaybook, formatPlaybookMarkdown, formatPlaybookHtml } = require('../src/playbook');
 const { formatGroupMarkdown, formatGroupHtml } = require('../src/group-report');
 const { scopeNames, scopeControlIds, formatScope } = require('../src/scope');
 const { installKiro, NAMES: ADAPTER_NAMES } = require('../src/adapter');
@@ -23,7 +24,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir']);
+const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir', 'scope']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -54,6 +55,11 @@ Uso:
                                              --write-system ARQ grava o rascunho de system.json para você corrigir;
                                              --system ARQ usa o corrigido. --out-dir DIR grava também um relatório
                                              por repositório. Aceita --theme, --redact e --allow-external-repos.
+  lastro playbook [--scope auth] [--only ID,ID] [--all] [--out ARQ.md|.html]
+                                             roteiro passo a passo para testar cada controle manual sem prova:
+                                             o que preparar, passos, o que conferir, evidência, o que fazer se
+                                             falhar e o trecho pronto para registrar a atestação. Aceita --theme
+                                             e --redact.
   lastro scope <auth|web|pii|realtime|uploads|assets|agent|core>
                                              só os controles de um assunto, com estado e o que fazer em cada um
   lastro adapter kiro [--write]              copia os arquivos de steering do Kiro para .kiro/steering do projeto
@@ -329,6 +335,39 @@ async function main(argv) {
       }
       console.log(`Relatórios por repositório gravados em ${dir}`);
     }
+    return 0;
+  }
+
+  if (cmd === 'playbook') {
+    const cat = loadCatalog();
+    const scope = flags.scope && flags.scope !== true ? String(flags.scope) : null;
+    if (scope && !scopeNames(cat).includes(scope)) { console.error(`Escopo desconhecido: ${scope}. Use ${scopeNames(cat).join('|')}.`); return 3; }
+    const only = flags.only && flags.only !== true ? String(flags.only).split(',').map((s) => s.trim()).filter(Boolean) : null;
+    const outFile = flags.out && flags.out !== true ? path.resolve(String(flags.out)) : null;
+    const isHtml = outFile && /\.html?$/i.test(outFile);
+    let theme = null;
+    if (flags.theme) {
+      if (!isHtml) { console.error('--theme só vale com --out terminando em .html.'); return 3; }
+      try { theme = fs.readFileSync(path.resolve(String(flags.theme)), 'utf8'); } catch (e) { console.error(`Não foi possível ler o tema: ${e.message}`); return 3; }
+      const te = validateTheme(theme);
+      if (te.length) { console.error(`Tema recusado:\n- ${te.join('\n- ')}`); return 3; }
+    }
+    let redact = null;
+    if ('redact' in flags) {
+      redact = typeof flags.redact === 'string' ? flags.redact.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      const re = validateRedactTerms(redact);
+      if (re.length) { console.error(`--redact recusado:\n- ${re.join('\n- ')}`); return 3; }
+    }
+    const raw = await runCheck({ root });
+    const report = redact ? redactReport(raw, redact) : raw;
+    const pb = buildPlaybook(report, cat, { only, scope, all: !!flags.all });
+    console.log(`Playbook de "${report.profile.name}": ${pb.total} controle(s) manual(is) a testar (${pb.byKind.security || 0} de segurança, ${pb.byKind.practice || 0} de boa prática, ${pb.byKind.quality || 0} de qualidade).`);
+    const text = isHtml ? formatPlaybookHtml(pb, { theme }) : formatPlaybookMarkdown(pb);
+    if (outFile) {
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, text);
+      console.log(`Playbook gravado em ${outFile}`);
+    } else console.log(text);
     return 0;
   }
 
