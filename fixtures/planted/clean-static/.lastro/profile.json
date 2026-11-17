@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "clean-static",
+  "flags": {
+    "webApp": true,
+    "hasAuth": true,
+    "anonymousUsers": false,
+    "realtime": false,
+    "uploads": false,
+    "personalData": false,
+    "minorsData": false,
+    "thirdPartyAssets": false,
+    "aiCodingAgents": false,
+    "publicInternet": false,
+    "federatedLogin": false,
+    "tokenAuth": false,
+    "oauthProvider": false
+  }
+}

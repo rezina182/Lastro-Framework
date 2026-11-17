@@ -535,7 +535,9 @@ const SQL_PATTERNS = [
     message: 'Consulta SQL montada com interpolação de texto: confirme que o trecho interpolado é fixo ou validado e que os valores vão por parâmetro (placeholders).',
   },
   {
-    id: 'concat', re: new RegExp(QUOTE + NOT_QUOTE + '\\b' + SQL_SHAPE + NOT_QUOTE + QUOTE + '\\s*\\+\\s*[\\w(]'),
+    // O texto fecha com a mesma aspa que abriu: a outra aspa pode aparecer dentro ("... name = '" + nome + "'"),
+    // que é o jeito clássico da injeção e escapava da primeira versão (achado pelo lastro bench, caso P-002).
+    id: 'concat', re: new RegExp('(["\'`])(?:(?!\\1).)*?\\b' + SQL_SHAPE + '(?:(?!\\1).)*\\1\\s*\\+\\s*[\\w(]'),
     message: 'Consulta SQL montada por concatenação com variável: risco de injeção de SQL. Use parâmetros (placeholders).',
   },
   {

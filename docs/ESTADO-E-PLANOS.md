@@ -117,11 +117,39 @@ Hoje o LASTRO é efetivo como **disciplina e higiene**: mostra a postura, organi
 
 ## 5. Planos de evolução
 
-Em ordem de prioridade. Os três primeiros atacam a efetividade.
+### 5.0 Visão: o LASTRO como base do ciclo de desenvolvimento com IA (AI-DLC)
+
+A intenção é que qualquer pessoa que desenvolva com IA chame o LASTRO e ele conduza o ciclo inteiro, em dois cenários:
+
+- **Aplicação nova:** o kit é o ponto de partida. Ao começar uma funcionalidade (por exemplo, uma tela de login), o dev pede os requisitos daquele assunto antes de escrever código: requisitos de segurança, decisões de arquitetura, ameaças do desenho, critérios de teste e controles que depois serão verificados. A arquitetura e o código nascem já alinhados ao que o kit cobra.
+- **Aplicação existente:** o kit mede o que há, registra a dívida (baseline), prioriza (backlog P0 a P3), corrige o que é previsível e acompanha a evolução.
+
+O mesmo catálogo serve aos dois: no desenho ele diz **o que deve ser feito**; depois do código ele **prova que foi feito**. A governança vem do registro: decisões, atestações, riscos aceitos e histórico, com uma visão para o dev (o que fazer agora) e outra para o time de segurança (risco, pendências e exceções que vencem). Quanto mais disso for automação (skills, steering, hooks, agente e pipeline), menos o dev precisa lembrar.
+
+Hoje o kit é forte em verificar o que já existe. Faltam a fase de desenho para a aplicação nova (5.8), o ponto de entrada único do agente (5.4) e a pipeline como produto (5.10). A ordem de execução:
+
+1. Banco de falhas plantadas (5.1): mede o recall, antes de mexer no resto.
+2. Sondas autenticadas (5.2).
+3. Modo corrigir (5.3).
+4. Fase de desenho: requisitos por funcionalidade (5.8).
+5. Agente, skills e hooks do Kiro, com os fluxos "nova" e "existente" (5.4).
+6. Pipeline: Action reutilizável, SARIF e comentário no PR (5.10).
+7. Histórico e portal estático, com visão por papel (5.5 e seção 6).
+8. Revisão dos frameworks de mercado (5.9), em paralelo, a cada etapa que tocar o catálogo.
+
+Os itens 5.1 a 5.7 abaixo continuam como estavam; 5.8 a 5.10 são novos.
 
 ### 5.1 Medir a efetividade de verdade (banco de falhas plantadas)
 
-Um conjunto de aplicações de exemplo com falhas conhecidas e plantadas (autorização por objeto quebrada, SQL concatenado, cookie sem `HttpOnly`, CORS refletido, segredo no código, upload sem limite) e um comando que mede quantas o kit pega, quantas vira pergunta e quantas perde. Isso dá um número de recall que acompanha cada versão e impede regressão.
+**Feito (primeira etapa):** `lastro bench` e `fixtures/planted/`, com 35 falhas plantadas e 23 gêmeas limpas. O banco roda dentro do `npm test`, então uma regressão quebra o CI. Veja [BENCH.md](BENCH.md).
+
+| Primeira medição (2026-11-17) | Resultado |
+|---|---|
+| Código, configuração e HTTP | 29 de 29 detectadas |
+| Lógica (acesso por objeto, atribuição em massa, CSRF, logout) | 0 de 6 detectadas; as 6 viram pergunta |
+| Falsos positivos nas aplicações limpas | 0 de 23 |
+
+A primeira execução achou uma falha do kit: o CORE-059 não pegava `"... name = '" + nome + "'"`. Foi corrigida, com teste. Próximos casos: variações das regras atuais, upload sem limite, redirecionamento aberto e SSRF. O 0 de 6 na lógica é a meta do 5.2.
 
 ### 5.2 Sondas autenticadas (staging ou local)
 
@@ -172,6 +200,39 @@ Clonar os repositórios de uma organização com credencial só de leitura e con
 ### 5.7 Publicação
 
 Revisar as lições de origem (descrevem aplicações reais), decidir sobre o e-mail nos commits, traduzir a documentação para inglês, atestar os 55 controles manuais do próprio kit pelo playbook e publicar a v0.1.0.
+
+### 5.8 Fase de desenho: requisitos por funcionalidade (aplicação nova)
+
+Hoje o modelo de ameaças nasce da leitura do código, então só ajuda depois que o código existe. Para a aplicação nova, o kit precisa agir **antes**:
+
+- Um comando e uma skill que, dado o assunto ("login", "upload", "pagamento", "tempo real"), devolvem os requisitos de segurança daquele assunto: os controles do catálogo, o requisito do ASVS que cada um cobre, as decisões de arquitetura a tomar, as ameaças prováveis e os testes que provarão cada requisito. É o `lastro scope` levado para a fase de desenho.
+- Decisões de arquitetura registradas (ADR curto, com dono e data), ligadas aos controles que elas atendem.
+- Uma arquitetura-alvo por tipo de aplicação (web com login, API, tempo real, aplicação com agente de IA), como ponto de partida que a pessoa adapta. O kit propõe, a pessoa decide.
+- Integração com a especificação do Kiro (requisitos, desenho e tarefas): os requisitos de segurança entram na spec e as tarefas incluem os testes.
+
+Ainda não decidido: o formato do artefato (arquivo em `.lastro/` ou seção da spec) e quanto do texto o kit gera. Isso se define com um caso real (a tela de login).
+
+### 5.9 Revisão dos frameworks de mercado
+
+Hoje o kit cita ASVS 5.0, NIST SSDF, OpenSSF, CWE e LGPD. Para ser referência em desenvolvimento seguro com IA, vale avaliar acrescentar, uma a uma, com leitura da fonte oficial e mapeamento por ID (sem copiar texto):
+
+| Candidato | Para que serviria | Situação |
+|---|---|---|
+| AI-DLC (AWS) | Estrutura de fases (ideação, inception, construction, operação) do ciclo com IA; o LASTRO pode mapear seus controles e portões por fase | A avaliar; o servidor MCP dele já roda no Kiro |
+| OWASP SAMM | Medir a maturidade do **processo** de segurança da organização, que complementa a maturidade da aplicação | A avaliar |
+| OWASP Top 10 for LLM Applications 2025 | Risco de aplicações que usam LLM (injeção de prompt, vazamento de prompt do sistema, agência excessiva) | A avaliar; hoje só o pacote `agent` toca o tema |
+| OWASP Top 10 for Agentic Applications (2026) e MITRE ATLAS | Ameaças a agentes, para o pacote `agent` e o modelo de ameaças | A avaliar |
+| NIST AI RMF e perfil de IA generativa; ISO/IEC 42001 | Governança de IA; o relatório poderia dizer onde a aplicação está | A avaliar |
+| NIST SP 800-218A | Práticas de SSDF para IA generativa | Já lido parcialmente (PO.5.3) |
+| SLSA e OpenSSF Scorecard | Cadeia de suprimentos e integridade de build | A avaliar; o CORE-006 e o CORE-010 já tocam parte |
+| SBOM (CycloneDX ou SPDX) | Inventário de componentes por release | Já no roadmap ("Depois") |
+| Lei de IA da UE | Obrigações por categoria de risco | A avaliar com cuidado: é jurídico e o kit não dá parecer |
+
+Regra: cada framework entra com ID e link, registrado em `RESEARCH-REGISTER.md` com o quanto foi lido. "Alinhado a" nunca vira "em conformidade com". Nesta data, a lista acima veio de buscas na web e **ainda não foi conferida nas fontes oficiais**.
+
+### 5.10 Pipeline como produto
+
+O portão de CI existe (`lastro check`). Para uso em pipeline de verdade falta: uma GitHub Action reutilizável (com versão fixada por SHA), saída SARIF para o painel de segurança, comentário no PR com o que mudou desde o baseline, e o `lastro bench` (5.1) rodando no CI do próprio kit. Outros CIs (GitLab, Azure Pipelines) ficam depois.
 
 ## 6. Interface gráfica: vale a pena?
 

@@ -11,6 +11,7 @@ const { loadCatalog, validateCatalog, DEFAULT_CATALOG_DIR } = require('../src/ca
 const { registry } = require('../src/checks');
 const { formatReport, formatMarkdown, redactReport, validateRedactTerms, threatMarkdown } = require('../src/report');
 const TM = require('../src/threatmodel');
+const BENCH = require('../src/bench');
 const { analyzeGroup } = require('../src/group');
 const { buildPlaybook, formatPlaybookMarkdown, formatPlaybookHtml } = require('../src/playbook');
 const { formatGroupMarkdown, formatGroupHtml } = require('../src/group-report');
@@ -24,7 +25,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir', 'scope']);
+const VALUE_FLAGS = new Set(['manifest', 'root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir', 'scope']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -60,6 +61,11 @@ Uso:
                                              o que preparar, passos, o que conferir, evidência, o que fazer se
                                              falhar e o trecho pronto para registrar a atestação. Aceita --theme
                                              e --redact.
+  lastro bench [--manifest ARQ.json] [--only P-001,D-004] [--json] [--out ARQ.json]
+                                             mede o recall do kit contra o banco de falhas plantadas
+                                             (fixtures/planted): quantas falhas ele pega, quantas viram pergunta e
+                                             quantas perde, e os falsos positivos nas aplicações limpas. Sobe os
+                                             servidores de teste só em 127.0.0.1. Sai com 1 se algo piorar.
   lastro scope <auth|web|pii|realtime|uploads|assets|agent|core>
                                              só os controles de um assunto, com estado e o que fazer em cada um
   lastro adapter kiro [--write]              copia os arquivos de steering do Kiro para .kiro/steering do projeto
@@ -369,6 +375,26 @@ async function main(argv) {
       console.log(`Playbook gravado em ${outFile}`);
     } else console.log(text);
     return 0;
+  }
+
+  if (cmd === 'bench') {
+    // Só roda código do próprio kit (fixtures/planted ou um manifesto que você aponta). Nada vai à rede além de 127.0.0.1.
+    const only = flags.only && flags.only !== true ? String(flags.only).split(',').map((s) => s.trim()).filter(Boolean) : null;
+    const manifestFile = flags.manifest && flags.manifest !== true ? path.resolve(String(flags.manifest)) : BENCH.DEFAULT_MANIFEST;
+    let res;
+    try {
+      res = await BENCH.runBench({ manifestFile, only });
+    } catch (e) {
+      console.error(`bench: ${e.message}`);
+      return 3;
+    }
+    if (flags.out && flags.out !== true) {
+      const file = path.resolve(String(flags.out));
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${JSON.stringify(res, null, 2)}\n`);
+    }
+    console.log(flags.json ? JSON.stringify(res, null, 2) : BENCH.formatBench(res));
+    return res.summary.regressed > 0 ? 1 : 0;
   }
 
   if (cmd === 'scope') {

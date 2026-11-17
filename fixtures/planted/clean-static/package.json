@@ -1,0 +1,8 @@
+{
+  "name": "clean-static",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "LastroFixtureDep": "1.0.0"
+  }
+}

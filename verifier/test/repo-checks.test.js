@@ -247,6 +247,7 @@ const SQL_SEL = P('SEL', 'ECT * FR', 'OM users WHERE id = ');
 test('sql-concat: concatenação, template, f-string, %, format e PHP são achados de severidade alta', async () => {
   const casos = {
     'a.js': `db.query("${SQL_SEL}" + req.params.id);\n`,
+    'g.js': `const q = "${SQL_SEL}'" + req.query.name + "'";\n`,
     'b.ts': `db.query(\`${SQL_SEL}\${id}\`);\n`,
     'c.py': `cur.execute(f"${SQL_SEL}{uid}")\n`,
     'd.py': `cur.execute("${SQL_SEL}%s" % uid)\n`,
@@ -254,7 +255,7 @@ test('sql-concat: concatenação, template, f-string, %, format e PHP são achad
     'f.php': `$q = "${SQL_SEL}$id";\n`,
   };
   // Concatenação e % / format: alta. Interpolação (template, f-string, PHP): média, a menos que haja dado de requisição à vista.
-  const gravidade = { 'a.js': 'high', 'b.ts': 'medium', 'c.py': 'medium', 'd.py': 'high', 'e.py': 'high', 'f.php': 'medium' };
+  const gravidade = { 'a.js': 'high', 'g.js': 'high', 'b.ts': 'medium', 'c.py': 'medium', 'd.py': 'high', 'e.py': 'high', 'f.php': 'medium' };
   for (const [file, content] of Object.entries(casos)) {
     await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => {
       assert.equal(r.state, 'failed', file);
@@ -291,6 +292,7 @@ test('sql-concat: consulta parametrizada, tag de template, texto comum, SQL part
     'c.js': 'const msg = `Select a file from ${dir}`;\n',
     'd.js': `const q = "${SQL_SEL}$1" + " AND ativo = $2";\n`,
     'e.js': 'db.query("select * from users where id = " + id);\n',
+    'f.js': `const q = "${SQL_SEL}'ativo'" + " AND tipo = $2";\n`,
   };
   for (const [file, content] of Object.entries(ok)) {
     await withProject({ [file]: content }, 'repo.code.sql-concat', (r) => assert.equal(r.state, 'verified', `${file}: ${JSON.stringify(r.findings)}`));

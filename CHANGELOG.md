@@ -4,6 +4,14 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (efetividade medida)
+- `lastro bench` e o banco de falhas plantadas (`fixtures/planted/`): 35 falhas conhecidas (código, configuração, HTTP e lógica) e 23 gêmeas limpas, com servidores de teste que só sobem em `127.0.0.1`. Mede quantas falhas o kit detecta, quantas viram pergunta e quantas perde, e os falsos positivos. O resultado esperado de cada caso é a linha de base: piorar sai com 1 e quebra o `npm test`. Primeira medição: 29 de 29 em código, configuração e HTTP; 0 de 6 na lógica (as 6 viram pergunta); 0 falso positivo. Veja `docs/BENCH.md`.
+- Plano com a visão do kit como base do ciclo de desenvolvimento com IA (aplicação nova e existente), fase de desenho, pipeline e revisão dos frameworks de mercado, em `docs/ESTADO-E-PLANOS.md`.
+
+### Corrigido (achado pelo bench)
+- CORE-059 não pegava a concatenação clássica com a outra aspa dentro do texto SQL (`"... name = '" + nome + "'"`). Agora o texto fecha com a mesma aspa que abriu.
+- O próprio kit exclui `fixtures/planted/` do `lastro check` e do gitleaks.
+
 ### Corrigido (teste de ponta a ponta numa aplicação real)
 - Perfil, system.json e resultado do `npm audit` gravados no Windows (UTF-8 com BOM ou UTF-16) agora são lidos normalmente.
 - Dependências vulneráveis: um aviso herdado por outros pacotes conta uma vez só; dependência só de desenvolvimento tem probabilidade baixa e não vira risco crítico; CWE sem pilar mapeado não infla o impacto com dado pessoal; CVSS 0 é tratado como "não calculado". O relatório mostra onde o pacote entra (produção ou só desenvolvimento) e quem ele afeta.

@@ -2,3 +2,8 @@ title = "LASTRO gitleaks"
 
 [extend]
 useDefault = true
+
+# Os fixtures do banco de falhas plantadas contêm segredos falsos de propósito (fixtures/planted/README.md).
+[allowlist]
+description = "Banco de falhas plantadas (valores falsos, só para medir o recall do kit)"
+paths = ['''^fixtures/planted/''']

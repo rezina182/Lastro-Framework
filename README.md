@@ -26,6 +26,10 @@ Por isso o verificador segue regras simples:
 
 O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em aplicações reais), como usar no dia a dia e os próximos passos: [docs/ESTADO-E-PLANOS.md](docs/ESTADO-E-PLANOS.md).
 
+## Efetividade medida
+
+`lastro bench` roda o kit contra um banco de falhas plantadas, com gêmeas limpas, e mostra quantas ele detecta, quantas viram pergunta e quantas perde. Hoje ele detecta 29 de 29 falhas de código, configuração e HTTP. Nas 6 falhas de lógica, ele não detecta nenhuma: todas viram pergunta. Veja [docs/BENCH.md](docs/BENCH.md).
+
 ## Playbook dos testes manuais
 
 `lastro playbook --out playbook.html` gera o roteiro passo a passo de cada controle manual que ainda não tem prova: o que preparar, os passos, o que conferir, a evidência, o que fazer se falhar e o trecho pronto da atestação. Veja [docs/PLAYBOOK.md](docs/PLAYBOOK.md).
@@ -98,6 +102,7 @@ Regras de segurança do verificador:
 | Pasta | Conteúdo |
 |-------|----------|
 | `catalog/` | Pacotes, lições e controles em JSON |
+| `fixtures/planted/` | Banco de falhas plantadas do `lastro bench` (código vulnerável de propósito, nunca use como modelo) |
 | `verifier/` | Verificador, CLI e testes |
 | `docs/` | Princípios, adoção, perfil, modelo de ameaças, registro de pesquisa, roadmap |
 | `.kiro/steering/` | Regras do próprio projeto para o Kiro |
