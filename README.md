@@ -34,6 +34,10 @@ O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em apli
 
 `lastro check --url STAGING --auth --confirm-non-production` entra com duas contas de teste e prova acesso por objeto entre contas, CSRF e logout, e analisa o cookie do login. Só em staging ou local. Veja [docs/SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md).
 
+## Modo corrigir
+
+`lastro fix` mostra o que tem correção previsível. `lastro fix --write --allow-network --run-tests --pr-body ../pr.md` aplica numa branch nova, roda os testes e prepara a descrição do PR para o tech lead revisar. O kit nunca faz push, nunca abre PR e nunca mexe na branch atual. Veja [docs/CORRIGIR.md](docs/CORRIGIR.md).
+
 ## Playbook dos testes manuais
 
 `lastro playbook --out playbook.html` gera o roteiro passo a passo de cada controle manual que ainda não tem prova: o que preparar, os passos, o que conferir, a evidência, o que fazer se falhar e o trecho pronto da atestação. Veja [docs/PLAYBOOK.md](docs/PLAYBOOK.md).

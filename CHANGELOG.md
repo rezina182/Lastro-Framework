@@ -4,6 +4,10 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (modo corrigir)
+- `lastro fix`: correções determinísticas numa branch nova (`lastro/fix-...`), prontas para um PR que uma pessoa revisa. Sem `--write` só mostra o plano. Corrige Action por tag (CORE-006, troca pelo SHA do commit com a tag em comentário, com `--allow-network`), workflow sem `permissions` (CORE-010) e SECURITY.md ausente (CORE-011, modelo com campos `LASTRO-PREENCHER`). Recusa árvore suja, nunca mexe na branch atual, nunca faz push nem abre PR, e só commita com `--commit` e autor informado. `--run-tests` roda os testes do projeto e desfaz tudo se falharem. `--pr-body` grava, fora do repositório, a descrição do PR com o que muda, a validação, as atenções do revisor e um checklist. Veja `docs/CORRIGIR.md`.
+- CORE-011 recusa SECURITY.md que ainda tenha o marcador `LASTRO-PREENCHER`: modelo em branco não é canal de reporte.
+
 ### Adicionado (sondas autenticadas)
 - `lastro check --auth`: entra com duas contas de teste e prova o acesso por objeto entre contas e sem login (AUTH-027), o CSRF (WEB-013) e o logout que encerra a sessão (AUTH-023), e passa o cookie do login pela análise de cookies (AUTH-003). Só com `--url` e `--confirm-non-production`, recusada contra `urls.production`. O perfil ganha o bloco opcional `authProbes`, que guarda só os nomes das variáveis de ambiente das contas, nunca a senha. Achar a falha vale mais que uma atestação e o controle falha; passar não verifica o controle (só vira nota), e dúvida vira "inconclusivo". Veja `docs/SONDAS-AUTENTICADAS.md`.
 - No banco de falhas: servidores com login e sessão, 4 falhas de lógica em execução (todas detectadas) e 3 gêmeas limpas. Recall geral: 33 de 37; 0 falso positivo em 26 controles limpos.

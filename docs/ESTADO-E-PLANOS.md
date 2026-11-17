@@ -168,6 +168,12 @@ Configuração opcional de **contas de teste** no perfil (nunca reais, só stagi
 
 ### 5.3 Correção automática com permissão (modo "corrigir")
 
+**Feito (primeira etapa):** `lastro fix` corrige CORE-006, CORE-010 e CORE-011 numa branch nova, roda os testes do projeto se você pedir (e desfaz tudo se falharem), re-verifica e grava a descrição do PR para o revisor. Nunca faz push nem abre PR. Veja [CORRIGIR.md](CORRIGIR.md).
+
+**Uso planejado pelo AppSec:** rodar o kit num repositório, gerar a branch e a descrição, e abrir o PR para o tech lead aprovar. Assim a correção chega como proposta pronta, e não como lista de problemas. Para isso falta: perfil automático para repositório sem `.lastro/`, mais correções (CODEOWNERS, dependências, modelo de ameaças) e abrir o PR pela CLI do GitHub só depois da confirmação da pessoa.
+
+Plano original, mantido para referência:
+
 Para achados com correção determinística, o kit gera a mudança numa **branch própria**, roda os testes do projeto e só então pede ao desenvolvedor para abrir o PR:
 
 | Achado | Correção gerada |

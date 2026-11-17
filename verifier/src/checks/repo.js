@@ -10,6 +10,7 @@ const { hasPrefix, parseDate, readJson } = require('../util');
 const { isTestPath } = require('../engineering');
 const schema = require('../schema');
 const { evaluateFile: evaluateThreatFile } = require('../threatmodel');
+const { MARKER: SECURITY_MARKER } = require('../fix/security-md');
 
 const TM_FILE = '.lastro/threat-model.json';
 
@@ -215,6 +216,9 @@ function securityMd(ctx) {
     return failed([{ severity: 'medium', key: 'no-security-md', message: 'SECURITY.md ausente: não há canal público para reportar vulnerabilidades.' }]);
   }
   const t = ctx.read(f) || '';
+  if (t.includes(SECURITY_MARKER)) {
+    return failed([{ severity: 'medium', key: 'placeholder-security-md', location: f, message: `${f} ainda tem campos a preencher (${SECURITY_MARKER}): um modelo em branco não é um canal para reportar vulnerabilidades.` }]);
+  }
   if (t.trim().length < 200 || !/(contato|contact|report|reportar|e-?mail|advisor|vulnerabilidade)/i.test(t)) {
     return failed([{ severity: 'medium', key: 'weak-security-md', location: f, message: `${f} existe, mas não descreve como reportar uma vulnerabilidade.` }]);
   }

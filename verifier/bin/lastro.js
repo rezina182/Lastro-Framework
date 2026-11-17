@@ -25,7 +25,7 @@ const { nowIso } = require('../src/util');
 
 const asvsLib = require('../src/asvs');
 
-const VALUE_FLAGS = new Set(['manifest', 'root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir', 'scope']);
+const VALUE_FLAGS = new Set(['test-cmd', 'branch', 'commit-name', 'commit-email', 'pr-body', 'manifest', 'root', 'url', 'out', 'only', 'csv', 'level', 'delay', 'format', 'theme', 'redact', 'audit-file', 'name', 'repos', 'match', 'system', 'write-system', 'out-dir', 'scope']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -61,6 +61,14 @@ Uso:
                                              o que preparar, passos, o que conferir, evidência, o que fazer se
                                              falhar e o trecho pronto para registrar a atestação. Aceita --theme
                                              e --redact.
+  lastro fix [--root DIR] [--only CORE-006,CORE-010,CORE-011] [--write] [--allow-network] [--run-tests]
+             [--test-cmd "npm test"] [--branch lastro/nome] [--commit --commit-name N --commit-email E] [--pr-body ARQ.md]
+                                             correções determinísticas numa BRANCH nova, para um PR que uma pessoa revisa.
+                                             Sem --write só mostra o plano. Corrige: Actions por tag (CORE-006, com
+                                             --allow-network), workflow sem permissions (CORE-010) e SECURITY.md ausente
+                                             (CORE-011, modelo a preencher). Nunca faz push, nunca abre PR e nunca
+                                             mexe na branch atual. --run-tests executa o código do repositório (npm test);
+                                             se falhar, tudo é desfeito. --pr-body grava a descrição do PR (fora do repo).
   lastro bench [--manifest ARQ.json] [--only P-001,D-004] [--json] [--out ARQ.json]
                                              mede o recall do kit contra o banco de falhas plantadas
                                              (fixtures/planted): quantas falhas ele pega, quantas viram pergunta e
@@ -379,6 +387,47 @@ async function main(argv) {
       console.log(`Playbook gravado em ${outFile}`);
     } else console.log(text);
     return 0;
+  }
+
+  if (cmd === 'fix') {
+    const { runFix, FixError } = require('../src/fix');
+    const { FIXABLE } = require('../src/fix/plan');
+    const { formatResult, formatPrBody } = require('../src/fix/format');
+    const { makeGitResolver } = require('../src/fix/resolve');
+    const str = (k) => (flags[k] && flags[k] !== true ? String(flags[k]) : null);
+    const only = str('only') ? str('only').split(',').map((s) => s.trim()).filter(Boolean) : null;
+    const unknown = (only || []).filter((id) => !FIXABLE.includes(id));
+    if (unknown.length) { console.error(`Sem correção automática para: ${unknown.join(', ')}. Corrigíveis: ${FIXABLE.join(', ')}.`); return 3; }
+    if ((flags['run-tests'] || str('test-cmd')) && !flags.write) { console.error('--run-tests e --test-cmd só valem com --write.'); return 3; }
+    if (str('test-cmd') && !flags['run-tests']) { console.error('--test-cmd exige --run-tests.'); return 3; }
+    let commit = null;
+    if (flags.commit) {
+      if (!flags.write) { console.error('--commit só vale com --write.'); return 3; }
+      if (!str('commit-name') || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/.test(str('commit-email') || '')) { console.error('--commit exige --commit-name e --commit-email válidos (o git do repositório não é alterado).'); return 3; }
+      commit = { name: str('commit-name'), email: str('commit-email') };
+    }
+    let prFile = null;
+    if (str('pr-body')) {
+      prFile = path.resolve(str('pr-body'));
+      const rel = path.relative(root, prFile);
+      if (!rel.startsWith('..') && !path.isAbsolute(rel)) { console.error('--pr-body deve apontar para fora do repositório: a descrição do PR não deve ir para dentro dele.'); return 3; }
+    }
+    if (flags['allow-network']) console.error('AVISO: --allow-network consulta o github.com (git ls-remote, repositórios públicos) para achar o SHA de cada tag de Action.');
+    if (flags['run-tests']) console.error('AVISO: --run-tests EXECUTA o código deste repositório (o script de teste dele). Use só em repositório em que você confia.');
+    let res;
+    try {
+      res = await runFix({ root, write: !!flags.write, only, allowNetwork: !!flags['allow-network'], resolve: flags['allow-network'] ? makeGitResolver() : null, runTests: !!flags['run-tests'], testCmd: str('test-cmd'), branch: str('branch'), commit });
+    } catch (e) {
+      if (e instanceof FixError || e instanceof ConfigError) { console.error(e.message); return 3; }
+      throw e;
+    }
+    console.log(formatResult(res));
+    if (prFile) {
+      fs.mkdirSync(path.dirname(prFile), { recursive: true });
+      fs.writeFileSync(prFile, formatPrBody(res));
+      console.log(`Descrição do PR gravada em ${prFile}. Abrir o PR é uma decisão sua: o LASTRO não faz push nem abre PR.`);
+    }
+    return res.rolledBack ? 1 : 0;
   }
 
   if (cmd === 'bench') {
