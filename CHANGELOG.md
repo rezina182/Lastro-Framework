@@ -7,6 +7,7 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 ### Adicionado (nota de 0 a 10, escopos e a história dos resultados)
 - Nota de 0 a 10 (`score.method` `v2`): postura (do que foi decidido, quanto passou), cobertura (quanto do peso tem prova) e nota geral (média das duas), com teto de 6 quando há bloqueante e de 4 quando há bloqueante crítico. Faixas: Inicial, Em evolução, Bom, Forte e Exemplar. Também por pacote e por fase, sem teto. Aparece no texto, no Markdown, no HTML, no portal e no histórico (campo `grade`, opcional para registros antigos). O nível de 0 a 4 continua valendo para a meta. Veja `docs/SCORE.md`.
 - Relatório (HTML e Markdown) e portal abrem com "Em resumo": já foi feito, precisa de atenção, o que fazer agora e o que alguém precisa decidir, montados só com o que o relatório já tem (`verifier/src/story.js`).
+- A história não acusa piora quando a execução anterior rodou as sondas HTTP e esta não: esses controles vão para um aviso próprio, e o card de diferença do portal avisa. "O que fazer agora" usa o motivo do achado bloqueante em vez do texto genérico do catálogo. Achado no teste do portal do App B.
 - Portal com duas páginas novas: `escopos.html` (o que já está implementado em cada escopo, como foi provado e o próximo passo) e `decisoes.html` (registro de atestações, riscos aceitos, revisão e decisões de ameaças, com vencimentos, e as decisões pendentes). Veja `docs/PORTAL.md`.
 
 ### Alterado (arquitetura e modelo de ameaças vivo)

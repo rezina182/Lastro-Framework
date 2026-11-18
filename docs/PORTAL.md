@@ -48,7 +48,9 @@ O relatório (HTML e Markdown) e o portal abrem com a mesma narrativa, montada s
 | **O que fazer agora** | Cada bloqueante com a correção; aviso quando `lastro fix` resolve; os controles altos e críticos sem prova (playbook); o próximo passo da maturidade |
 | **O que alguém precisa decidir** | Revisar o modelo de ameaças; ameaças sem decisão; aceitações que vencem; dívida no baseline; aceitar ou corrigir bloqueantes; a meta de maturidade |
 
-Cada lista mostra até oito itens e diz quantos ficaram de fora. A narrativa não cria prova nem muda estado: se um controle não tem evidência, ele aparece como "falta provar", mesmo que o código pareça certo.
+Cada lista mostra até oito itens e diz quantos ficaram de fora.
+
+Comparar execuções de tipos diferentes engana. Se a anterior rodou as sondas HTTP (`--url`) e esta não, o que virou "sem prova" não piorou, só não foi medido agora. Esses controles aparecem num aviso próprio, e não em "Pioraram", e o card de diferença avisa a troca. Para acompanhar a evolução, grave o histórico sempre com o mesmo tipo de execução (por exemplo, o job agendado com `--url` em staging). Em "O que fazer agora", cada bloqueante traz o motivo concreto do achado (por exemplo, "o modelo de ameaças é um rascunho"); o texto genérico do catálogo só entra quando o achado não diz nada. A narrativa não cria prova nem muda estado: se um controle não tem evidência, ele aparece como "falta provar", mesmo que o código pareça certo.
 
 ## No CI
 

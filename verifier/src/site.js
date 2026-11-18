@@ -132,7 +132,9 @@ function riskCell(t) {
 function indexPage({ report, history, current, tickets, now, theme }) {
   const s = report.score;
   const prev = history.length ? history[history.length - 1] : null;
-  const delta = (a, b) => (b === null || b === undefined ? '' : ` (${a - b >= 0 ? '+' : ''}${String(Math.round((a - b) * 10) / 10).replace('.', ',')} ponto(s) desde o último registro)`);
+  // Comparar uma execução estática com uma que rodou as sondas HTTP mistura medidas diferentes: o card avisa.
+  const kindNote = prev && prev.http && !current.http ? '; a anterior rodou as sondas HTTP e esta não' : '';
+  const delta = (a, b) => (b === null || b === undefined ? '' : ` (${a - b >= 0 ? '+' : ''}${String(Math.round((a - b) * 10) / 10).replace('.', ',')} ponto(s) desde o último registro${kindNote})`);
   const sections = [];
 
   const story = ST.buildStory(report, { history, current, now });
@@ -141,7 +143,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   sections.push('<div class="cards">');
   if (s.grades) {
     const prevGrade = prev && Number.isFinite(prev.grade) && prev.generatedAt !== current.generatedAt ? prev.grade : null;
-    const gd = prevGrade === null ? '' : ` (${s.grade - prevGrade >= 0 ? '+' : ''}${gradeText(Math.round((s.grade - prevGrade) * 10) / 10)} desde o último registro)`;
+    const gd = prevGrade === null ? '' : ` (${s.grade - prevGrade >= 0 ? '+' : ''}${gradeText(Math.round((s.grade - prevGrade) * 10) / 10)} desde o último registro${kindNote})`;
     sections.push(card('Nota geral', `${h(gradeText(s.grade))} de 10`, `${s.gradeBand}; postura ${gradeText(s.grades.posture)}, cobertura ${gradeText(s.grades.coverage)}${gd}`));
   }
   sections.push(card('Portão de CI', h(VERDICT_PT[report.verdict]), `${num(report.summary.blocking)} achado(s) bloqueante(s)`));

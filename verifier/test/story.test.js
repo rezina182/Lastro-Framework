@@ -97,3 +97,21 @@ test('decisões: atestações, riscos aceitos e decisões de ameaças, com aviso
   assert.ok(st.decide.some((x) => /Revisar o modelo de ameaças/.test(x)));
   assert.ok(st.decide.some((x) => /aceitação de TM-S-web \(Fulana\) vence em 12 dia\(s\)/.test(x)));
 });
+
+test('história: sem prova só porque as sondas HTTP não rodaram desta vez não é piora', () => {
+  const r = report(CONTROLS());
+  const current = { generatedAt: '2026-11-17T12:00:00.000Z', http: false, grade: r.score.grade, catalog: '1.0.0', controls: Object.fromEntries(r.controls.map((c) => [c.id, c.state])) };
+  const before = { ...current, generatedAt: '2026-11-10T12:00:00.000Z', http: true, controls: { ...current.controls, 'WEB-003': 'verified', 'CORE-006': 'verified' } };
+  const st = buildStory(r, { history: [before], current, now: NOW });
+  assert.ok(st.attention.some((x) => /^1 controle\(s\) ficaram sem prova só porque esta execução não rodou as sondas HTTP e a anterior rodou \(WEB-003\)/.test(x)));
+  assert.ok(st.attention.some((x) => x === 'Pioraram desde o registro anterior: CORE-006 (verificado para falhando).'), 'falhar continua sendo piora');
+  const igual = buildStory(r, { history: [{ ...before, http: false }], current, now: NOW });
+  assert.ok(igual.attention.some((x) => /Pioraram desde o registro anterior: CORE-006 \(verificado para falhando\), WEB-003/.test(x)), 'execuções do mesmo tipo: piora é piora');
+});
+
+test('história: o que fazer com um bloqueante usa o motivo do achado, não só o texto genérico do catálogo', () => {
+  const cs = CONTROLS();
+  cs[1] = { ...cs[1], findings: [{ severity: 'high', blocking: true, message: 'O modelo de ameaças é um rascunho: ninguém o revisou.' }] };
+  const st = buildStory(report(cs), { now: NOW });
+  assert.ok(st.todo.includes('Corrigir CORE-006 (Controle CORE-006): O modelo de ameaças é um rascunho: ninguém o revisou.'));
+});

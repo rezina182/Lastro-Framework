@@ -108,7 +108,12 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
   if (before && current && Number.isFinite(current.grade) && Number.isFinite(before.grade) && current.grade > before.grade) done.push(`A nota subiu de ${gradeText(before.grade)} para ${gradeText(current.grade)}.`);
 
   const attention = [];
-  if (d.worsened.length) attention.push(`Pioraram desde o registro anterior: ${d.worsened.map((x) => `${x.id} (${STATE_PT[x.from]} para ${STATE_PT[x.to]})`).join(', ')}.`);
+  // Se a execução anterior rodou as sondas HTTP e esta não, o que virou "sem prova" não piorou: só não foi medido agora.
+  const lostHttp = !!(before && current && before.http && !current.http);
+  const notMeasured = lostHttp ? d.worsened.filter((x) => x.to === 'unverified') : [];
+  const worsened = d.worsened.filter((x) => !notMeasured.includes(x));
+  if (worsened.length) attention.push(`Pioraram desde o registro anterior: ${worsened.map((x) => `${x.id} (${STATE_PT[x.from]} para ${STATE_PT[x.to]})`).join(', ')}.`);
+  if (notMeasured.length) attention.push(`${notMeasured.length} controle(s) ficaram sem prova só porque esta execução não rodou as sondas HTTP e a anterior rodou (${notMeasured.slice(0, 6).map((x) => x.id).join(', ')}${notMeasured.length > 6 ? '...' : ''}). Não é piora da aplicação: compare execuções do mesmo tipo.`);
   const failingNonBlocking = ctl.filter((c) => c.state === 'failed' && !c.findings.some((f) => f.blocking)).sort(bySev);
   if (failingNonBlocking.length) attention.push(`Falhando sem bloquear o portão (gravidade menor, baseline ou risco aceito): ${failingNonBlocking.map((c) => c.id).join(', ')}.`);
   for (const c of attested) {
@@ -125,7 +130,11 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
 
   const todo = [];
   const blockers = ctl.filter((c) => c.findings.some((f) => f.blocking)).sort(bySev);
-  for (const c of blockers) todo.push(`Corrigir ${c.id} (${c.title}): ${String(c.remediation || 'ver o relatório').replace(/\.\s*$/, '')}.`);
+  // O motivo concreto vem do achado bloqueante; o texto genérico do catálogo só entra quando o achado não diz nada.
+  for (const c of blockers) {
+    const why = (c.findings.find((f) => f.blocking) || {}).message;
+    todo.push(`Corrigir ${c.id} (${c.title}): ${String(why || c.remediation || 'ver o relatório').replace(/\.\s*$/, '')}.`);
+  }
   if (blockers.length && blockers.some((c) => ['CORE-006', 'CORE-010', 'CORE-011'].includes(c.id))) todo.push('Parte disso é previsível: "lastro fix" prepara a correção num branch novo.');
   const openHigh = ctl.filter((c) => c.state === 'unverified' && (c.severity === 'critical' || c.severity === 'high') && !c.controlRiskAccepted).sort(bySev);
   if (openHigh.length) todo.push(`Provar os ${openHigh.length} controle(s) alto(s) ou crítico(s) sem prova, começando por ${openHigh.slice(0, 4).map((c) => c.id).join(', ')} (lastro playbook).`);
