@@ -137,6 +137,23 @@ p{margin:0 0 10px}
 .appmap .me{fill:none;stroke:var(--accent);stroke-opacity:.45;stroke-width:1.6}
 .appmap .me-data{stroke:var(--muted);stroke-opacity:.35}
 .appmap .me-bad{stroke:var(--bad-fill);stroke-opacity:.8;stroke-dasharray:6 4;stroke-width:2}
+.appmap .lane{fill:var(--surface-2);stroke:var(--border)}
+.appmap .lane-publico{fill:color-mix(in srgb,var(--info-fill) 5%,var(--surface))}
+.appmap .lane-admin{fill:color-mix(in srgb,var(--brand) 5%,var(--surface))}
+.appmap .me-hl{opacity:0}
+.appmap .grp{transition:opacity .15s}
+.appmap a{cursor:pointer}
+.appmap .grp:hover .me,.appmap .grp:focus-within .me{opacity:1;stroke-opacity:.95;stroke-width:2.6}
+.appmap .grp:hover rect,.appmap .grp:focus-within rect{stroke-width:3}
+.appmap:has(.grp:hover) .grp:not(:hover),.appmap:has(.grp:focus-within) .grp:not(:focus-within){opacity:.16}
+.appmap a:focus{outline:none}.appmap a:focus rect{stroke:var(--accent);stroke-width:3}
+.area-card:target{outline:3px solid var(--highlight);outline-offset:3px}
+details.routes{margin-top:12px;border-radius:8px;padding:0 10px}
+details.routes summary{padding:6px 0;font-size:.88rem}
+details.routes ul{list-style:none;padding:0;margin:0 0 8px}
+details.routes li{font-size:.84rem;margin:4px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+details.routes li span{color:var(--muted)}
+details.routes li.r-nao-vista span{color:var(--bad);font-weight:700}
 .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
 .why-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
 .why-card.w-bad{border-left-color:var(--bad-fill)}.why-card.w-warn{border-left-color:var(--warn-fill)}

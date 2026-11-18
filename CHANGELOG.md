@@ -5,6 +5,7 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 ## [0.1.0] - não publicado
 
 ### Adicionado (mapa da aplicação)
+- O mapa é organizado em faixas por quem usa, com os dados na ordem que cruza menos linhas. Sem script: o hover (ou o foco) destaca só as ligações de uma área, de um dado ou de quem usa; o balão lista as rotas; o clique numa área abre o cartão com todas as rotas dela.
 - Página nova `mapa.html` e o mesmo mapa no fim da visão geral: um mapa conceitual em SVG estático (quem usa, áreas da aplicação, dados guardados e serviços externos), cada área em linguagem simples e a tabela "Se eu mudar um dado, o que é afetado". Feito para produto, negócio e quem não é técnico. O portal tem oito páginas.
 - A descoberta monta o mapa (`discovery.map`): áreas pelo prefixo das rotas, ações (consultar, criar, alterar, apagar), quem pode usar e os dados que o código de cada área toca (indício pelo nome da tabela ou do modelo).
 

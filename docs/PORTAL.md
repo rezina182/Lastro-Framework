@@ -39,11 +39,17 @@ Até cinco cartões numerados, na ordem: corrigir o que bloqueia o portão (quem
 
 ### O mapa da aplicação
 
-Um mapa conceitual em três colunas, desenhado a partir do código, para quem precisa entender a aplicação sem ler o código:
+Um mapa conceitual desenhado a partir do código, para quem precisa entender a aplicação sem ler o código. As áreas ficam em **faixas por quem as usa** (visitante sem conta, pessoa logada, administração), e os dados à direita, na ordem que cruza menos linhas:
 
-- **Quem usa:** visitante sem conta, pessoa logada e administração. Uma linha tracejada vermelha liga o visitante a cada área que tem ação sem autenticação vista: é por ali que qualquer pessoa entra.
+- **Quem usa:** uma faixa para cada tipo de pessoa. O visitante aparece sempre que alguma área tem ação sem autenticação vista, ligado a ela por uma linha tracejada vermelha: é por ali que qualquer pessoa entra.
 - **Áreas da aplicação:** os grupos de rotas (`/api/contas`, `/api/admin`...), com a cor de quem pode usar (verde exige login, azul é pública, vermelho tem ação sem autenticação vista).
-- **Dados guardados:** as tabelas das migrações SQL e os modelos do Prisma, em destaque quando guardam dado pessoal, e os serviços externos que o código chama.
+- **Dados guardados:** as tabelas das migrações SQL e os modelos do Prisma, em destaque quando guardam dado pessoal, com quantas áreas usam cada um, e os serviços externos que o código chama.
+
+Sem script (a CSP do portal não permite), o mapa ainda responde ao leitor:
+
+- **Passar o mouse** (ou o foco do teclado) numa área, num dado ou em quem usa apaga o resto e destaca só as ligações dele.
+- **O balão** de cada área lista as rotas, com o método, o caminho e se exige login; o de cada dado lista as áreas que o usam.
+- **Clicar numa área** leva ao cartão dela, logo abaixo, com a lista completa das rotas. Na visão geral, o clique abre a página do mapa já no cartão.
 
 Abaixo do mapa, cada área em linguagem simples (o que dá para fazer: consultar, criar, alterar, apagar; quem usa; que dados toca) e a tabela **"Se eu mudar um dado, o que é afetado"**, com as áreas que usam cada dado. É a resposta para "onde uma funcionalidade nova pode ter impacto".
 

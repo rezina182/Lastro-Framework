@@ -165,8 +165,9 @@ function appMap(ctx, routes, prefixOf, tables) {
   for (const r of routes) {
     const full = `${prefixOf.get(r.file) || ''}${r.path}`.replace(/\/{2,}/g, '/') || '/';
     const key = moduleKey(full);
-    const a = areas.get(key) || { key, routes: 0, actions: {}, access: { protegida: 0, publica: 0, naoVista: 0 }, files: new Set() };
+    const a = areas.get(key) || { key, routes: 0, actions: {}, access: { protegida: 0, publica: 0, naoVista: 0 }, files: new Set(), list: [] };
     a.routes += 1;
+    a.list.push({ method: r.method, path: full.slice(0, 120), auth: PROTECTED.has(r.auth) ? 'protegida' : r.auth === 'publica-esperada' ? 'publica' : 'nao-vista' });
     const act = ACTION[r.method] || 'várias';
     a.actions[act] = (a.actions[act] || 0) + 1;
     if (PROTECTED.has(r.auth)) a.access.protegida += 1;
@@ -183,6 +184,7 @@ function appMap(ctx, routes, prefixOf, tables) {
       key: a.key, routes: a.routes, actions: a.actions, access: a.access, who,
       tables: res.filter((t) => t.re.test(text)).map((t) => t.name).slice(0, 8),
       files: [...a.files].slice(0, 4),
+      list: a.list.slice(0, 40),
     };
   });
   const byTable = tables.map((t) => ({ name: t.name, categories: t.categories, areas: list.filter((a) => a.tables.includes(t.name)).map((a) => a.key) }));

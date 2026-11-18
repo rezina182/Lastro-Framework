@@ -367,7 +367,8 @@ function overviewPage({ report, history, current, now, theme }) {
   if (d.map && d.map.areas.length) {
     sections.push('<section id="mapa" aria-labelledby="t-mapa"><h2 id="t-mapa">Mapa da aplicação</h2>');
     sections.push('<p>Quem usa a aplicação, por quais áreas entra e que dados cada área toca, lido do código. Vermelho é área com ação sem autenticação vista.</p>');
-    sections.push(`<div class="panel map-wrap">${mapSvg(d.map, d.externalHosts || [])}</div>`);
+    sections.push(`<div class="panel map-wrap">${mapSvg(d.map, d.externalHosts || [], { hrefBase: 'mapa.html' })}</div>`);
+    sections.push('<p class="why">Passe o mouse numa área ou num dado para ver só as ligações dele e as rotas; clique numa área para abrir o detalhe.</p>');
     sections.push('<p class="decide-link"><a href="mapa.html">Ver cada área e o impacto de uma mudança →</a></p></section>');
   }
 
@@ -402,44 +403,93 @@ function areaName(key) {
 const toneArea = (a) => (a.access.naoVista > 0 ? 'bad' : a.access.protegida === 0 ? 'info' : 'ok');
 const WHO = { publico: 'Visitante (sem conta)', logado: 'Pessoa logada', admin: 'Administração' };
 
-/** Mapa conceitual em SVG estático: quem usa -> áreas -> dados. Todo texto passa por h(); coordenadas por num(). */
-function mapSvg(map, external) {
-  const areas = map.areas;
+const slug = (key) => `area-${String(key).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'raiz'}`;
+const AUTH_PT = { protegida: 'exige login', publica: 'pública', 'nao-vista': 'sem autenticação vista' };
+const routeLine = (r) => `${r.method} ${r.path} (${AUTH_PT[r.auth] || r.auth})`;
+
+/**
+ * Mapa conceitual em SVG estático, organizado em faixas por quem usa (visitante, pessoa logada, administração).
+ * As áreas ficam na faixa de quem as usa e os dados à direita, na ordem que cruza menos linhas (baricentro).
+ * Sem script: passar o mouse (ou o foco do teclado) numa área ou num dado destaca só as ligações dele, o balão nativo
+ * (<title>) lista as rotas, e o clique leva ao detalhe da área (âncora). Texto com h(); coordenadas com num().
+ */
+function mapSvg(map, external, { hrefBase = '' } = {}) {
+  const LANES = [['publico', 'Visitante (sem conta)', 'qualquer pessoa na internet'], ['logado', 'Pessoa logada', 'quem tem conta'], ['admin', 'Administração', 'quem administra o sistema']];
   const used = new Map();
-  for (const a of areas) for (const t of a.tables) used.set(t, (used.get(t) || 0) + 1);
-  const tables = map.tables.filter((t) => used.has(t.name)).sort((x, y) => used.get(y.name) - used.get(x.name) || x.name.localeCompare(y.name)).slice(0, 14);
-  const actors = ['publico', 'logado', 'admin'].filter((w) => areas.some((a) => a.who === w || (w === 'publico' && a.access.naoVista > 0)));
-  const ROW = 56;
-  const rows = Math.max(areas.length, tables.length + (external.length ? 2 : 0), actors.length * 2, 3);
-  const H = 70 + rows * ROW;
-  const W = 1120;
-  const X = { actor: 20, area: 360, data: 800 };
-  const BW = { actor: 210, area: 300, data: 290 };
-  const yOf = (i, n) => 60 + ((rows * ROW) / Math.max(n, 1)) * (i + 0.5) - 20;
-  const ay = new Map(actors.map((w, i) => [w, yOf(i, actors.length)]));
-  const ry = new Map(areas.map((a, i) => [a.key, 60 + i * ROW]));
-  const ty = new Map(tables.map((t, i) => [t.name, 60 + i * ROW]));
-  const curve = (x1, y1, x2, y2, cls) => `<path class="${cls}" d="M${num(x1.toFixed(0))},${num(y1.toFixed(0))} C${num(((x1 + x2) / 2).toFixed(0))},${num(y1.toFixed(0))} ${num(((x1 + x2) / 2).toFixed(0))},${num(y2.toFixed(0))} ${num(x2.toFixed(0))},${num(y2.toFixed(0))}"/>`; // lastro-ignore xss-sinks: cls vem de constantes; números por num()
-  const box = (x, y, w, title, sub, cls) => `<g class="${cls}"><rect x="${num(x)}" y="${num(y.toFixed(0))}" width="${num(w)}" height="40" rx="9"/><text x="${num(x + 12)}" y="${num((y + 17).toFixed(0))}" class="mt">${h(clip(title, 34))}</text><text x="${num(x + 12)}" y="${num((y + 32).toFixed(0))}" class="ms">${h(clip(sub, 44))}</text></g>`; // lastro-ignore xss-sinks: textos com h(), números com num(), cls de constantes
-  const edges = [];
-  for (const a of areas) {
-    const y2 = ry.get(a.key) + 20;
-    if (ay.has(a.who)) edges.push(curve(X.actor + BW.actor, ay.get(a.who) + 20, X.area, y2, 'me'));
-    if (a.access.naoVista > 0 && a.who !== 'publico' && ay.has('publico')) edges.push(curve(X.actor + BW.actor, ay.get('publico') + 20, X.area, y2, 'me me-bad'));
-    for (const t of a.tables) if (ty.has(t)) edges.push(curve(X.area + BW.area, y2, X.data, ty.get(t) + 20, 'me me-data'));
+  for (const a of map.areas) for (const t of a.tables) used.set(t, (used.get(t) || 0) + 1);
+  let tables = map.tables.filter((t) => used.has(t.name)).sort((x, y) => used.get(y.name) - used.get(x.name) || x.name.localeCompare(y.name)).slice(0, 16);
+  // O visitante aparece mesmo sem área pública quando alguma área tem ação sem autenticação vista: é ele quem entra.
+  const exposed = map.areas.some((a) => a.access.naoVista > 0);
+  const lanes = LANES.map(([id, title, sub]) => ({ id, title, sub, areas: map.areas.filter((a) => a.who === id) })).filter((l) => l.areas.length || (l.id === 'publico' && exposed));
+  // Ordem que cruza menos linhas: dados pela média da posição das áreas que os usam, e as áreas (dentro da faixa)
+  // pela média da posição dos seus dados. Duas passadas bastam para um desenho legível.
+  const order = () => lanes.flatMap((l) => l.areas);
+  for (let pass = 0; pass < 2; pass += 1) {
+    const pos = new Map(order().map((a, i) => [a.key, i]));
+    const bary = (t) => { const xs = map.areas.filter((a) => a.tables.includes(t.name) && pos.has(a.key)).map((a) => pos.get(a.key)); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 1e9; };
+    tables = [...tables].sort((x, y) => bary(x) - bary(y) || x.name.localeCompare(y.name));
+    const tpos = new Map(tables.map((t, i) => [t.name, i]));
+    const abary = (a) => { const xs = a.tables.filter((t) => tpos.has(t)).map((t) => tpos.get(t)); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 1e9; };
+    for (const l of lanes) l.areas = [...l.areas].sort((x, y) => abary(x) - abary(y) || x.key.localeCompare(y.key));
   }
-  const nodes = [
-    ...actors.map((w) => box(X.actor, ay.get(w), BW.actor, WHO[w], w === 'publico' ? 'qualquer pessoa na internet' : w === 'admin' ? 'quem administra o sistema' : 'quem tem conta', 'mn mn-actor')),
-    ...areas.map((a) => box(X.area, ry.get(a.key), BW.area, areaName(a.key), `${a.routes} ação(ões) · ${a.key}`, `mn mn-${toneArea(a)}`)),
-    ...tables.map((t) => box(X.data, ty.get(t.name), BW.data, t.name, t.categories.filter((c) => PERSONAL.has(c)).map((c) => CAT_NAME[c]).join(', ') || 'dado da aplicação', `mn ${t.categories.some((c) => PERSONAL.has(c)) ? 'mn-personal' : 'mn-data'}`)),
-  ];
-  if (external.length) nodes.push(box(X.data, 60 + tables.length * ROW + 10, BW.data, 'Serviços externos', external.slice(0, 3).join(', '), 'mn mn-ext'));
-  const heads = [['Quem usa', X.actor], ['Áreas da aplicação', X.area], ['Dados guardados', X.data]].map(([t, x]) => `<text x="${num(x)}" y="30" class="mh">${h(t)}</text>`); // lastro-ignore xss-sinks: rótulos fixos com h()
+  const ROW = 50;
+  const GAP = 26;
+  const TOP = 56;
+  const W = 1120;
+  const X = { lane: 10, actor: 26, area: 330, data: 800 };
+  const BW = { actor: 210, area: 300, data: 290 };
+  // Faixas: altura pelo número de áreas; cada área numa linha. Os dados ocupam a altura toda, espaçados por igual.
+  const yA = new Map();
+  let y = TOP;
+  for (const l of lanes) { l.y = y; l.h = Math.max(l.areas.length * ROW, ROW) + 16; l.areas.forEach((a, i) => yA.set(a.key, y + 8 + i * ROW)); y += l.h + GAP; }
+  const areasH = y - GAP - TOP;
+  const dataRows = tables.length + (external.length ? 1 : 0);
+  const H = Math.max(TOP + areasH, TOP + dataRows * ROW) + 24;
+  const step = dataRows ? Math.max(ROW, (H - TOP - 24) / dataRows) : ROW;
+  const ty = new Map(tables.map((t, i) => [t.name, TOP + i * step]));
+  const N = (v) => num(Number(v).toFixed(0));
+  const curve = (x1, y1, x2, y2, cls) => `<path class="${cls}" d="M${N(x1)},${N(y1)} C${N((x1 + x2) / 2)},${N(y1)} ${N((x1 + x2) / 2)},${N(y2)} ${N(x2)},${N(y2)}"/>`; // lastro-ignore xss-sinks: cls de constantes; números com num()
+  const node = (x, yy, w, title, sub, cls, tip, href) => {
+    const inner = `<title>${h(tip)}</title><rect x="${N(x)}" y="${N(yy)}" width="${N(w)}" height="38" rx="9"/><text x="${N(x + 12)}" y="${N(yy + 16)}" class="mt">${h(clip(title, 34))}</text><text x="${N(x + 12)}" y="${N(yy + 31)}" class="ms">${h(clip(sub, 46))}</text>`; // lastro-ignore xss-sinks: textos com h(), números com num()
+    return `<g class="${cls}">${href ? `<a href="${h(href)}">${inner}</a>` : inner}</g>`; // lastro-ignore xss-sinks: cls de constantes; href montado pelo gerador (âncora do portal) e escapado com h()
+  };
+  const visitor = lanes.find((l) => l.id === 'publico');
+  const actorY = (l) => l.y + l.h / 2 - 19;
+  const out = [];
+  for (const l of lanes) out.push(`<rect class="lane lane-${h(l.id)}" x="${N(X.lane)}" y="${N(l.y)}" width="${N(X.area + BW.area + 14 - X.lane)}" height="${N(l.h)}" rx="12"/>`); // lastro-ignore xss-sinks: id de lista fixa, escapado com h()
+  out.push(...[['Quem usa', X.actor], ['Áreas da aplicação', X.area], ['Dados guardados', X.data]].map(([t, x]) => `<text x="${N(x)}" y="30" class="mh">${h(t)}</text>`)); // lastro-ignore xss-sinks: rótulos fixos com h()
+  // Cada área é um grupo com as suas ligações: o destaque no hover vale para o grupo inteiro.
+  for (const l of lanes) {
+    for (const a of l.areas) {
+      const ya = yA.get(a.key) + 19;
+      const edges = [curve(X.actor + BW.actor, actorY(l) + 19, X.area, ya, 'me')];
+      if (a.access.naoVista > 0 && l.id !== 'publico') edges.push(curve(X.actor + BW.actor, (visitor ? actorY(visitor) : TOP) + 19, X.area, ya, 'me me-bad'));
+      for (const t of a.tables) if (ty.has(t)) edges.push(curve(X.area + BW.area, ya, X.data, ty.get(t) + 19, 'me me-data'));
+      const tip = [`${areaName(a.key)} (${a.key}): ${a.routes} rota(s)`, ...a.list.slice(0, 14).map(routeLine), ...(a.list.length > 14 ? [`e mais ${a.list.length - 14}`] : []), a.tables.length ? `Dados: ${a.tables.join(', ')}` : '', 'Clique para ver o detalhe.'].filter(Boolean).join('\n');
+      out.push(`<g class="grp">${edges.join('')}${node(X.area, yA.get(a.key), BW.area, areaName(a.key), `${a.routes} rota(s) · ${a.key}`, `mn mn-${toneArea(a)}`, tip, `${hrefBase}#${slug(a.key)}`)}</g>`); // lastro-ignore xss-sinks: partes montadas acima com h() e num()
+    }
+  }
+  // Atores: o grupo traz as ligações para as áreas da faixa (e, no visitante, as tracejadas das áreas sem autenticação vista).
+  for (const l of lanes) {
+    const reach = l.id === 'publico' ? map.areas.filter((a) => a.who === 'publico' || a.access.naoVista > 0) : l.areas;
+    const edges = reach.map((a) => curve(X.actor + BW.actor, actorY(l) + 19, X.area, yA.get(a.key) + 19, a.who === l.id ? 'me me-hl' : 'me me-bad me-hl'));
+    const tip = `${l.title}: ${reach.map((a) => areaName(a.key)).join(', ')}`;
+    out.push(`<g class="grp grp-actor">${edges.join('')}${node(X.actor, actorY(l), BW.actor, l.title, `${l.sub} · ${l.areas.length} área(s)`, 'mn mn-actor', tip, null)}</g>`); // lastro-ignore xss-sinks: partes montadas com h() e num()
+  }
+  // Dados: o grupo repete as ligações das áreas que os usam, visíveis só no destaque.
+  for (const t of tables) {
+    const users = map.areas.filter((a) => a.tables.includes(t.name));
+    const edges = users.map((a) => curve(X.area + BW.area, yA.get(a.key) + 19, X.data, ty.get(t.name) + 19, 'me me-data me-hl'));
+    const personal = t.categories.filter((c) => PERSONAL.has(c)).map((c) => CAT_NAME[c]);
+    const tip = `${t.name}${personal.length ? ` (dado pessoal: ${personal.join(', ')})` : ''}\nUsado por: ${users.map((a) => areaName(a.key)).join(', ')}`;
+    out.push(`<g class="grp grp-data">${edges.join('')}${node(X.data, ty.get(t.name), BW.data, t.name, personal.join(', ') || `usado por ${users.length} área(s)`, `mn ${personal.length ? 'mn-personal' : 'mn-data'}`, tip, null)}</g>`); // lastro-ignore xss-sinks: partes montadas com h() e num()
+  }
+  if (external.length) out.push(`<g class="grp">${node(X.data, TOP + tables.length * step, BW.data, 'Serviços externos', external.slice(0, 3).join(', '), 'mn mn-ext', `Serviços externos que o código chama: ${external.join(', ')}`, null)}</g>`); // lastro-ignore xss-sinks: montado com h()
   return [
-    `<svg role="img" aria-labelledby="map-t map-d" viewBox="0 0 ${num(W)} ${num(H)}" class="appmap">`,
+    `<svg role="img" aria-labelledby="map-t map-d" viewBox="0 0 ${N(W)} ${N(H)}" class="appmap">`,
     '<title id="map-t">Mapa da aplicação</title>',
-    `<desc id="map-d">${h(`${actors.length} tipo(s) de pessoa, ${areas.length} área(s) e ${tables.length} conjunto(s) de dados, ligados pelo que o código mostra.`)}</desc>`,
-    ...heads, ...edges, ...nodes, '</svg>',
+    `<desc id="map-d">${h(`${lanes.length} tipo(s) de pessoa, ${map.areas.length} área(s) e ${tables.length} conjunto(s) de dados, ligados pelo que o código mostra.`)}</desc>`,
+    ...out, '</svg>',
   ].join('');
 }
 
@@ -452,7 +502,10 @@ function mapPage({ report, theme }) {
   sections.push('<p class="lead">Quem usa a aplicação, por quais áreas entra e que dados cada área toca. Serve para conversar sobre uma funcionalidade nova: olhando o mapa, dá para ver onde ela entra e o que pode ser afetado.</p>');
   sections.push('<ul class="legend"><li><i class="seg-ok"></i>área que exige login</li><li><i class="seg-info"></i>área pública</li><li><i class="seg-bad"></i>área com ação sem autenticação vista no código</li><li><i class="seg-warn"></i>dado pessoal</li><li><i class="seg-none"></i>outro dado</li></ul>');
   if (!map.areas.length) sections.push('<p class="empty">O kit não encontrou rotas no código desta aplicação, então não há mapa. Rotas declaradas de um jeito que o kit ainda não lê (outro framework, por exemplo) não aparecem.</p>');
-  else sections.push(`<div class="panel map-wrap">${mapSvg(map, external)}</div>`);
+  else {
+    sections.push(`<div class="panel map-wrap">${mapSvg(map, external)}</div>`);
+    sections.push('<p class="why">Passe o mouse numa área, num dado ou em quem usa para ver só as ligações dele; o balão lista as rotas. Clique numa área para abrir o detalhe dela logo abaixo.</p>');
+  }
   sections.push('<p class="why">A ligação entre área e dado é um indício: o nome da tabela ou do modelo aparece no código das rotas daquela área. Uma área que chama outra camada (um serviço, por exemplo) pode tocar dados que o mapa não mostra.</p></section>');
 
   if (map.areas.length) {
@@ -460,10 +513,12 @@ function mapPage({ report, theme }) {
     for (const a of map.areas) {
       const acts = Object.entries(a.actions).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} (${v})`).join(', ');
       const access = a.who === 'publico' ? 'qualquer pessoa, sem conta' : a.who === 'admin' ? 'administração' : 'pessoas logadas';
-      sections.push(`<article class="why-card ${toneArea(a) === 'bad' ? 'w-bad' : ''}"><h3>${h(areaName(a.key))} <small><code>${h(a.key)}</code></small></h3>`);
+      sections.push(`<article id="${h(slug(a.key))}" class="why-card area-card ${toneArea(a) === 'bad' ? 'w-bad' : ''}"><h3>${h(areaName(a.key))} <small><code>${h(a.key)}</code></small></h3>`);
       sections.push(`<span class="label">O que dá para fazer</span><p>${h(`${a.routes} ação(ões): ${acts}.`)}</p>`);
       sections.push(`<span class="label">Quem usa</span><p>${h(access)}${a.access.naoVista ? ` <span class="badge bad">${h(`${a.access.naoVista} sem autenticação vista`)}</span>` : ''}</p>`);
       sections.push(`<span class="label">Dados que toca</span>${a.tables.length ? `<ul class="tags">${a.tables.map((t) => `<li>${h(t)}</li>`).join('')}</ul>` : '<p class="empty">nenhum visto direto no código da área</p>'}`); // lastro-ignore xss-sinks: nomes escapados com h()
+      const list = a.list || [];
+      if (list.length) sections.push(`<details class="routes"><summary>As ${num(list.length)} rota(s) da área</summary><ul>${list.map((r) => `<li class="r-${h(r.auth)}"><code>${h(r.method)} ${h(r.path)}</code> <span>${h(AUTH_PT[r.auth] || r.auth)}</span></li>`).join('')}</ul></details>`); // lastro-ignore xss-sinks: tudo escapado com h()
       sections.push('</article>');
     }
     sections.push('</div>');

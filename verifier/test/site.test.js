@@ -97,6 +97,27 @@ test('portal: páginas sem script, com CSP, links só para as próprias páginas
   } finally { cleanup(root); }
 });
 
+test('portal: mapa da aplicação em faixas, com balão das rotas, destaque sem script e clique para o detalhe', async () => {
+  const root = makeProject({
+    '.lastro/profile.json': profileJson({ webApp: true, hasAuth: true }),
+    'package.json': JSON.stringify({ name: 'n', version: '1.0.0', dependencies: { next: '15.0.0' } }),
+    'app/api/contas/route.ts': "import { requireAuth } from '@/lib/auth';\nexport async function GET() { await requireAuth(); return prisma.conta.findMany() }\n",
+    'app/api/admin/limpar/route.ts': 'export async function POST() { await prisma.conta.deleteMany() }\n',
+    'prisma/schema.prisma': 'model Conta {\n  id String @id\n  email String\n}\n',
+  });
+  try {
+    const report = await runCheck({ root, now: NOW });
+    const pages = buildSite({ report, history: [], current: H.snapshot(report), playbook: buildPlaybook(report, loadCatalog(), {}), now: NOW });
+    const mapa = pages['mapa.html'];
+    assert.match(mapa, /<rect class="lane lane-publico"/, 'o visitante aparece porque há ação sem autenticação vista');
+    assert.match(mapa, /<g class="grp"><path class="me"[^>]*\/>.*<a href="#area-api-admin"><title>Admin \(\/api\/admin\): 1 rota\(s\)\nPOST \/api\/admin\/limpar \(sem autenticação vista\)/s);
+    assert.match(mapa, /<article id="area-api-admin" class="why-card area-card w-bad">/);
+    assert.match(mapa, /<details class="routes"><summary>As 1 rota\(s\) da área<\/summary><ul><li class="r-nao-vista"><code>POST \/api\/admin\/limpar<\/code>/);
+    assert.match(mapa, /<g class="grp grp-data"><path class="me me-data me-hl"/);
+    assert.match(pages['index.html'], /<a href="mapa\.html#area-api-contas">/, 'na visão geral, o clique leva à página do mapa');
+  } finally { cleanup(root); }
+});
+
 test('portal: gráfico pede dois pontos, e alerta de atestação que vence em 30 dias', () => {
   assert.match(evolutionSvg([{ generatedAt: '2026-11-17T00:00:00Z', provenPct: 10, failedPct: 5 }]), /a partir de dois registros/);
   const svg = evolutionSvg([{ generatedAt: '2026-11-10T00:00:00Z', provenPct: 10, failedPct: 5 }, { generatedAt: '2026-11-17T00:00:00Z', provenPct: 999, failedPct: -3 }]);
