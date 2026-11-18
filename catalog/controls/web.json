@@ -376,6 +376,39 @@
         { "std": "ASVS", "id": "V14.3.3", "covers": "full" }
       ],
       "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-022",
+      "title": "Caminhos comuns de documentação, métricas e listagem não expostos (sonda)",
+      "summary": "Os caminhos mais comuns de documentação de API, métricas, diagnóstico e listagem de diretório (/docs, /swagger.json, /openapi.json, /metrics, /actuator, /uploads/ e outros) não respondem com o conteúdo sem login. É a parte automatizável do WEB-016.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["deploy", "runtime"],
+      "check": { "type": "automated", "id": "http.paths.exposed" },
+      "enforcement": "soft",
+      "rationale": "Documentação e painéis esquecidos entregam a estrutura da API e, às vezes, dados internos. Os caminhos comuns são os primeiros que uma varredura tenta.",
+      "remediation": "Tire de produção ou proteja com autenticação a documentação interna, restrinja métricas e diagnóstico à rede interna e desligue a listagem de diretórios.",
+      "refs": [
+        { "std": "ASVS", "id": "V13.4.3", "covers": "partial", "note": "só as pastas públicas comuns" },
+        { "std": "ASVS", "id": "V13.4.5", "covers": "partial", "note": "só os caminhos comuns; os próprios da aplicação estão em WEB-016" }
+      ],
+      "origin": ["L-R12"]
+    },
+    {
+      "id": "WEB-023",
+      "title": "Respostas com Content-Type, e charset nas de texto (sonda)",
+      "summary": "A página inicial e a resposta de uma rota inexistente trazem Content-Type, e as de texto declaram o charset. É a parte automatizável do WEB-018.",
+      "pack": "web",
+      "tier": 1,
+      "severity": "medium",
+      "phase": ["build", "runtime"],
+      "check": { "type": "automated", "id": "http.content-type" },
+      "enforcement": "soft",
+      "rationale": "Sem Content-Type o navegador adivinha o tipo e pode interpretar dados como página. Sem charset, a leitura do texto fica ambígua.",
+      "remediation": "Defina Content-Type e charset em toda resposta, inclusive nas de erro e de rota inexistente.",
+      "refs": [{ "std": "ASVS", "id": "V4.1.1", "covers": "partial", "note": "só a página inicial e uma rota inexistente; as rotas de API e de erro estão em WEB-018" }],
+      "origin": ["L-R12"]
     }
   ]
 }

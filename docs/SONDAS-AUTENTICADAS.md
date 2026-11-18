@@ -26,12 +26,19 @@ Além das sondas autenticadas, o `lastro check` faz sozinho a parte automatizáv
 | Controle | Quando roda | O que a máquina faz | Achado |
 |---|---|---|---|
 | CORE-015 (testes no CI com banco real) | sempre (lê o repositório) | Procura nos workflows o passo de testes e um banco real (serviço do CI ou contêiner) | Médio: CI sem testes; médio: testes sem banco numa aplicação que usa banco |
-| AUTH-002 (hash de senha) | sempre | Acha a biblioteca (bcrypt, Argon2, scrypt) e o custo no código | Alto: bcrypt com custo abaixo de 10, scrypt com N abaixo de 16384 |
 | AG-001 e AG-007 (agente de IA) | sempre, se o perfil declara agentes | Procura hook de bloqueio ou regra `deny` para segredos e para a configuração do agente | Médio (não bloqueia): só instrução, sem mecanismo |
-| WEB-016 (documentação e listagem expostas) | `--url` | GET em `/docs`, `/swagger.json`, `/openapi.json`, `/metrics`, `/actuator`, `/uploads/` e outros | Médio: documentação, métricas, diagnóstico ou listagem acessíveis sem login |
-| WEB-018 (Content-Type) | `--url` | Lê a página inicial e uma rota inexistente | Médio: corpo sem Content-Type; baixo: texto sem charset |
-| AUTH-011 (contas padrão) | `--url --active --confirm-non-production` e `authProbes.login` no perfil | Tenta 8 credenciais padrão comuns (admin/admin, root/root...) | Crítico: alguma entra |
-| AUTH-016 (força bruta) | idem | 25 tentativas erradas seguidas numa conta inexistente | Alto: nenhum limite (nem 429, nem bloqueio, nem desafio) |
+
+### Pedaços que a máquina prova por inteiro (controles automáticos próprios)
+
+Quando a máquina consegue provar um pedaço do controle manual sem depender de pessoa, esse pedaço vira um **controle automático próprio**, que pode ser verificado e vale o peso inteiro na nota. O controle manual de origem continua com o resto. Cada pedaço segue um requisito do ASVS (com cobertura `partial`) e vale para qualquer aplicação com o recurso: as rotas vêm do perfil, nunca do kit.
+
+| Controle automático | Pedaço de | Quando roda | O que prova | Falha |
+|---|---|---|---|---|
+| WEB-022 | WEB-016 | `--url` | GET em `/docs`, `/swagger.json`, `/openapi.json`, `/metrics`, `/actuator`, `/uploads/` e outros: nada exposto | Médio: documentação, métricas, diagnóstico ou listagem sem login |
+| WEB-023 | WEB-018 | `--url` | A página inicial e uma rota inexistente têm Content-Type, com charset nas de texto | Médio: sem Content-Type; baixo: texto sem charset |
+| AUTH-041 | AUTH-011 | `--url --active --confirm-non-production` e `authProbes.login` | Nenhuma de 8 credenciais padrão comuns entra | Crítico: alguma entra. Se o limitador cortar o teste antes do fim, fica sem prova |
+| AUTH-040 | AUTH-016 | idem | O login limita tentativas erradas seguidas do mesmo endereço antes de 25 | Alto: 25 tentativas sem limite |
+| AUTH-042 | AUTH-002 | sempre (lê o código) | bcrypt com custo 10 ou mais, Argon2, ou scrypt com N de 16384 ou mais | Alto: custo abaixo do mínimo |
 
 Há dois tipos de achado. **Falha medida** (custo do bcrypt, login sem limite, credencial padrão aceita, documentação exposta, cookie adulterado aceito) vence qualquer atestação. **Ausência suspeita** (a máquina não viu o hook do agente, os testes no CI ou o banco no CI) só vira achado quando ninguém atestou o controle: o mecanismo pode estar fora do repositório. Se alguém atestou, a atestação vale e o relatório mostra "A máquina não confirmou o que foi atestado", para a pessoa conferir.
 

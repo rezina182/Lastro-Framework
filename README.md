@@ -81,7 +81,7 @@ Requer Node 22 ou superior. Nenhuma dependência para instalar.
 ```bash
 # dentro do projeto que você quer verificar
 node /caminho/para/lastro/verifier/bin/lastro.js init
-# edite .lastro/profile.json para descrever a aplicação (flags)
+# o perfil sai derivado do código (rascunho): revise as flags e responda às perguntas que o init mostra
 
 node /caminho/para/lastro/verifier/bin/lastro.js check
 node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exemplo   # inclui verificações HTTP passivas

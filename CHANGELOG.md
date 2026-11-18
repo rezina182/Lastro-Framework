@@ -4,6 +4,11 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (pedaços automáticos e perfil derivado)
+- Cinco controles automáticos novos, separados dos manuais: WEB-022 (caminhos comuns de documentação, métricas e listagem), WEB-023 (Content-Type e charset), AUTH-040 (login limita tentativas erradas), AUTH-041 (nenhuma credencial padrão comum entra) e AUTH-042 (hash de senha com algoritmo e custo adequados). Cada um segue um requisito do ASVS (cobertura `partial`) e, verificado, vale o peso inteiro na nota. Os manuais de origem (WEB-016, WEB-018, AUTH-016, AUTH-011, AUTH-002) ficam com a parte humana, e a prova assistida deles saiu para a mesma falha não contar duas vezes. Catálogo com 159 controles e 38 verificações automáticas.
+- `lastro init` deriva o perfil do código (mesma classificação do `lastro app`), diz o motivo de cada flag ligada e pergunta o que o código não mostra (dados de menores, usuários anônimos, exposição à internet). `--blank` mantém o modelo antigo, tudo desligado. Achado no primeiro teste em outra aplicação (App A): o perfil em branco deixava 78 controles de fora.
+- A força bruta não conta duas vezes a tentativa em que o limitador já cortou o teste de contas padrão.
+
 ### Alterado (só a nota de 0 a 10)
 - Nota `v4`: o nível de 0 a 4 foi removido de vez (relatório, portal, histórico, aplicação com vários repositórios e a mensagem do `lastro history`). O próximo passo fala da próxima faixa da nota. A meta de maturidade virou nota de 0 a 10 (`context.targetGrade`; padrões 6, 7 e 8 para risco baixo, moderado e alto). Perfis com `targetLevel` continuam valendo, convertidos para a nota. O histórico ainda lê registros antigos que têm só o nível.
 

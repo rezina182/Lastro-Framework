@@ -14,7 +14,8 @@ const VIA = {
 };
 // Caminhos que o kit já executa hoje, em parte, para o controle (a sonda que passa ajuda a atestação).
 // Sondas autenticadas (authprobe.js) e prova assistida (assist.js).
-const RUNS_TODAY = new Set(['AUTH-027', 'WEB-013', 'AUTH-023', 'AUTH-022', 'WEB-010', 'CORE-056', 'AUTH-028', 'CORE-015', 'AUTH-002', 'AG-001', 'AG-007', 'WEB-016', 'WEB-018', 'AUTH-011', 'AUTH-016']);
+// AUTH-002, AUTH-011, AUTH-016, WEB-016 e WEB-018 têm um irmão automático (AUTH-042, AUTH-041, AUTH-040, WEB-022, WEB-023).
+const RUNS_TODAY = new Set(['AUTH-027', 'WEB-013', 'AUTH-023', 'AUTH-022', 'WEB-010', 'CORE-056', 'AUTH-028', 'CORE-015', 'AG-001', 'AG-007', 'AUTH-002', 'AUTH-011', 'AUTH-016', 'WEB-016', 'WEB-018']);
 
 // Caminho principal de prova de cada controle manual do catálogo.
 const ROUTE = {

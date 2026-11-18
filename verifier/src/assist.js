@@ -183,7 +183,7 @@ async function defaultCreds(ctx, login) {
 const BRUTE_ATTEMPTS = 25;
 
 /** AUTH-016: tentativas erradas em sequência, numa conta inexistente, são limitadas. */
-async function bruteForce(ctx, login, { prior = 0 } = {}) {
+async function bruteForce(ctx, login, { prior = 0, priorLimited = false } = {}) {
   const r = result();
   const user = `lastro-probe-${crypto.randomBytes(4).toString('hex')}@invalid.test`;
   for (let i = 1; i <= BRUTE_ATTEMPTS; i += 1) {
@@ -191,8 +191,12 @@ async function bruteForce(ctx, login, { prior = 0 } = {}) {
     if (!res.ok) { r.notes.push(`${NOTE} força bruta inconclusiva: ${login.path} parou de responder (${res.error}).`); return r; }
     r.tested = i;
     if (LIMITED(res)) {
-      // As tentativas do teste de contas padrão (AUTH-011) contam no mesmo limitador: soma as duas.
-      r.notes.push(`${NOTE} o login em ${login.path} passou a limitar depois de ${prior + i} tentativa(s) erradas seguidas do mesmo endereço${prior ? ` (${prior} do teste de contas padrão e ${i} deste)` : ''} (HTTP ${res.status}). Falta conferir o limite por conta (de IPs diferentes) e a documentação.`);
+      // As tentativas do teste de contas padrão contam no mesmo limitador. Se ele já limitava na primeira daqui, o
+      // limite veio na última tentativa daquele teste (que já está em "prior"): não soma de novo.
+      const carried = priorLimited && i === 1;
+      const at = carried ? prior : prior + i;
+      const how = !prior ? '' : carried ? ' (o limite já vinha do teste de contas padrão)' : ` (${prior} do teste de contas padrão e ${i} deste)`;
+      r.notes.push(`${NOTE} o login em ${login.path} passou a limitar depois de ${at} tentativa(s) erradas seguidas do mesmo endereço${how} (HTTP ${res.status}). Falta conferir o limite por conta (de IPs diferentes) e a documentação.`);
       return r;
     }
     if (res.status >= 200 && res.status < 300 && (res.setCookie || []).length) { r.notes.push(`${NOTE} força bruta inconclusiva: ${login.path} respondeu 2xx com cookie para uma senha errada; confira o formato do login no perfil.`); return r; }
@@ -208,27 +212,19 @@ async function bruteForce(ctx, login, { prior = 0 } = {}) {
 async function runAssists(ctx, profile, { active = false, disc = null, want = () => true } = {}) {
   const out = {};
   const put = (id, r, source) => { if (r && (r.tested || r.notes.length || r.findings.length)) out[id] = { ...r, source }; };
+  // WEB-016, WEB-018, AUTH-011, AUTH-016 e AUTH-002 tinham prova parcial aqui; o pedaço que a máquina prova por
+  // inteiro virou controle automático próprio (WEB-022, WEB-023, AUTH-041, AUTH-040 e AUTH-042, checks/assisted.js),
+  // para a mesma falha não contar duas vezes. Ficam aqui só as provas que continuam parciais.
+  void active;
   if (want('CORE-015')) put('CORE-015', ciTestsWithDb(ctx, disc), 'verifier-repo');
-  if (want('AUTH-002')) put('AUTH-002', passwordHash(ctx), 'verifier-repo');
   if (want('AG-001') || want('AG-007')) {
     const ag = agentGuard(ctx, profile);
     if (want('AG-001')) put('AG-001', ag['AG-001'], 'verifier-repo');
     if (want('AG-007')) put('AG-007', ag['AG-007'], 'verifier-repo');
   }
-  if (ctx.url) {
-    if (want('WEB-016')) put('WEB-016', await exposedPaths(ctx), 'verifier-http');
-    if (want('WEB-018')) put('WEB-018', await contentTypes(ctx), 'verifier-http');
-    const login = profile.authProbes && profile.authProbes.login;
-    if (active && login) {
-      // Contas padrão antes da força bruta: depois dela, o limite de tentativas esconderia uma conta padrão aceita.
-      const dc = want('AUTH-011') ? await defaultCreds(ctx, login) : null;
-      if (dc) put('AUTH-011', dc, 'verifier-http');
-      if (want('AUTH-016')) put('AUTH-016', await bruteForce(ctx, login, { prior: dc ? dc.tested : 0 }), 'verifier-http');
-    }
-  }
   return out;
 }
 
-const COVERS = ['CORE-015', 'AUTH-002', 'AG-001', 'AG-007', 'WEB-016', 'WEB-018', 'AUTH-011', 'AUTH-016'];
+const COVERS = ['CORE-015', 'AG-001', 'AG-007'];
 
 module.exports = { runAssists, NOTE, COVERS, ciTestsWithDb, passwordHash, agentGuard, exposedPaths, contentTypes, defaultCreds, bruteForce, BRUTE_ATTEMPTS };

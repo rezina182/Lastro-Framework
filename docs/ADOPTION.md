@@ -6,7 +6,7 @@
 node verifier/bin/lastro.js init --root /caminho/do/projeto
 ```
 
-Edite `.lastro/profile.json` e marque só o que é verdade (veja [PROFILE.md](PROFILE.md)). Marcar `false` para fugir de controles é o jeito mais fácil de se enganar. Em caso de dúvida, marque `true`.
+O `init` deriva as flags do código (rotas, dependências de login, upload, tempo real, indícios de dado pessoal, arquivos de agente de IA), mostra o motivo de cada uma e pergunta o que o código não mostra, como dados de menores, usuários anônimos e exposição à internet. É um rascunho: revise `.lastro/profile.json` e marque só o que é verdade (veja [PROFILE.md](PROFILE.md)). `--blank` cria o perfil com tudo desligado. Marcar `false` para fugir de controles é o jeito mais fácil de se enganar. Em caso de dúvida, marque `true`.
 
 ## 2. Primeira medição
 

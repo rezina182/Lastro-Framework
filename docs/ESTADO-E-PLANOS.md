@@ -16,8 +16,8 @@ Um kit, sem dependências de execução, que mede **quanta evidência** existe d
 
 | Parte | Comando | O que faz | Documento |
 |---|---|---|---|
-| Catálogo | `lastro catalog validate` | 154 controles em 8 pacotes, 37 lições de origem, 32 verificações automáticas, mapa dos 345 requisitos do ASVS 5.0 | [ARCHITECTURE.md](../ARCHITECTURE.md), [GLOSSARIO.md](GLOSSARIO.md) |
-| Perfil | `lastro init` | Flags que dizem o que a aplicação tem (web, login, upload, dados de menores...). Decidem o escopo e o contexto | [PROFILE.md](PROFILE.md) |
+| Catálogo | `lastro catalog validate` | 159 controles em 8 pacotes, 37 lições de origem, 38 verificações automáticas, mapa dos 345 requisitos do ASVS 5.0 | [ARCHITECTURE.md](../ARCHITECTURE.md), [GLOSSARIO.md](GLOSSARIO.md) |
+| Perfil | `lastro init` | Flags que dizem o que a aplicação tem (web, login, upload, dados de menores...), derivadas do código como rascunho, com o motivo de cada uma e as perguntas do que o código não mostra. Decidem o escopo e o contexto | [PROFILE.md](PROFILE.md) |
 | Verificação | `lastro check` | Roda as verificações automáticas, lê as atestações e dá o portão de CI (bloqueia achado novo alto ou crítico) | [README](../README.md) |
 | Sondas HTTP | `lastro check --url` | Cabeçalhos, CSP, HSTS, cookies, erros, arquivos sensíveis; `--active` para TRACE e CORS | [README](../README.md) |
 | Maturidade | dentro do relatório | Nota de 0 a 10 (postura e cobertura, com prova parcial), provado por máquina e autodeclarado, por pacote e por fase do SSDLC, mais a taxa dos controles automáticos | [SCORE.md](SCORE.md) |

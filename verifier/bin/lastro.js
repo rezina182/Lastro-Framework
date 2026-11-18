@@ -45,7 +45,9 @@ function parseArgs(argv) {
 const HELP = `LASTRO - SDLC seguro para desenvolvimento assistido por IA
 
 Uso:
-  lastro init [--root DIR] [--force]         cria .lastro/profile.json para você preencher
+  lastro init [--root DIR] [--force] [--blank]
+                                             cria .lastro/profile.json derivado do código (rascunho: diz o motivo
+                                             de cada flag e pergunta o que o código não mostra); --blank, em branco
   lastro catalog validate                    valida o catálogo de controles do kit
   lastro check [opções]                      verifica o projeto e dá o veredito
   lastro app --name "App X" [--root PASTA] [--repos a,b] [--match 'app-x-*'] [--out ARQ.html|.md]
@@ -588,8 +590,16 @@ async function main(argv) {
       return 3;
     }
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(file, `${JSON.stringify(profileTemplate(path.basename(root)), null, 2)}\n`);
-    console.log('Criado .lastro/profile.json. Edite os "flags" para descrever a aplicação (ex.: webApp, hasAuth, uploads).');
+    // Por padrão o perfil sai derivado do código (rascunho para revisar); --blank mantém o modelo antigo, tudo desligado.
+    if (flags.blank) {
+      fs.writeFileSync(file, `${JSON.stringify(profileTemplate(path.basename(root)), null, 2)}\n`);
+      console.log('Criado .lastro/profile.json em branco. Edite os "flags" para descrever a aplicação (ex.: webApp, hasAuth, uploads).');
+    } else {
+      const { deriveProfile, formatDerived } = require('../src/init');
+      const d = deriveProfile(root);
+      fs.writeFileSync(file, `${JSON.stringify(d.profile, null, 2)}\n`);
+      console.log(`Criado .lastro/profile.json.\n${formatDerived(d)}`);
+    }
     console.log('Controles só se aplicam quando o perfil os ativa; um perfil honesto é a base de tudo.');
     return 0;
   }

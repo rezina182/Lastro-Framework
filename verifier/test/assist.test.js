@@ -142,9 +142,9 @@ test('motor: prova assistida que acha falha vence a atestação; a que passa só
   const root = makeProject(files);
   try {
     const r = await runCheck({ root, now: NOW });
-    const a2 = r.controls.find((c) => c.id === 'AUTH-002');
-    assert.equal(a2.state, 'failed', 'custo 6 medido vence a atestação');
-    assert.equal(a2.evidence.source, 'verifier-repo');
+    const a42 = r.controls.find((c) => c.id === 'AUTH-042');
+    assert.equal(a42.state, 'failed', 'o pedaço automático (AUTH-042) mede o custo 6 e falha');
+    assert.equal(r.controls.find((c) => c.id === 'AUTH-002').state, 'verified', 'o AUTH-002 manual fica só com a parte humana (atestada)');
     const ag1 = r.controls.find((c) => c.id === 'AG-001');
     assert.equal(ag1.state, 'failed');
     assert.ok(ag1.findings.every((f) => !f.blocking), 'heurística média não bloqueia');
@@ -155,23 +155,63 @@ test('motor: prova assistida que acha falha vence a atestação; a que passa só
   const ok = makeProject({ ...files, 'src/senha.js': "const bcrypt = require('bcrypt');\nexports.h = (s) => bcrypt.hash(s, 12);\n", '.lastro/status.json': JSON.stringify({ schemaVersion: 1, attestations: {} }) });
   try {
     const r = await runCheck({ root: ok, now: NOW });
-    const a2 = r.controls.find((c) => c.id === 'AUTH-002');
-    assert.equal(a2.state, 'unverified', 'passar não verifica');
-    assert.match(a2.notes[0], new RegExp(`^${A.NOTE}`));
+    assert.equal(r.controls.find((c) => c.id === 'AUTH-042').state, 'verified', 'o pedaço automático passa por inteiro');
+    const cf = r.controls.find((c) => c.id === 'CORE-015');
+    assert.equal(cf.state, 'unverified', 'sem CI, a prova assistida do CORE-015 não opina');
+    const ag1 = r.controls.find((c) => c.id === 'AG-001');
+    assert.equal(ag1.state, 'failed', 'ausência suspeita sem atestação vira achado (médio, não bloqueia)');
   } finally { cleanup(ok); }
 });
 
 test('playbook: mostra o que a máquina já testou e pré-preenche a atestação com essa prova parcial', async () => {
   const { buildPlaybook, formatPlaybookMarkdown } = require('../src/playbook');
   const { loadCatalog } = require('../src/catalog');
-  const root = makeProject({ '.lastro/profile.json': profileJson({ hasAuth: true }), 'src/senha.js': "const bcrypt = require('bcrypt');\nexports.h = (s) => bcrypt.hash(s, 12);\n" });
+  const hook = { '.kiro/hooks/lastro-protect.json': '{"hooks":[{"trigger":"PreToolUse"}]}', '.kiro/hooks/lastro-protect.js': '// bloqueia .env e .kiro/settings\nif (x) process.exit(2);\n' };
+  const root = makeProject({ '.lastro/profile.json': profileJson({ aiCodingAgents: true }), ...hook });
   try {
     const r = await runCheck({ root, now: NOW });
-    const pb = buildPlaybook(r, loadCatalog(), { now: NOW, only: ['AUTH-002'] });
+    const pb = buildPlaybook(r, loadCatalog(), { now: NOW, only: ['AG-001'] });
     const item = pb.items[0];
-    assert.match(item.machine[0], /custo 12/);
-    assert.match(item.attestation.json['AUTH-002'].evidenceRef, /prova parcial da máquina/);
-    assert.match(item.attestation.json['AUTH-002'].note, /^Máquina: hash de senha com bcrypt/);
+    assert.match(item.machine[0], /há mecanismo que barra a leitura/);
+    assert.match(item.attestation.json['AG-001'].evidenceRef, /prova parcial da máquina/);
+    assert.match(item.attestation.json['AG-001'].note, /^Máquina: há mecanismo/);
     if (formatPlaybookMarkdown) assert.match(formatPlaybookMarkdown(pb), /O que a máquina já testou/);
   } finally { cleanup(root); }
+});
+
+test('controles automáticos novos: AUTH-040 e AUTH-041 provam por inteiro com --active; sem --active ou sem rota de login, sem prova', async () => {
+  const { checks } = require('../src/checks/assisted');
+  const prof = { schemaVersion: 1, name: 't', flags: { hasAuth: true }, authProbes: { login: LOGIN } };
+  const run = async (handler, { active = true, profile = prof } = {}) => {
+    const srv = await serve(handler);
+    const root = makeProject({});
+    try {
+      const ctx = ctxFor(root, { url: srv.url, active, profile });
+      return { bf: await checks['http.login.bruteforce'](ctx), dc: await checks['http.login.default-creds'](ctx) };
+    } finally { await srv.close(); cleanup(root); }
+  };
+  const semLimite = await run(loginServer());
+  assert.equal(semLimite.bf.state, 'failed');
+  assert.equal(semLimite.dc.state, 'verified', 'nenhuma credencial padrão entrou, todas tentadas');
+  const comLimite = await run(loginServer({ limitAfter: 3 }));
+  assert.equal(comLimite.bf.state, 'verified');
+  assert.match(comLimite.bf.notes[0], /passou a limitar depois de 4 tentativa\(s\).*o limite já vinha do teste de contas padrão/);
+  assert.equal(comLimite.dc.state, 'unverified', 'o limitador cortou o teste das credenciais: não dá para afirmar');
+  const padrao = await run(loginServer({ defaultAdmin: true }));
+  assert.equal(padrao.dc.state, 'failed');
+  const passivo = await run(loginServer(), { active: false });
+  assert.match(passivo.bf.notes[0], /--active/);
+  const semLogin = await run(loginServer(), { profile: { ...prof, authProbes: undefined } });
+  assert.match(semLogin.dc.notes[0], /authProbes\.login/);
+});
+
+test('controles automáticos novos: AUTH-042 lê o hash do código; WEB-022 e WEB-023 precisam de --url', async () => {
+  const { checks } = require('../src/checks/assisted');
+  withCtx({ 'src/senha.js': "const bcrypt = require('bcrypt');\nexports.h = (s) => bcrypt.hash(s, 13);\n" }, (ctx) => assert.equal(checks['repo.code.password-hash'](ctx).state, 'verified'));
+  withCtx({ 'src/senha.js': "const bcrypt = require('bcrypt');\nexports.h = (s) => bcrypt.hash(s, 5);\n" }, (ctx) => assert.equal(checks['repo.code.password-hash'](ctx).state, 'failed'));
+  withCtx({ 'src/x.js': '1;\n' }, (ctx) => assert.equal(checks['repo.code.password-hash'](ctx).state, 'unverified'));
+  await withCtx({}, async (ctx) => {
+    assert.match((await checks['http.paths.exposed'](ctx)).notes[0], /--url/);
+    assert.match((await checks['http.content-type'](ctx)).notes[0], /--url/);
+  });
 });
