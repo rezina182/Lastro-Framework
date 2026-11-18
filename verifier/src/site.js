@@ -147,8 +147,22 @@ function indexPage({ report, history, current, tickets, now, theme }) {
     sections.push(card('Nota geral', `${h(gradeText(s.grade))} de 10`, `${s.gradeBand}; postura ${gradeText(s.grades.posture)}, cobertura ${gradeText(s.grades.coverage)}${gd}`));
   }
   sections.push(card('Portão de CI', h(VERDICT_PT[report.verdict]), `${num(report.summary.blocking)} achado(s) bloqueante(s)`));
-  sections.push(card('Maturidade', `nível ${num(s.level)} de 4`, s.levelName));
   sections.push(card('Peso provado', h(pctText(s.provenPct)), `máquina ${pctText(s.machinePct)}, atestado ${pctText(s.attestedPct)}${prev ? delta(s.provenPct, prev.provenPct) : ''}`));
+  sections.push('</div>');
+  sections.push('<p class="empty">Como ler: a nota mede quanto já foi <strong>provado</strong>, não quão segura a aplicação é. Controle sem prova conta zero. Abaixo, o porquê da nota e os próximos passos; o restante fica em "Mais detalhes".</p>');
+  sections.push('</section>');
+
+  // O porquê e os próximos passos: o essencial para decidir, em poucas linhas.
+  sections.push('<section id="porque" aria-labelledby="t-porque"><h2 id="t-porque">Por que a nota está assim</h2>');
+  sections.push(story.why.length ? `<ul>${story.why.map((x) => `<li>${h(x)}</li>`).join('')}</ul>` : '<p class="empty">Nada a explicar: tudo que se aplica tem prova.</p>');
+  sections.push('<h3>Próximos passos</h3>');
+  sections.push(story.todo.length ? `<ol>${story.todo.slice(0, 3).map((x) => `<li>${h(x)}</li>`).join('')}</ol>` : '<p class="empty">Nenhum.</p>');
+  sections.push('<p>O detalhe de cada controle está em <a href="escopos.html">Implementado por escopo</a>; o caminho de prova de cada um e o trecho pronto para "não se aplica", no comando <code>lastro gaps</code>.</p>');
+  sections.push('</section>');
+
+  sections.push('<details><summary><strong>Mais detalhes</strong>: maturidade, risco, a história completa, o que cabe ao dev e ao time de segurança</summary>');
+  sections.push('<section id="detalhes" aria-labelledby="t-det"><h2 id="t-det">Números</h2><div class="cards">');
+  sections.push(card('Maturidade', `nível ${num(s.level)} de 4`, s.levelName));
   sections.push(card('Automáticos', s.automated.passRatePct === null ? 'n/d' : h(pctText(s.automated.passRatePct)), `${num(s.automated.verified)} passaram, ${num(s.automated.failed)} falharam, ${num(s.automated.notRun)} não rodaram`));
   sections.push('</div>');
   sections.push(table('Risco e ameaças', ['Item', 'Hoje'], [
@@ -158,7 +172,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   ]));
   sections.push('</section>');
   // A história, sem repetir a manchete (já está no topo): a mesma função do relatório, com a comparação do histórico.
-  sections.push(...ui.storySectionHtml({ ...story, headline: null }));
+  sections.push(...ui.storySectionHtml({ ...story, headline: null, why: [] }));
 
   // Visão do dev: o que fazer agora.
   const blockers = report.controls.filter((c) => c.findings.some((f) => f.blocking));
@@ -183,6 +197,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
     ['Tickets abertos (.lastro/backlog)', open.length ? h(`${open.length} (${byPri})`) : 'nenhum'],
   ]));
   sections.push('</section>');
+  sections.push('</details>');
 
   const points = [...history];
   if (!prev || prev.generatedAt !== current.generatedAt) points.push(current);
@@ -191,7 +206,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   return htmlShell({
     title: `Portal LASTRO: ${report.profile.name}`, eyebrow: 'Portal LASTRO',
     meta: [`Gerado em ${report.generatedAt.slice(0, 10)} | catálogo ${report.catalogVersion} | ${history.length} registro(s) no histórico`],
-    nav: [['agora', 'Agora'], ['em-resumo', 'A história'], ['dev', 'Para quem desenvolve'], ['appsec', 'Para segurança'], ['evolucao', 'Evolução']],
+    nav: [['agora', 'Agora'], ['porque', 'Por que e próximos passos'], ['detalhes', 'Mais detalhes'], ['evolucao', 'Evolução']],
     sections, theme, siteNav: siteNav('index.html'),
   });
 }

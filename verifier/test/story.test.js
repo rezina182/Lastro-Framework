@@ -115,3 +115,15 @@ test('história: o que fazer com um bloqueante usa o motivo do achado, não só 
   const st = buildStory(report(cs), { now: NOW });
   assert.ok(st.todo.includes('Corrigir CORE-006 (Controle CORE-006): O modelo de ameaças é um rascunho: ninguém o revisou.'));
 });
+
+test('por escopo: com a descoberta, o controle manual mostra o caminho de prova, o indício e o próximo passo certo', () => {
+  const disc = { tech: { graphql: { present: false, label: 'GraphQL' } }, defenses: [{ id: 'password', label: 'Hash de senha forte', evidence: 'src/senha.js' }] };
+  const cs = [ctl('AUTH-002', 'auth', 'high', 'unverified'), ctl('WEB-020', 'web', 'medium', 'unverified'), ctl('AUTH-027', 'auth', 'critical', 'unverified')];
+  const list = scopes(report(cs, { threatModel: { discovery: disc, threats: [], counts: {} } }), { now: NOW });
+  const get = (id) => list.flatMap((s) => s.missing).find((c) => c.id === id);
+  assert.match(get('AUTH-002').proof, /caminho: leitura do código.*indício no código: Hash de senha forte \(src\/senha\.js\)/);
+  assert.match(get('AUTH-002').next, /^confirmar no código \(veja o indício\)/);
+  assert.match(get('WEB-020').proof, /provavelmente não se aplica \(nenhum sinal de GraphQL/);
+  assert.match(get('WEB-020').next, /registrar "não se aplica"/);
+  assert.match(get('AUTH-027').next, /--auth com duas contas/);
+});

@@ -61,6 +61,18 @@ Como no resto da pontuação, a nota mede **evidência**, não segurança. Uma n
 
 Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo (`v2`: níveis do `v1` mais a nota de 0 a 10).
 
+## Por que a nota está baixa (`lastro gaps`)
+
+A causa mais comum de nota baixa não é código ruim: é falta de prova. A maior parte do catálogo (cerca de 120 dos 154 controles) depende de um teste ou de uma decisão de uma pessoa, e sem atestação cada um conta zero. `lastro gaps` mostra a conta:
+
+- quantos controles manuais estão sem atestação, e por qual caminho cada um pode ser provado: **sonda do kit**, **sonda com duas contas de teste**, **leitura do código** (com confirmação de uma pessoa), **configuração da plataforma** ou **pessoa** (processo ou documento);
+- quais **provavelmente não se aplicam** à tecnologia da aplicação, para alguém confirmar e registrar "não se aplica" com justificativa (sai da conta até o prazo vencer);
+- quais já têm **indício no código** (por exemplo, biblioteca de hash de senha, limitador de requisições, TOTP), o que encurta a atestação;
+- quais controles automáticos não rodaram por falta de `--url`;
+- quais falhas bloqueiam o portão, quais pedem só revisão e quais aparecem só em arquivos de teste.
+
+Indício não é prova, e "provavelmente não se aplica" não é decisão: nada disso muda a nota até uma pessoa testar ou registrar a justificativa. O relatório e o portal mostram o mesmo resumo em "Por que a nota está assim".
+
 ## Como interpretar
 
 - **Quase todo controle do catálogo é manual**, então no começo a nota é baixa para qualquer aplicação. Isso é esperado: ela sobe quando as atestações com evidência são registradas.

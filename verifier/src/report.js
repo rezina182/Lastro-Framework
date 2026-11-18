@@ -10,6 +10,7 @@ const { buildStory } = require('./story');
 function storyMd(st) {
   const out = ['## Em resumo', ''];
   if (st.headline) out.push(`**${st.headline}**`, '');
+  if (st.why && st.why.length) out.push('### Por que a nota está assim', '', ...st.why.map((x) => `- ${x}`), '', 'Detalhe de cada controle: `lastro gaps`.', '');
   for (const [key, title] of [['done', 'Já foi feito'], ['attention', 'Precisa de atenção'], ['todo', 'O que fazer agora'], ['decide', 'O que alguém precisa decidir']]) {
     out.push(`### ${title}`, '');
     out.push(...(st[key].length ? st[key].map((x) => `- ${String(x).replace(/\r?\n/g, ' ')}`) : ['- Nada por aqui.']), '');

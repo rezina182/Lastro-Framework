@@ -4,6 +4,12 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (por que a nota está assim e caminho de prova)
+- `lastro gaps [--json]`: explica as lacunas. Diz quantos controles manuais estão sem atestação e por qual caminho cada um pode ser provado (sonda do kit, sonda com duas contas, leitura do código, configuração da plataforma ou pessoa), os indícios que o código já mostra, os que provavelmente não se aplicam pela tecnologia (com o trecho pronto para registrar), os automáticos que não rodaram e o tipo de cada falha. Só lê o repositório (`verifier/src/proofmap.js`, `verifier/src/tech.js`).
+- Atestação "não se aplica" por controle (`state: "not_applicable"` em `.lastro/status.json`), com justificativa obrigatória e prazo. O controle sai da nota e do playbook até vencer, e aparece no registro de decisões do portal.
+- A descoberta passa a listar as tecnologias usadas (GraphQL, OAuth, JWT, SMS, LDAP, XML, WebRTC, WebSocket, arquivos compactados, código nativo, templates, busca de URL do usuário).
+- Relatório e portal mostram "Por que a nota está assim". A visão geral do portal ficou mais curta: três números, o porquê e os três próximos passos; o restante fica em "Mais detalhes".
+
 ### Adicionado (nota de 0 a 10, escopos e a história dos resultados)
 - Nota de 0 a 10 (`score.method` `v2`): postura (do que foi decidido, quanto passou), cobertura (quanto do peso tem prova) e nota geral (média das duas), com teto de 6 quando há bloqueante e de 4 quando há bloqueante crítico. Faixas: Inicial, Em evolução, Bom, Forte e Exemplar. Também por pacote e por fase, sem teto. Aparece no texto, no Markdown, no HTML, no portal e no histórico (campo `grade`, opcional para registros antigos). O nível de 0 a 4 continua valendo para a meta. Veja `docs/SCORE.md`.
 - Relatório (HTML e Markdown) e portal abrem com "Em resumo": já foi feito, precisa de atenção, o que fazer agora e o que alguém precisa decidir, montados só com o que o relatório já tem (`verifier/src/story.js`).

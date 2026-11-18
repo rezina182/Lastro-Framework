@@ -15,6 +15,7 @@ const STORY_PARTS = [['done', 'Já foi feito', 'ok'], ['attention', 'Precisa de 
 function storySectionHtml(st) {
   const out = ['<section id="em-resumo" aria-labelledby="t-em-resumo"><h2 id="t-em-resumo">Em resumo</h2>'];
   if (st.headline) out.push(`<p><strong>${h(st.headline)}</strong></p>`);
+  if (st.why && st.why.length) out.push('<h3>Por que a nota está assim</h3>', `<ul>${st.why.map((x) => `<li>${h(x)}</li>`).join('')}</ul>`, '<p class="empty">Detalhe de cada controle e o trecho pronto para registrar "não se aplica": <code>lastro gaps</code>.</p>'); // lastro-ignore xss-sinks: itens escapados com h()
   out.push('<div class="cards">');
   for (const [key, title, cls] of STORY_PARTS) {
     const items = st[key];

@@ -155,6 +155,14 @@ function evaluateManual(control, status, now) {
   if (exp === null || col === null || exp <= now.getTime()) return { state: 'unverified', findings: [], notes: ['Atestação expirada.'], evidence: null };
   if (col > now.getTime() + DAY_MS) return { state: 'unverified', findings: [], notes: ['Atestação com data de coleta no futuro.'], evidence: null };
   if ((exp - col) / DAY_MS > MAX_ATTESTATION_DAYS) return { state: 'unverified', findings: [], notes: [`Atestação com validade acima de ${MAX_ATTESTATION_DAYS} dias não é aceita.`], evidence: null };
+  if (a.state === 'not_applicable') {
+    return {
+      state: 'not_applicable',
+      findings: [],
+      notes: [`Não se aplica, segundo ${a.attestedBy} (até ${a.expiresAt.slice(0, 10)}): ${a.note}`],
+      evidence: { source: 'manual-attestation', attestedBy: a.attestedBy, collectedAt: a.collectedAt, expiresAt: a.expiresAt, ref: a.evidenceRef || null, decision: 'not_applicable' },
+    };
+  }
   return {
     state: 'verified',
     findings: [],

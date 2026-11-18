@@ -215,7 +215,13 @@ Peças: skills por tarefa (triagem, correção, testes do playbook, revisão de 
 
 **Feito:** nota de 0 a 10 (postura, cobertura e geral, com teto de 6 quando há bloqueante e de 4 quando há bloqueante crítico; faixas Inicial, Em evolução, Bom, Forte e Exemplar), também por escopo e por fase, no texto, no Markdown, no HTML, no portal e no histórico (método `v2`, nível 0 a 4 mantido). Portal com seis páginas: entram "Implementado por escopo" (cada controle com a situação, como foi provado e o próximo passo) e "Decisões" (registro de atestações, riscos aceitos, revisão e decisões de ameaças, e as decisões pendentes). Relatório e portal abrem com a história: já foi feito, precisa de atenção, o que fazer agora e o que alguém precisa decidir. Veja [SCORE.md](SCORE.md) e [PORTAL.md](PORTAL.md).
 
-**Próximo:** mais prova automática (sondas novas, prova parcial a partir do código, agente que executa o playbook e prepara a atestação para a pessoa confirmar).
+### 5.5.3 Por que tanta coisa sem prova (diagnóstico do App B)
+
+No clone do App B, 120 dos 142 controles aplicáveis estavam sem prova, e 110 desses são controles manuais que ninguém atestou. Os outros 10 são automáticos que precisam de `--url`. Dos 8 controles falhando, só 2 bloqueavam (CODEOWNERS ausente e modelo de ameaças em rascunho). Os demais pediam revisão ou só apareciam em teste. A causa principal da nota baixa é estrutural: o catálogo é majoritariamente manual.
+
+**Feito:** `lastro gaps` (caminho de prova de cada controle manual, indícios no código, "provavelmente não se aplica" pela tecnologia, automáticos sem `--url`, tipo de cada falha); atestação "não se aplica" com justificativa e prazo; "Por que a nota está assim" no relatório e no portal; visão geral do portal mais curta.
+
+**Próximo, em ordem:** sondas novas para o que o mapa marca como "sonda" e "duas contas" (força bruta no login, AUTH-016; atribuição em massa, AUTH-028 e CORE-056; renovação do token de sessão no login, AUTH-022; cache de rota autenticada, WEB-010; listagem e documentação expostas, WEB-016; redirecionamento aberto, WEB-015); verificações de código para o que o mapa marca como "código" (CORE-015 banco no CI, CORE-017 SBOM, AUTH-002 algoritmo e custo do hash), que podem virar automáticas de verdade; um agente que percorre o mapa, roda o que dá e prepara a atestação para a pessoa confirmar.
 
 ### 5.6 Vários repositórios, segunda etapa
 

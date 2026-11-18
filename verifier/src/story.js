@@ -7,6 +7,7 @@
 
 const { diff } = require('./history');
 const { gradeText } = require('./score');
+const PM = require('./proofmap');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRING_DAYS = 30;
@@ -24,7 +25,7 @@ const probePassed = (c) => (c.notes || []).some((n) => /^Sonda autenticada: pass
 const probeFailed = (c) => c.checkType === 'manual' && c.state === 'failed' && !!(c.evidence && c.evidence.source === 'verifier-http');
 
 /** Como o controle foi (ou não foi) provado, em uma frase. */
-function proofOf(c, now) {
+function proofOf(c, now, disc = null) {
   if (c.state === 'verified') {
     if (isAttested(c)) {
       const left = daysLeft(c.evidence.expiresAt, now);
@@ -42,17 +43,25 @@ function proofOf(c, now) {
     if (c.controlRiskAccepted) return `sem prova, com risco aceito (${c.controlRiskAccepted})`;
     if ((c.notes || []).some((x) => /Atestação expirada/.test(x))) return 'atestação vencida: o teste precisa ser repetido';
     if (c.checkType === 'automated') return 'verificação automática não rodou (por exemplo, sonda HTTP sem --url)';
-    return probePassed(c) ? 'sem prova; a sonda autenticada passou nas rotas do perfil, o que ajuda a atestação mas não verifica' : 'sem prova: teste manual e atestação';
+    if (probePassed(c)) return 'sem prova; a sonda autenticada passou nas rotas do perfil, o que ajuda a atestação mas não verifica';
+    if (!disc) return 'sem prova: teste manual e atestação';
+    const p = PM.proofFor(c, disc);
+    if (p.likelyNA) return `sem prova; provavelmente não se aplica (${p.likelyNA})`;
+    return `sem prova; caminho: ${p.viaLabel}${p.hints.length ? `; indício no código: ${p.hints.join('; ')}` : ''}`;
   }
   return 'não se aplica';
 }
 
 /** O que fazer com o controle, em uma frase. */
-function nextOf(c) {
+function nextOf(c, disc = null) {
   if (c.state === 'verified') return isAttested(c) ? 'manter: repetir o teste antes do vencimento' : 'manter: o kit confere a cada execução';
   if (c.state === 'failed') return c.remediation || 'corrigir e rodar o kit de novo';
   if (c.state === 'unverified') {
     if (c.checkType === 'automated') return 'rodar o kit com --url num ambiente local ou de staging';
+    const p = disc ? PM.proofFor(c, disc) : null;
+    if (p && p.likelyNA) return 'confirmar e registrar "não se aplica" com a justificativa (lastro gaps traz o trecho)';
+    if (p && p.via === 'sonda-auth' && p.runsToday) return 'rodar lastro check --url ... --auth com duas contas de teste, e atestar o que a sonda não cobre';
+    if (p && p.via === 'codigo') return `confirmar no código${p.hints.length ? ' (veja o indício)' : ''} e registrar a atestação (lastro playbook --only ${c.id})`;
     return `seguir o playbook (lastro playbook --only ${c.id}) e registrar a atestação`;
   }
   return '-';
@@ -65,7 +74,8 @@ function scopes(report, { now = new Date() } = {}) {
   return packs.map((p) => {
     const list = report.controls.filter((c) => c.pack === p.pack && c.state !== 'not_applicable')
       .map((c) => ({ ...c, findings: c.findings || [], notes: c.notes || [] })).sort(bySev);
-    const row = (c) => ({ id: c.id, title: c.title, severity: c.severity, severityName: SEV_PT[c.severity], state: c.state, proof: proofOf(c, now), next: nextOf(c) });
+    const disc = (report.threatModel && report.threatModel.discovery) || null;
+    const row = (c) => ({ id: c.id, title: c.title, severity: c.severity, severityName: SEV_PT[c.severity], state: c.state, proof: proofOf(c, now, disc), next: nextOf(c, disc) });
     return {
       pack: p.pack,
       title: p.title,
@@ -148,18 +158,20 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
   if (blockers.length) decide.push('Para cada bloqueante que não der para corrigir agora: aceitar o risco com dono, justificativa e validade (.lastro/risks), ou registrar no baseline.');
   if (k && report.context && !report.context.meetsTarget) decide.push(`A meta de maturidade para o risco desta aplicação é o nível ${report.context.targetLevel}; hoje é ${k.level}. Confirmar a meta ou o prazo para chegar.`);
 
+  const why = PM.explainGaps(PM.analyzeGaps({ ...report, controls: report.controls.map((c) => ({ ...c, findings: c.findings || [], notes: c.notes || [] })) }));
   const g = k && k.grades;
   const headline = g
     ? `Nota ${gradeText(g.overall)} de 10 (${g.band}). ${blockers.length ? `${blockers.length} controle(s) bloqueiam o portão.` : 'Nada bloqueia o portão.'} ${k.provenPct}% do peso tem prova.`
     : null;
-  return { headline, done: cap(done), attention: cap(attention), todo: cap(todo), decide: cap(decide) };
+  return { headline, why, done: cap(done), attention: cap(attention), todo: cap(todo), decide: cap(decide) };
 }
 
 /** Registro de decisões: quem decidiu o quê, quando e até quando. */
 function decisions(report, { now = new Date() } = {}) {
   const out = [];
   for (const c of report.controls) {
-    if (isAttested(c)) out.push({ kind: 'Atestação', ref: c.id, what: c.title, who: c.evidence.attestedBy, when: String(c.evidence.collectedAt).slice(0, 10), until: String(c.evidence.expiresAt).slice(0, 10), expiring: daysLeft(c.evidence.expiresAt, now) <= EXPIRING_DAYS });
+    const na = isAttested(c) && c.evidence.decision === 'not_applicable';
+    if (isAttested(c)) out.push({ kind: na ? 'Não se aplica' : 'Atestação', ref: c.id, what: na ? `${c.title}: ${String((c.notes || [])[0] || '').replace(/^.*?\):\s*/, '')}` : c.title, who: c.evidence.attestedBy, when: String(c.evidence.collectedAt).slice(0, 10), until: String(c.evidence.expiresAt).slice(0, 10), expiring: daysLeft(c.evidence.expiresAt, now) <= EXPIRING_DAYS });
     const riskIds = [...new Set([c.controlRiskAccepted, ...c.findings.filter((f) => f.accepted).map((f) => f.riskId)].filter(Boolean))];
     for (const id of riskIds) out.push({ kind: 'Risco aceito', ref: c.id, what: `${id}: ${c.title}`, who: '-', when: '-', until: '-', expiring: false });
   }

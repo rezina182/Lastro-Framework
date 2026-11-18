@@ -82,6 +82,7 @@ function buildPlaybook(report, catalog, { now = new Date(), only = null, scope =
     if (only && !only.includes(c.id)) continue;
     if (scope && c.pack !== scope) continue;
     if (!all && c.state === 'verified') continue;
+    if (c.state === 'not_applicable') continue;
     const e = riskMap[c.id] || { kind: 'practice', pillars: '', cwe: [] };
     const { steps, checks, register } = splitSteps(def.howToVerify);
     const threats = tm ? tm.threats.filter((t) => t.controls.includes(c.id)).map((t) => ({ id: t.id, name: t.strideName, state: t.state, decision: t.decision })) : [];

@@ -12,6 +12,7 @@ const path = require('node:path');
 const { hasPrefix } = require('./util');
 const { isTestPath } = require('./engineering');
 const S = require('./surface');
+const { detectTech } = require('./tech');
 
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.py']);
 const MAX_FILES = 500;
@@ -324,6 +325,7 @@ function discover(ctx) {
     env: discoverEnv(ctx, files),
     dataHints: discoverDataHints(ctx),
     workflows,
+    tech: detectTech(ctx, files, deps),
   };
 }
 

@@ -34,6 +34,10 @@ O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em apli
 
 `lastro check --url STAGING --auth --confirm-non-production` entra com duas contas de teste e prova acesso por objeto entre contas, CSRF e logout, e analisa o cookie do login. Só em staging ou local. Veja [docs/SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md).
 
+## Por que a nota está assim
+
+`lastro gaps` explica as lacunas: quantos controles manuais estão sem atestação e por qual caminho cada um pode ser provado (sonda do kit, duas contas de teste, código, plataforma ou pessoa), os indícios que o código já mostra e os que provavelmente não se aplicam, com o trecho pronto para registrar "não se aplica" com justificativa. Veja [docs/SCORE.md](docs/SCORE.md).
+
 ## Histórico e portal
 
 `lastro history --write` grava a evolução em `.lastro/history/` (só números e estados). `lastro site --out ../portal` gera um portal estático, sem script nem servidor, com a nota de 0 a 10, a história dos resultados (já feito, precisa de atenção, o que fazer agora, o que decidir), o que já está implementado em cada escopo, o registro de decisões, o relatório, o playbook e o histórico. Veja [docs/PORTAL.md](docs/PORTAL.md).

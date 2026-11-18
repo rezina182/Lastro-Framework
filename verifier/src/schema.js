@@ -308,7 +308,9 @@ function validateStatus(s) {
     if (!ID_CONTROL.test(id)) errs.push(`${w}: id de controle inválido`);
     if (!isObj(a)) { errs.push(`${w}: deve ser objeto`); continue; }
     checkKeys(a, ['state', 'attestedBy', 'collectedAt', 'expiresAt'], ['evidenceRef', 'note'], w, errs);
-    oneOf(a.state, ['verified'], `${w}.state`, errs);
+    oneOf(a.state, ['verified', 'not_applicable'], `${w}.state`, errs);
+    // "Não se aplica" tira o controle da conta: exige o motivo por escrito, para outra pessoa poder discordar.
+    if (a.state === 'not_applicable' && (typeof a.note !== 'string' || a.note.trim().length < 20)) errs.push(`${w}: "not_applicable" exige note com a justificativa (ao menos 20 caracteres)`);
     text(a.attestedBy, `${w}.attestedBy`, errs, 120);
     date(a.collectedAt, `${w}.collectedAt`, errs);
     date(a.expiresAt, `${w}.expiresAt`, errs);

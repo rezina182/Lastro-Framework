@@ -56,6 +56,20 @@ Para cada controle manual, execute o `howToVerify` do catálogo. Registre em `.l
 
 A validade máxima é de 366 dias. Quem escreveu o código não deve ser o único a atestar controles de nível alto.
 
+Antes de atestar um por um, rode `lastro gaps`. Ele mostra por qual caminho cada controle manual pode ser provado (sonda do kit, sonda com duas contas, leitura do código, configuração da plataforma ou pessoa), os indícios que o código já mostra e os que **provavelmente não se aplicam** à tecnologia da aplicação (por exemplo, GraphQL sem nenhuma biblioteca de GraphQL). Para esses, depois de confirmar, registre "não se aplica" com a justificativa. O controle sai da conta até o prazo vencer:
+
+```json
+"WEB-020": {
+  "state": "not_applicable",
+  "attestedBy": "Nome",
+  "collectedAt": "2026-11-18",
+  "expiresAt": "2027-11-18",
+  "note": "A aplicação não usa GraphQL em nenhum serviço."
+}
+```
+
+`note` é obrigatório para "não se aplica" (ao menos 20 caracteres), para outra pessoa poder discordar. Ao vencer, o controle volta a contar como sem prova. O `lastro gaps` já imprime esse trecho pronto para os candidatos; troque o nome e revise o motivo antes de colar.
+
 ## 7. No CI
 
 Rode `lastro check` a cada PR. `fail` (exit 1) bloqueia o merge. `incomplete` (exit 2) mostra o que falta provar; use `--allow-incomplete` enquanto as atestações não estiverem prontas.

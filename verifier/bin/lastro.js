@@ -80,6 +80,9 @@ Uso:
                                              (fixtures/planted): quantas falhas ele pega, quantas viram pergunta e
                                              quantas perde, e os falsos positivos nas aplicações limpas. Sobe os
                                              servidores de teste só em 127.0.0.1. Sai com 1 se algo piorar.
+  lastro gaps [--json]                       por que a nota está assim: o que está sem prova e por quê, o caminho de
+                                             prova de cada controle manual (sonda, duas contas, código, plataforma ou
+                                             pessoa), os indícios no código e o que provavelmente não se aplica
   lastro scope <auth|web|pii|realtime|uploads|assets|agent|core>
                                              só os controles de um assunto, com estado e o que fazer em cada um
   lastro adapter kiro [--write]              copia os arquivos de steering do Kiro para .kiro/steering do projeto
@@ -520,6 +523,15 @@ async function main(argv) {
     const profile = loadProfile(root);
     const report = await runCheck({ root, only: scopeControlIds(cat, name) });
     console.log(formatScope(report, cat, name, profile.flags));
+    return 0;
+  }
+
+  if (cmd === 'gaps') {
+    // Só leitura: explica as lacunas e o caminho de prova de cada controle manual. Não muda estado nenhum.
+    const PM = require('../src/proofmap');
+    const report = await runCheck({ root });
+    const g = PM.analyzeGaps(report);
+    console.log(flags.json ? JSON.stringify(g, null, 2) : PM.formatGaps(g, { name: report.profile.name }));
     return 0;
   }
 

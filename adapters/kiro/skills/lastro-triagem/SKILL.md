@@ -12,7 +12,8 @@ description: Lê o resultado do lastro check e monta um plano em ordem de priori
    - **Bloqueia o portão:** achado novo, alto ou crítico (`blocking: true`). Mostre a causa e a correção do catálogo.
    - **Tem correção previsível:** CORE-006, CORE-010 e CORE-011 falhando. Ofereça a skill `lastro-corrigir`.
    - **Falha que exige código:** outros controles `failed`. Indique o arquivo e a linha do achado.
-   - **Sem prova:** controles manuais. Ofereça a skill `lastro-testes` para os que viram teste e `lastro playbook` para os demais.
+   - **Sem prova:** controles manuais. Rode `lastro gaps` e use o caminho de prova de cada um: "sonda" e "duas contas" viram `lastro check --url ... --auth` em local ou staging; "código" você confere lendo o código e prepara a atestação para a pessoa confirmar; "pessoa" e "plataforma" vão para `lastro playbook`. Ofereça a skill `lastro-testes` para os que viram teste automatizado.
+   - **Provavelmente não se aplica:** os que o `lastro gaps` aponta pela tecnologia. Confira no código e proponha o trecho `not_applicable` com a justificativa; **quem registra é a pessoa** (o hook pede confirmação antes de escrever em `.lastro/status.json`).
 3. Se o projeto já tem dívida e o usuário quer que o portão bloqueie só o novo, explique o `lastro baseline --write` e **peça confirmação** antes (é decisão de uma pessoa; um hook pede a confirmação).
 4. Ofereça `lastro backlog --write` para virar tickets P0 a P3.
 
