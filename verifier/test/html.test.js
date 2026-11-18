@@ -81,7 +81,7 @@ test('HTML: autocontido, sem script, sem recurso externo e com política de cont
 test('HTML: o gerador do kit é neutro, sem marca de empresa', () => {
   const html = formatHtml(fakeReport());
   assert.ok(!/hardtech|lynx|quiz/i.test(html));
-  assert.ok(html.includes('--accent:#1d4ed8'), 'tema padrão neutro');
+  assert.ok(html.includes('--brand:#5219a1') && html.includes('--highlight:#ffad01'), 'paleta padrão do LASTRO');
   assert.ok(html.includes('prefers-color-scheme:dark'), 'suporta modo escuro');
 });
 

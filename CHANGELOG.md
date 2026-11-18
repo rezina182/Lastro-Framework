@@ -6,7 +6,7 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ### Alterado (portal no formato de relatório de maturidade e base de conhecimento do App A)
 - Página inicial do portal reorganizada como um relatório de maturidade: barra de filtros (escopos, tipo de execução, data, catálogo), quatro indicadores (nota, portão, peso provado e maior gap), sumário executivo em prosa, barras de nota por escopo e por fase do ciclo, evolução, até 12 controles que exigem ação em ordem de prioridade, cartões "por que importam" (risco para o negócio, o que o kit encontrou, pilares afetados e como corrigir) e as visões do dev e do time de segurança lado a lado. A seção recolhida "Mais detalhes" saiu.
-- Visual novo em todas as páginas e no relatório: faixa do topo com a navegação, títulos com sublinhado de destaque, cartões com sombra, tabelas zebradas. Cores padrão neutras; a identidade visual entra pelo `--theme`, com variáveis novas (`--brand`, `--highlight`, `--ok-fill`, `--warn-fill`, `--bad-fill`, `--info-fill`).
+- Visual novo em todas as páginas e no relatório: faixa do topo com a navegação, títulos com sublinhado de destaque, cartões com sombra, tabelas zebradas. Paleta padrão do LASTRO roxa com destaque âmbar; outra aparência entra pelo `--theme`, com variáveis novas (`--brand`, `--highlight`, `--ok-fill`, `--warn-fill`, `--bad-fill`, `--info-fill`).
 - Seis lições novas do App A (L-A12 a L-A17), ligadas a AUTH-003, AUTH-011, AUTH-016, AUTH-040, AUTH-041, AUTH-043, WEB-007, WEB-013, WEB-016 e WEB-022. Catálogo com 43 lições.
 - `CONTRIBUTING.md` descreve o ciclo de enriquecer a base de conhecimento a cada aplicação nova.
 

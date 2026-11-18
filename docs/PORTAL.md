@@ -46,7 +46,7 @@ Segue o formato de um relatório de maturidade em segurança:
 | **Em resumo** | A história em quatro listas ([descritas abaixo](#a-história-dos-resultados)) |
 | **Para quem desenvolve** e **para o time de segurança** | Lado a lado. Dev: o que bloqueia, como corrigir e o próximo passo. Segurança: atestações que vencem em 30 dias e vencidas, riscos aceitos, dívida no baseline, risco confirmado e potencial, modelo de ameaças, verificações automáticas e tickets abertos por prioridade |
 
-As cores padrão são neutras. A identidade visual de uma empresa entra por um arquivo de tema (`--theme`), fora do kit, que redefine as variáveis de cor (`--brand` para a faixa do topo, `--highlight` para o sublinhado dos títulos, `--accent` para links e números, `--ok-fill`, `--warn-fill`, `--bad-fill` e `--info-fill` para as barras).
+A paleta padrão do LASTRO é roxa com destaque âmbar, sobre fundo lavanda claro (com versão para o modo escuro). Para outra aparência, um arquivo de tema (`--theme`) redefine as variáveis de cor (`--brand` para a faixa do topo, `--highlight` para o sublinhado dos títulos, `--accent` para links e números, `--ok-fill`, `--warn-fill`, `--bad-fill` e `--info-fill` para as barras).
 
 Regras de segurança do portal:
 

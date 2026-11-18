@@ -2,7 +2,7 @@
 
 // Relatório em HTML: um arquivo único, sem scripts, sem fontes nem imagens externas.
 // Tudo que vem do projeto analisado (nomes, caminhos, mensagens) é texto não confiável e passa por escape.
-// A identidade visual não faz parte do kit: o tema padrão é neutro e quem quiser outra aparência passa um
+// O tema padrão usa a paleta do LASTRO (sem marca de empresa) e quem quiser outra aparência passa um
 // arquivo de tema (--theme), que só pode redefinir variáveis e estilos, sem recursos externos.
 
 const { groupCauses } = require('./causes');
@@ -44,17 +44,17 @@ const pctText = (n) => `${String(num(n)).replace('.', ',')}%`;
 
 // Visual de relatório informativo: faixa da marca no topo, barra de filtros, cartões de indicador, títulos de seção
 // com sublinhado de destaque, barras de ranking e tabelas zebradas. As cores de texto passam no contraste AA; as de
-// preenchimento (barras) ficam em variáveis separadas. As cores padrão são neutras: a identidade de uma empresa
-// (--brand, --highlight, --accent e as demais) entra por um arquivo de tema (--theme), fora do kit.
+// preenchimento (barras) ficam em variáveis separadas. Paleta padrão do LASTRO: roxo (--brand), âmbar (--highlight) e
+// fundo lavanda claro. Quem quiser outra aparência redefine as variáveis num arquivo de tema (--theme).
 const BASE_CSS = `
-:root{--bg:#f5f6fa;--surface:#ffffff;--surface-2:#fafbfd;--surface-3:#eef1f7;--text:#1f2430;--muted:#5a6275;--border:#e2e5ed;--border-2:#d3d8e2;
---brand:#1d4ed8;--brand-ink:#ffffff;--highlight:#f59e0b;--accent:#1d4ed8;
+:root{--bg:#f7f5fb;--surface:#ffffff;--surface-2:#fbfafd;--surface-3:#f1edf8;--text:#2f3136;--muted:#64627f;--border:#eaeeef;--border-2:#d7dbdd;
+--brand:#5219a1;--brand-ink:#ffffff;--highlight:#ffad01;--accent:#5219a1;
 --ok:#0a7a3a;--warn:#9a5600;--bad:#c62828;--info:#1d5fd1;
---ok-fill:#16a34a;--warn-fill:#f59e0b;--bad-fill:#ef4444;--info-fill:#3b82f6;--none-fill:#b5b8c0;
---radius:12px;--shadow:0 1px 2px rgba(31,36,48,.06),0 4px 14px rgba(31,36,48,.06);
+--ok-fill:#01c949;--warn-fill:#ffad01;--bad-fill:#ef4444;--info-fill:#3b82f6;--none-fill:#b5b6ba;
+--radius:12px;--shadow:0 1px 2px rgba(47,49,54,.06),0 4px 14px rgba(82,25,161,.08);
 --font:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--surface:#161a23;--surface-2:#1a1f2a;--surface-3:#232a38;--text:#e7eaf0;--muted:#a4adbd;
---border:#2b3242;--border-2:#363e50;--brand:#1e3a8a;--accent:#93b4ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--info:#7fb0ff;--shadow:none}}
+@media (prefers-color-scheme:dark){:root{--bg:#121019;--surface:#1b1824;--surface-2:#211d2c;--surface-3:#2a2438;--text:#ebe8f2;--muted:#b0aac4;
+--border:#332d44;--border-2:#3d3650;--brand:#3a1275;--accent:#c4a6ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--info:#7fb0ff;--shadow:none}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--font)}
