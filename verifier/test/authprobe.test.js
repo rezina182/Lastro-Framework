@@ -173,3 +173,12 @@ test('authschema: massAssignment valida método, caminho e corpo', () => {
   const errs = validateAuthProbes({ ...base, massAssignment: [{ path: 'api', method: 'GET', body: {} }] }).join(' ');
   for (const re of [/massAssignment\[0\]\.path/, /massAssignment\[0\]\.method/, /massAssignment\[0\]\.body/]) assert.match(errs, re);
 });
+
+test('authprobe: rota que recusa campos extras (validação estrita) passa; edição legítima recusada é inconclusiva', async () => {
+  const cfg = { ...CFG, massAssignment: [{ path: '/api/conta', method: 'PATCH', body: { nome: 'Teste' }, read: '/api/conta' }] };
+  const strict = await probe({ strict: true }, cfg);
+  assert.deepEqual(strict.results['AUTH-028'].findings, []);
+  assert.match(strict.results['AUTH-028'].notes.join(' '), /recusou \(HTTP 400\) a edição com campos extras/);
+  const wrong = await probe({ strict: true }, { ...cfg, massAssignment: [{ ...cfg.massAssignment[0], body: { apelido: 'x' } }] });
+  assert.match(wrong.results['AUTH-028'].notes.join(' '), /edição legítima foi recusada/);
+});

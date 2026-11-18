@@ -82,7 +82,9 @@ function passwordHash(ctx) {
   }
   if (!r.findings.length) {
     const lib = files.map((f) => libOf(ctx.read(f) || '')).find(Boolean);
-    r.notes.push(`${NOTE} hash de senha com ${lib || 'biblioteca reconhecida'} em ${files.slice(0, 2).join(', ')}${seen.length ? ` (${seen.slice(0, 3).join('; ')})` : ''}. Falta conferir truncamento (72 bytes do bcrypt) e que a senha é verificada exatamente como recebida.`);
+    const isBcrypt = /bcrypt/i.test(lib || '');
+    const scryptDefault = /scrypt/i.test(lib || '') && !seen.length ? ' (sem N explícito: o padrão do Node é 16384)' : '';
+    r.notes.push(`${NOTE} hash de senha com ${lib || 'biblioteca reconhecida'} em ${files.slice(0, 2).join(', ')}${seen.length ? ` (${seen.slice(0, 3).join('; ')})` : scryptDefault}. Falta conferir ${isBcrypt ? 'como o limite de 72 bytes do bcrypt é tratado' : 'se há truncamento da senha'} e que a senha é verificada exatamente como recebida.`);
   }
   return r;
 }
@@ -181,7 +183,7 @@ async function defaultCreds(ctx, login) {
 const BRUTE_ATTEMPTS = 25;
 
 /** AUTH-016: tentativas erradas em sequência, numa conta inexistente, são limitadas. */
-async function bruteForce(ctx, login) {
+async function bruteForce(ctx, login, { prior = 0 } = {}) {
   const r = result();
   const user = `lastro-probe-${crypto.randomBytes(4).toString('hex')}@invalid.test`;
   for (let i = 1; i <= BRUTE_ATTEMPTS; i += 1) {
@@ -189,7 +191,8 @@ async function bruteForce(ctx, login) {
     if (!res.ok) { r.notes.push(`${NOTE} força bruta inconclusiva: ${login.path} parou de responder (${res.error}).`); return r; }
     r.tested = i;
     if (LIMITED(res)) {
-      r.notes.push(`${NOTE} o login em ${login.path} passou a limitar depois de ${i} tentativa(s) erradas (HTTP ${res.status}). Falta conferir o limite por conta (de IPs diferentes) e a documentação.`);
+      // As tentativas do teste de contas padrão (AUTH-011) contam no mesmo limitador: soma as duas.
+      r.notes.push(`${NOTE} o login em ${login.path} passou a limitar depois de ${prior + i} tentativa(s) erradas seguidas do mesmo endereço${prior ? ` (${prior} do teste de contas padrão e ${i} deste)` : ''} (HTTP ${res.status}). Falta conferir o limite por conta (de IPs diferentes) e a documentação.`);
       return r;
     }
     if (res.status >= 200 && res.status < 300 && (res.setCookie || []).length) { r.notes.push(`${NOTE} força bruta inconclusiva: ${login.path} respondeu 2xx com cookie para uma senha errada; confira o formato do login no perfil.`); return r; }
@@ -218,8 +221,9 @@ async function runAssists(ctx, profile, { active = false, disc = null, want = ()
     const login = profile.authProbes && profile.authProbes.login;
     if (active && login) {
       // Contas padrão antes da força bruta: depois dela, o limite de tentativas esconderia uma conta padrão aceita.
-      if (want('AUTH-011')) put('AUTH-011', await defaultCreds(ctx, login), 'verifier-http');
-      if (want('AUTH-016')) put('AUTH-016', await bruteForce(ctx, login), 'verifier-http');
+      const dc = want('AUTH-011') ? await defaultCreds(ctx, login) : null;
+      if (dc) put('AUTH-011', dc, 'verifier-http');
+      if (want('AUTH-016')) put('AUTH-016', await bruteForce(ctx, login, { prior: dc ? dc.tested : 0 }), 'verifier-http');
     }
   }
   return out;

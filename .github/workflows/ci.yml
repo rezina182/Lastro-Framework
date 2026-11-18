@@ -35,6 +35,14 @@ jobs:
         run: node verifier/bin/lastro.js check --allow-incomplete
       - name: Auditoria de dependencias
         run: npm audit --audit-level=high
+      - name: SBOM (CycloneDX, dependencias de producao)
+        run: npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
+      - name: Guardar o SBOM como artefato
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
       - name: Varredura de segredos (gitleaks, versao e checksum fixos)
         run: |
           set -euo pipefail

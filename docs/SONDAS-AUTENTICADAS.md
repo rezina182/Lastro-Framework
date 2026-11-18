@@ -111,6 +111,30 @@ Num clone do App B, com o app local e banco descartável, duas contas de profess
 
 O teste real achou duas falhas do kit, corrigidas antes da medição: a sonda de CSRF não sabia mandar o token anti-CSRF (ficaria inconclusiva numa aplicação bem protegida), e um logout recusado por falta do token virava falso positivo de "sessão não encerrada". Hoje, logout recusado é inconclusivo.
 
+## Prova assistida testada no App B (2026-11-18)
+
+No mesmo clone, com `--url --active --auth --confirm-non-production`, em 73 requisições:
+
+- **13 controles manuais ganharam prova parcial da máquina**, sem nenhum falso positivo:
+  - o login limitou as tentativas erradas (HTTP 429) na sétima tentativa seguida;
+  - as credenciais padrão foram recusadas;
+  - o cookie adulterado foi recusado e o login novo trocou o valor da sessão;
+  - a rota autenticada respondeu com `no-store`, sem campo secreto na resposta;
+  - nenhuma documentação ou listagem estava exposta;
+  - o CI roda os testes com banco real;
+  - o hash de senha é scrypt;
+  - o hook do agente estava instalado.
+- **CORE-017 virou verificado.**
+- O relatório não trouxe senha nem cookie.
+
+O teste mostrou três ajustes, já feitos:
+
+- A força bruta passou a somar as tentativas do teste de contas padrão, que usam o mesmo limitador.
+- A sonda de atribuição em massa passou a testar primeiro a edição legítima. Assim, uma recusa da edição com campos extras (validação estrita) conta como o comportamento certo, em vez de inconclusiva.
+- O texto do hash de senha deixou de citar o limite do bcrypt quando a aplicação usa scrypt.
+
+O limitador de login do App B fica em memória. Depois do teste de força bruta, o app foi reiniciado antes das execuções seguintes, porque o próprio limitador bloquearia o login das sondas.
+
 ## Medido no banco de falhas
 
 No `lastro bench`, as quatro falhas de lógica em execução (pedido legível sem login, nota fiscal de outra conta, POST de origem estranha e logout que não encerra a sessão) passam a ser **detectadas**, e as três gêmeas limpas passam sem falso positivo. Veja [BENCH.md](BENCH.md).

@@ -179,10 +179,19 @@ const MASS_FIELDS = { role: 'admin', isAdmin: true, admin: true, papel: 'admin',
 async function probeMass(client, cfg, jars, legit, out) {
   for (const m of cfg.massAssignment || []) {
     const format = m.format || 'json';
+    const headers = { 'content-type': contentType(format), ...legit, ...tokenHeader(cfg, jars.tokens.a) };
     const extra = Object.fromEntries(Object.entries(MASS_FIELDS).filter(([k]) => !(k in (m.body || {}))));
-    const body = encodeBody(format, { ...(m.body || {}), ...extra });
-    const res = await client.send(m.method, m.path, { jar: jars.a, headers: { 'content-type': contentType(format), ...legit, ...tokenHeader(cfg, jars.tokens.a) }, body });
-    if (!granted(res)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva em ${m.method} ${m.path}: a edição foi recusada (HTTP ${res.status || 0}); confira "body" no perfil.`); continue; }
+    // Primeiro a edição legítima sozinha: sem ela, uma recusa da edição com extras não prova nada.
+    const plain = await client.send(m.method, m.path, { jar: jars.a, headers, body: encodeBody(format, m.body || {}) });
+    if (!granted(plain)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva em ${m.method} ${m.path}: a edição legítima foi recusada (HTTP ${plain.status || 0}); confira "body" no perfil.`); continue; }
+    const res = await client.send(m.method, m.path, { jar: jars.a, headers, body: encodeBody(format, { ...(m.body || {}), ...extra }) });
+    if (res.ok && res.status >= 400 && res.status < 500) {
+      // A legítima passou e a com campos extras foi recusada: validação estrita, o comportamento esperado.
+      out.tested += 1;
+      out.notes.push(`${NOTE} ${m.method} ${m.path} recusou (HTTP ${res.status}) a edição com campos extras (${Object.keys(extra).slice(0, 4).join(', ')}...) e aceitou a legítima.`);
+      continue;
+    }
+    if (!granted(res)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva em ${m.method} ${m.path}: resposta inesperada à edição com campos extras (HTTP ${res.status || 0}).`); continue; }
     const back = await client.send('GET', m.read || m.path, { jar: jars.a });
     if (!is2xx(back)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva: ${m.read || m.path} não pôde ser relido (HTTP ${back.status || 0}).`); continue; }
     out.tested += 1;

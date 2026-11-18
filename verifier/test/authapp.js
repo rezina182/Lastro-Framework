@@ -52,6 +52,8 @@ function app(opt = {}) {
       if (url === '/api/conta' && req.method === 'PATCH') {
         if (!user) return send(401, { error: 'login' });
         const j = JSON.parse(raw || '{}');
+        // strict: recusa qualquer campo além de "nome" (validação por lista de permissão).
+        if (opt.strict && Object.keys(j).some((k) => k !== 'nome')) return send(400, { error: 'campo desconhecido' });
         const cur = profiles.get(user) || { nome: user };
         profiles.set(user, opt.mass ? { ...cur, ...j } : { ...cur, nome: j.nome || cur.nome });
         return send(200, { ok: true });
