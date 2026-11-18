@@ -6,6 +6,7 @@
 // para qualquer aplicação com o recurso; as rotas vêm do perfil, nunca do kit.
 
 const A = require('../assist');
+const { discover } = require('../discover');
 
 const unverified = (note) => ({ state: 'unverified', findings: [], notes: [note] });
 const clean = (s) => s.replace(/^Prova parcial da máquina:\s*/, '').replace(/\s*Falta [^.]*\.\s*$/, '');
@@ -35,7 +36,8 @@ const NEED_ACTIVE = 'Sonda ativa (tentativas de login erradas): rode com --url, 
 const NEED_LOGIN = 'O perfil não declara a rota de login (authProbes.login): sem ela não há o que testar.';
 
 const checks = {
-  'http.paths.exposed': async (ctx) => (ctx.url ? asCheck(await A.exposedPaths(ctx), 'Nenhum caminho respondeu.') : unverified(NEED_URL)),
+  // Além dos caminhos comuns, as rotas GET de métrica, diagnóstico e documentação que a descoberta acha no próprio código.
+  'http.paths.exposed': async (ctx) => (ctx.url ? asCheck(await A.exposedPaths(ctx, { extra: discover(ctx).routes.diag || [] }), 'Nenhum caminho respondeu.') : unverified(NEED_URL)),
   'http.content-type': async (ctx) => (ctx.url ? asCheck(await A.contentTypes(ctx), 'Nenhuma resposta com corpo para conferir.') : unverified(NEED_URL)),
   'http.login.default-creds': async (ctx) => {
     if (!ctx.url || !ctx.active) return unverified(NEED_ACTIVE);
@@ -51,6 +53,11 @@ const checks = {
     const { bf } = await loginProbes(ctx);
     if (!bf.findings.length && bf.notes.some((n) => /passou a limitar/.test(n))) return { state: 'verified', findings: [], notes: bf.notes.map(clean) };
     return asCheck(bf, 'O login não respondeu.');
+  },
+  'repo.code.default-password': (ctx) => {
+    const r = A.defaultPasswords(ctx);
+    if (!r.tested) return unverified('Nenhuma chamada a função de hash de senha no código: nada a conferir.');
+    return asCheck(r, '');
   },
   'repo.code.password-hash': (ctx) => {
     const r = A.passwordHash(ctx);

@@ -38,7 +38,7 @@ function app(opt = {}) {
         const t = opt.fixation && sid ? sid : `t${counter}x${String(counter * 7919).padStart(10, '0')}a`;
         sessions.set(t, j.username);
         tokens.set(t, `csrf${counter}`);
-        if (!(opt.fixation && sid)) res.setHeader('Set-Cookie', `sid=${t}; Path=/; HttpOnly`);
+        if (!(opt.fixation && sid)) res.setHeader('Set-Cookie', `sid=${t}; Path=/; HttpOnly${opt.sameSite ? `; SameSite=${opt.sameSite}` : ''}`);
         return send(200, opt.token ? { ok: true, csrfToken: `csrf${counter}` } : { ok: true });
       }
       if (url === '/api/me') {

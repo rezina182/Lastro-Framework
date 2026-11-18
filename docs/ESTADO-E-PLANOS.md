@@ -16,7 +16,7 @@ Um kit, sem dependências de execução, que mede **quanta evidência** existe d
 
 | Parte | Comando | O que faz | Documento |
 |---|---|---|---|
-| Catálogo | `lastro catalog validate` | 159 controles em 8 pacotes, 37 lições de origem, 38 verificações automáticas, mapa dos 345 requisitos do ASVS 5.0 | [ARCHITECTURE.md](../ARCHITECTURE.md), [GLOSSARIO.md](GLOSSARIO.md) |
+| Catálogo | `lastro catalog validate` | 160 controles em 8 pacotes, 37 lições de origem, 39 verificações automáticas, mapa dos 345 requisitos do ASVS 5.0 | [ARCHITECTURE.md](../ARCHITECTURE.md), [GLOSSARIO.md](GLOSSARIO.md) |
 | Perfil | `lastro init` | Flags que dizem o que a aplicação tem (web, login, upload, dados de menores...), derivadas do código como rascunho, com o motivo de cada uma e as perguntas do que o código não mostra. Decidem o escopo e o contexto | [PROFILE.md](PROFILE.md) |
 | Verificação | `lastro check` | Roda as verificações automáticas, lê as atestações e dá o portão de CI (bloqueia achado novo alto ou crítico) | [README](../README.md) |
 | Sondas HTTP | `lastro check --url` | Cabeçalhos, CSP, HSTS, cookies, erros, arquivos sensíveis; `--active` para TRACE e CORS | [README](../README.md) |
@@ -222,6 +222,8 @@ No clone do App B, 120 dos 142 controles aplicáveis estavam sem prova, e 110 de
 **Feito:** `lastro gaps` (caminho de prova de cada controle manual, indícios no código, "provavelmente não se aplica" pela tecnologia, automáticos sem `--url`, tipo de cada falha); atestação "não se aplica" com justificativa e prazo; "Por que a nota está assim" no relatório e no portal; visão geral do portal mais curta.
 
 **Feito depois (automação dos manuais):** prova assistida para CORE-015, AUTH-002, AG-001, AG-007, WEB-016, WEB-018, AUTH-011 e AUTH-016; sondas autenticadas para AUTH-022 e WEB-010; CORE-017 virou automático; o playbook reaproveita a prova parcial na atestação. Veja [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md). Entraram também campos secretos nas respostas (CORE-056) e atribuição em massa (AUTH-028). No teste real do App B, 13 controles manuais ganharam prova parcial da máquina e o CORE-017 foi verificado, sem falso positivo. **Falta:** redirecionamento aberto (WEB-015) e os demais "duas contas" (MFA, troca de senha, prazos de sessão, upload); e rodar tudo isso no App B real.
+
+**Segunda aplicação (App A):** primeiro teste fora do App B, num clone com banco descartável próprio. O kit achou falhas reais e não teve falso positivo. O teste também mostrou quatro lacunas de generalidade, já corrigidas: perfil inicial em branco, conta semeada com senha fixa, rotas de diagnóstico próprias e calibragem do CSRF com `SameSite`. Detalhes em [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md). **Falta:** uma aplicação de outra linguagem (Python ou outra pilha) para testar a descoberta e as varreduras fora do Node.
 
 **Próximo, em ordem (lista original):** sondas novas para o que o mapa marca como "sonda" e "duas contas" (força bruta no login, AUTH-016; atribuição em massa, AUTH-028 e CORE-056; renovação do token de sessão no login, AUTH-022; cache de rota autenticada, WEB-010; listagem e documentação expostas, WEB-016; redirecionamento aberto, WEB-015); verificações de código para o que o mapa marca como "código" (CORE-015 banco no CI, CORE-017 SBOM, AUTH-002 algoritmo e custo do hash), que podem virar automáticas de verdade; um agente que percorre o mapa, roda o que dá e prepara a atestação para a pessoa confirmar.
 

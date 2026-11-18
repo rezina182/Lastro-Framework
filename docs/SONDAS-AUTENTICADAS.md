@@ -39,6 +39,9 @@ Quando a máquina consegue provar um pedaço do controle manual sem depender de 
 | AUTH-041 | AUTH-011 | `--url --active --confirm-non-production` e `authProbes.login` | Nenhuma de 8 credenciais padrão comuns entra | Crítico: alguma entra. Se o limitador cortar o teste antes do fim, fica sem prova |
 | AUTH-040 | AUTH-016 | idem | O login limita tentativas erradas seguidas do mesmo endereço antes de 25 | Alto: 25 tentativas sem limite |
 | AUTH-042 | AUTH-002 | sempre (lê o código) | bcrypt com custo 10 ou mais, Argon2, ou scrypt com N de 16384 ou mais | Alto: custo abaixo do mínimo |
+| AUTH-043 | AUTH-011 e AUTH-012 | sempre (lê o código) | Nenhuma conta criada, semeada ou redefinida com senha fixa: constante de senha padrão (`SENHA_PADRAO`, `DEFAULT_PASSWORD`...) ou texto literal passados para a função de hash | Alto: senha fixa, com arquivo e linhas (o valor nunca é mostrado) |
+
+O WEB-022 testa, além dos caminhos comuns, as rotas GET de métrica, diagnóstico e documentação que a descoberta acha no próprio código (por exemplo, `/api/metrics/internal`), até dez, sem parâmetro.
 
 Há dois tipos de achado. **Falha medida** (custo do bcrypt, login sem limite, credencial padrão aceita, documentação exposta, cookie adulterado aceito) vence qualquer atestação. **Ausência suspeita** (a máquina não viu o hook do agente, os testes no CI ou o banco no CI) só vira achado quando ninguém atestou o controle: o mecanismo pode estar fora do repositório. Se alguém atestou, a atestação vale e o relatório mostra "A máquina não confirmou o que foi atestado", para a pessoa conferir.
 
@@ -141,6 +144,35 @@ O teste mostrou três ajustes, já feitos:
 - O texto do hash de senha deixou de citar o limite do bcrypt quando a aplicação usa scrypt.
 
 O limitador de login do App B fica em memória. Depois do teste de força bruta, o app foi reiniciado antes das execuções seguintes, porque o próprio limitador bloquearia o login das sondas.
+
+## Segunda aplicação: App A (2026-11-18)
+
+O App A tem outra estrutura de código: um `server.js` único com 140 rotas, `schema.sql`, sessão no banco e MFA por TOTP. O teste rodou num clone, com banco descartável próprio, duas contas de operador de teste e duas rodadas, reiniciando o app entre elas porque o limitador de login aceita 10 tentativas a cada 15 minutos. A primeira rodada usou `--active` e a segunda, `--auth`, ambas com `--delay 350` para respeitar o limite de 200 requisições por minuto da API.
+
+**Achados reais, sem falso positivo:**
+
+- **AUTH-043:** administrador inicial e redefinição de senha com a mesma senha fixa no código, em cinco lugares. O valor não aparece no relatório.
+- **WEB-007:** JSON malformado devolve o stack trace e o caminho interno do servidor.
+- **WEB-001:** a CSP permite `'unsafe-inline'` em scripts.
+- **WEB-010:** a rota autenticada sai sem `no-store`.
+- **WEB-013:** a edição do perfil aceita origem estranha sem token.
+- **AUTH-003:** o cookie de sessão está sem prefixo `__Host-`.
+
+**Passaram:**
+
+- **AUTH-040:** o login limitou na 11ª tentativa, o que bate com o `max: 10` do código.
+- **AUTH-041:** nenhuma credencial padrão comum entrou.
+- **AUTH-042:** bcrypt com custo 10.
+- **WEB-022:** 22 caminhos sem exposição, incluindo as rotas de diagnóstico achadas no código.
+- **WEB-023:** Content-Type correto.
+- **Sondas autenticadas:** o cookie adulterado foi recusado e o login novo trocou o valor da sessão. O logout encerrou a sessão no servidor e nenhum campo secreto apareceu nas respostas. A edição com `perfil: "admin"` e outros campos extras não gravou nada.
+
+**O teste mudou o kit em quatro pontos, todos genéricos:**
+
+- O `lastro init` passou a derivar o perfil do código. O perfil em branco deixava 78 controles de fora.
+- Entrou o AUTH-043.
+- O WEB-022 passou a testar as rotas de diagnóstico declaradas no código.
+- O CSRF aceito com cookie `SameSite=Strict` ou `Lax` passou a ser médio, como defesa em profundidade, porque os navegadores atuais já barram o envio. Sem `SameSite`, ou com `None`, continua alto.
 
 ## Medido no banco de falhas
 

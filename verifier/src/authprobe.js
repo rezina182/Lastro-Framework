@@ -64,7 +64,17 @@ async function probeCsrf(client, cfg, jars, legit, out) {
     // A forjada imita outro site: origem estranha e sem o token (outro site não consegue lê-lo).
     const forged = await client.send(c.method, c.path, { jar: jars.a, headers: { ...base, origin: EVIL_ORIGIN, 'sec-fetch-site': 'cross-site' }, body });
     out.tested += 1;
-    if (granted(forged)) out.findings.push({ severity: 'high', key: `csrf:${c.method}:${c.path}`, location: c.path, message: `${c.method} ${c.path} aceitou, com a sessão da conta a, uma requisição de origem estranha e sem token anti-CSRF (HTTP ${forged.status}). O navegador só envia o cookie conforme o SameSite, mas o servidor deve recusar por conta própria.` });
+    if (granted(forged)) {
+      // Cookie de sessão SameSite=Strict (ou Lax, numa escrita) já impede o navegador de mandá-lo a partir de outro
+      // site: a falta de checagem no servidor é lacuna de defesa em profundidade (média), não CSRF explorável hoje.
+      const mitigated = jars.sameSite === 'strict' || jars.sameSite === 'lax';
+      out.findings.push({
+        severity: mitigated ? 'medium' : 'high', key: `csrf:${c.method}:${c.path}`, location: c.path,
+        message: mitigated
+          ? `${c.method} ${c.path} aceitou, com a sessão da conta a, uma requisição de origem estranha e sem token anti-CSRF (HTTP ${forged.status}). O cookie de sessão é SameSite=${jars.sameSite === 'strict' ? 'Strict' : 'Lax'}, o que já barra o envio a partir de outro site nos navegadores atuais; falta a segunda defesa no servidor (conferir Origin ou exigir token), para navegadores antigos e para subdomínios do mesmo site.`
+          : `${c.method} ${c.path} aceitou, com a sessão da conta a, uma requisição de origem estranha e sem token anti-CSRF (HTTP ${forged.status}), e o cookie de sessão não tem SameSite=Strict nem Lax: outro site consegue disparar essa ação com a sessão do usuário. O servidor deve conferir a Origin ou exigir token.`,
+      });
+    }
   }
 }
 
@@ -229,7 +239,7 @@ async function runAuthProbes(ctx, cfg, accounts) {
   if (!a.ok) return inconclusive(a.reason);
   const b = await login(client, cfg, accounts.b, 'b', legit);
   if (!b.ok) return inconclusive(b.reason);
-  const jars = { a: a.jar, b: b.jar, tokens: { a: a.token, b: b.token } };
+  const jars = { a: a.jar, b: b.jar, tokens: { a: a.token, b: b.token }, sameSite: a.sameSite };
 
   const results = emptyResults();
   await probeObjects(client, cfg, jars, legit, results['AUTH-027']);

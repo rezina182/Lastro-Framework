@@ -215,3 +215,32 @@ test('controles automáticos novos: AUTH-042 lê o hash do código; WEB-022 e WE
     assert.match((await checks['http.content-type'](ctx)).notes[0], /--url/);
   });
 });
+
+test('AUTH-043: conta semeada ou redefinida com senha fixa é achada, sem copiar o valor; senha aleatória passa', () => {
+  const { checks } = require('../src/checks/assisted');
+  const seed = "const bcrypt = require('bcryptjs');\nconst SENHA_PADRAO = \"Troca@123\";\nasync function boot() {\n  const h = bcrypt.hashSync(SENHA_PADRAO, 10);\n}\nfunction reset(s) { return bcrypt.hashSync(s || SENHA_PADRAO, 10); }\n";
+  withCtx({ 'server.js': seed }, (ctx) => {
+    const r = checks['repo.code.default-password'](ctx);
+    assert.equal(r.state, 'failed');
+    assert.match(r.findings[0].message, /SENHA_PADRAO, 2 uso\(s\) em server\.js, linhas 4, 6/);
+    assert.doesNotMatch(JSON.stringify(r), /Troca@123/, 'o valor da senha nunca vai para o achado');
+  });
+  withCtx({ 'server.js': "const bcrypt = require('bcrypt');\nconst h = bcrypt.hash('segredo-fixo', 12);\n" }, (ctx) => assert.match(checks['repo.code.default-password'](ctx).findings[0].message, /texto literal/));
+  withCtx({ 'server.js': "const bcrypt = require('bcrypt');\nconst c = require('node:crypto');\nconst h = bcrypt.hash(c.randomBytes(12).toString('hex'), 12);\n" }, (ctx) => assert.equal(checks['repo.code.default-password'](ctx).state, 'verified'));
+  withCtx({ 'x.js': '1;\n' }, (ctx) => assert.equal(checks['repo.code.default-password'](ctx).state, 'unverified'));
+});
+
+test('WEB-022: testa também as rotas de métrica e diagnóstico que o próprio código declara', async () => {
+  const srv = await serve((req, res) => {
+    if (req.url === '/api/metrics/internal') { res.setHeader('Content-Type', 'text/plain'); return res.end('# HELP memoria\n# TYPE memoria gauge\nmemoria 1\n'); }
+    res.statusCode = 404;
+    return res.end('nada');
+  });
+  const root = makeProject({ 'server.js': "app.get('/api/metrics/internal', h);\napp.get('/api/clientes/:id', auth, h);\n" });
+  try {
+    const { checks } = require('../src/checks/assisted');
+    const r = await checks['http.paths.exposed'](ctxFor(root, { url: srv.url }));
+    assert.equal(r.state, 'failed');
+    assert.deepEqual(r.findings.map((f) => f.key), ['exposed:/api/metrics/internal']);
+  } finally { await srv.close(); cleanup(root); }
+});

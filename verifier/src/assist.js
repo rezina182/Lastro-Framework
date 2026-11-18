@@ -84,8 +84,39 @@ function passwordHash(ctx) {
     const lib = files.map((f) => libOf(ctx.read(f) || '')).find(Boolean);
     const isBcrypt = /bcrypt/i.test(lib || '');
     const scryptDefault = /scrypt/i.test(lib || '') && !seen.length ? ' (sem N explícito: o padrão do Node é 16384)' : '';
-    r.notes.push(`${NOTE} hash de senha com ${lib || 'biblioteca reconhecida'} em ${files.slice(0, 2).join(', ')}${seen.length ? ` (${seen.slice(0, 3).join('; ')})` : scryptDefault}. Falta conferir ${isBcrypt ? 'como o limite de 72 bytes do bcrypt é tratado' : 'se há truncamento da senha'} e que a senha é verificada exatamente como recebida.`);
+    r.notes.push(`${NOTE} hash de senha com ${lib || 'biblioteca reconhecida'} em ${files.slice(0, 2).join(', ')}${seen.length ? ` (${[...new Set(seen)].slice(0, 3).join('; ')})` : scryptDefault}. Falta conferir ${isBcrypt ? 'como o limite de 72 bytes do bcrypt é tratado' : 'se há truncamento da senha'} e que a senha é verificada exatamente como recebida.`);
   }
+  return r;
+}
+
+// Senha fixa no código usada para criar ou redefinir conta (AUTH-043): uma constante com nome de senha padrão, ou um
+// texto literal, passada para a função de hash de senha. O valor NUNCA é copiado para o achado.
+const PW_CONST = /\b(?:const|let|var)\s+([A-Z_]*(?:SENHA|PASSWORD|PASSWD|PASS|PWD)[A-Z_]*(?:PADRAO|DEFAULT|INICIAL|INITIAL|TEMP|PROVISORIA)[A-Z_]*|DEFAULT_?(?:PASSWORD|PASS|PWD|SENHA)|SENHA_?(?:PADRAO|INICIAL))\s*=\s*(['"`])[^'"`]{1,200}\2/g;
+const HASH_CALL = /\b(?:bcrypt\w*\.(?:hash|hashSync)|argon2\.hash|hashPassword|hashSenha|gerarHash|scrypt(?:Sync)?)\s*\(\s*([^,)]+)/g;
+
+function defaultPasswords(ctx) {
+  const r = result();
+  for (const f of codeFiles(ctx)) {
+    const text = ctx.read(f) || '';
+    // Regex com /g guarda a posição (lastIndex): o teste usa uma cópia sem /g para não estragar a busca por linha.
+    if (!new RegExp(HASH_CALL.source).test(text)) continue;
+    r.tested += 1;
+    const consts = new Set([...text.matchAll(PW_CONST)].map((m) => m[1]));
+    const lines = text.split(/\r?\n/);
+    const uses = [];
+    lines.forEach((line, i) => {
+      for (const m of line.matchAll(HASH_CALL)) {
+        const arg = m[1].trim();
+        // senha || SENHA_PADRAO também conta: sem senha informada, a conta nasce com a fixa.
+        const hit = [...consts].find((c) => new RegExp(`\\b${c}\\b`).test(arg)) || (/^(['"`])[^'"`]{4,}\1$/.test(arg) ? 'texto literal' : null);
+        if (hit) uses.push({ line: i + 1, what: hit });
+      }
+    });
+    if (uses.length) {
+      r.findings.push({ severity: 'high', key: `default-password:${f}:${uses[0].what}`, location: `${f}:${uses[0].line}`, message: `Conta criada ou redefinida com senha fixa no código (${uses[0].what === 'texto literal' ? 'texto literal' : uses[0].what}, ${uses.length} uso(s) em ${f}, linhas ${uses.slice(0, 5).map((u) => u.line).join(', ')}): quem conhece o código ou a documentação entra como esse usuário até a senha ser trocada. Gere uma senha aleatória por conta, entregue por canal seguro, com troca obrigatória e prazo.` });
+    }
+  }
+  if (r.tested && !r.findings.length) r.notes.push(`${NOTE} nenhuma senha fixa passada para a função de hash em ${r.tested} arquivo(s).`);
   return r;
 }
 
@@ -121,9 +152,9 @@ const LIST_BODY = /<title>\s*(Index of|Directory listing)|<h1>\s*Index of \//i;
 const DEBUG_BODY = /phpinfo\(\)|Server Status for|Apache Server Status|actuator|"_links"\s*:/i;
 
 /** WEB-016: listagem de diretório, documentação interna e monitoramento expostos. */
-async function exposedPaths(ctx) {
+async function exposedPaths(ctx, { extra = [] } = {}) {
   const r = result();
-  for (const p of [...DOC_PATHS, ...LIST_PATHS]) {
+  for (const p of [...new Set([...DOC_PATHS, ...LIST_PATHS, ...extra])]) {
     const res = await ctx.fetch(p);
     if (!res.ok) continue;
     r.tested += 1;
@@ -227,4 +258,4 @@ async function runAssists(ctx, profile, { active = false, disc = null, want = ()
 
 const COVERS = ['CORE-015', 'AG-001', 'AG-007'];
 
-module.exports = { runAssists, NOTE, COVERS, ciTestsWithDb, passwordHash, agentGuard, exposedPaths, contentTypes, defaultCreds, bruteForce, BRUTE_ATTEMPTS };
+module.exports = { runAssists, NOTE, COVERS, ciTestsWithDb, passwordHash, defaultPasswords, agentGuard, exposedPaths, contentTypes, defaultCreds, bruteForce, BRUTE_ATTEMPTS };

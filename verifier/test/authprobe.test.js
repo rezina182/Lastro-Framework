@@ -182,3 +182,12 @@ test('authprobe: rota que recusa campos extras (validação estrita) passa; edi�
   const wrong = await probe({ strict: true }, { ...cfg, massAssignment: [{ ...cfg.massAssignment[0], body: { apelido: 'x' } }] });
   assert.match(wrong.results['AUTH-028'].notes.join(' '), /edição legítima foi recusada/);
 });
+
+test('authprobe: CSRF aceito com cookie SameSite=Strict é médio (defesa em profundidade); sem SameSite continua alto', async () => {
+  const strict = await probe({ csrf: true, sameSite: 'Strict' });
+  assert.equal(strict.results['WEB-013'].findings[0].severity, 'medium');
+  assert.match(strict.results['WEB-013'].findings[0].message, /SameSite=Strict, o que já barra o envio/);
+  const sem = await probe({ csrf: true });
+  assert.equal(sem.results['WEB-013'].findings[0].severity, 'high');
+  assert.match(sem.results['WEB-013'].findings[0].message, /não tem SameSite=Strict nem Lax/);
+});

@@ -58,7 +58,16 @@ async function login(client, cfg, account, label, legit, startJar = null) {
   }
   const me = await client.send('GET', cfg.protected, { jar });
   if (!is2xx(me)) return { ok: false, reason: `a conta ${label} entrou, mas ${cfg.protected} não aceitou a sessão (HTTP ${me.status || 0})` };
-  return { ok: true, jar, token };
+  return { ok: true, jar, token, sameSite: sameSiteOf(res.setCookie) };
+}
+
+/** SameSite do cookie de sessão emitido no login ('strict', 'lax', 'none' ou null). Só o atributo, nunca o valor. */
+function sameSiteOf(lines) {
+  const all = (lines || []).map((l) => String(l));
+  const pick = all.find((l) => /^[^=]*(sess|sid|auth|token|connect)/i.test(l)) || all[0];
+  if (!pick) return null;
+  const m = /;\s*samesite\s*=\s*(strict|lax|none)/i.exec(pick);
+  return m ? m[1].toLowerCase() : null;
 }
 
 /** Cabeçalho do token anti-CSRF da conta, para requisições legítimas. Vazio se o perfil não declara token. */

@@ -317,6 +317,8 @@ function discover(ctx) {
       authMounts: countAuthMounts(ctx, files),
       examples: withoutAuth.slice(0, MAX_EXAMPLES).map((r) => ({ method: r.method, path: r.path, location: `${r.file}:${r.line}` })),
       uploadRoutes: routes.filter((r) => /(upload|import|attach|arquivo|file|media|foto|imagem|avatar)/i.test(r.path) && r.method !== 'GET').slice(0, 6).map((r) => `${r.method} ${r.path}`),
+      // GET da própria aplicação com cara de métrica, diagnóstico ou documentação, sem parâmetro (a sonda WEB-022 testa).
+      diag: [...new Set(routes.filter((r) => r.method === 'GET' && /(metric|debug|diagn|swagger|openapi|api-?docs|actuator|stats|internal|interno|monitor)/i.test(r.path) && !/[:{*]/.test(r.path)).map((r) => r.path))].slice(0, 10),
     },
     stores: pick(STORE_DEPS),
     realtime,

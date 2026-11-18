@@ -66,7 +66,7 @@ O histórico ainda lê registros antigos que têm só o nível.
 
 ## Por que a nota está baixa (`lastro gaps`)
 
-A causa mais comum de nota baixa não é código ruim: é falta de prova. A maior parte do catálogo (121 dos 159 controles) depende de um teste ou de uma decisão de uma pessoa, e sem atestação cada um conta zero. `lastro gaps` mostra a conta:
+A causa mais comum de nota baixa não é código ruim: é falta de prova. A maior parte do catálogo (121 dos 160 controles) depende de um teste ou de uma decisão de uma pessoa, e sem atestação cada um conta zero. `lastro gaps` mostra a conta:
 
 - quantos controles manuais estão sem atestação, e por qual caminho cada um pode ser provado: **sonda do kit**, **sonda com duas contas de teste**, **leitura do código** (com confirmação de uma pessoa), **configuração da plataforma** ou **pessoa** (processo ou documento);
 - quais **provavelmente não se aplicam** à tecnologia da aplicação, para alguém confirmar e registrar "não se aplica" com justificativa (sai da conta até o prazo vencer);
