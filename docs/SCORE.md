@@ -18,6 +18,37 @@ O relatório do LASTRO traz um nível de maturidade e percentuais. Esta página 
 
 O mesmo cálculo é feito por pacote (base, web, autenticação etc.), para mostrar onde está a lacuna.
 
+## Nota de 0 a 10
+
+Desde o método `v2`, o relatório mostra também uma **nota de 0 a 10**, mais fácil de ler numa reunião. Ela usa os mesmos pesos e os mesmos estados; o nível de 0 a 4 continua valendo para a meta de maturidade.
+
+| Nota | Como se calcula |
+|---|---|
+| **Postura** | Do peso que já tem resposta (verificado ou falhando), quanto passou: `10 × verificado / (verificado + falhando)`. Responde "quando olhamos, estava certo?". Sem nada decidido, fica `n/d`. |
+| **Cobertura** | Quanto do peso aplicável tem prova (máquina ou atestação): `provado% / 10`. Responde "quanto já olhamos?". |
+| **Nota geral** | Média das duas: `0,5 × postura + 0,5 × cobertura`. Sem postura, vale só a cobertura. |
+
+A nota geral tem **teto** quando o portão falha, para que um número alto nunca esconda um bloqueio:
+
+- algum achado **crítico** bloqueante: no máximo **4**;
+- qualquer outro achado bloqueante: no máximo **6**.
+
+O relatório diz quando o teto foi aplicado e por quê.
+
+| Faixa | Nome |
+|---|---|
+| 0 a 3,9 | Inicial |
+| 4 a 5,9 | Em evolução |
+| 6 a 7,9 | Bom |
+| 8 a 8,9 | Forte |
+| 9 a 10 | Exemplar |
+
+Cada escopo (pacote) e cada fase do SSDLC também têm nota, com a mesma média e **sem teto** (o teto é do portão, que é geral). Assim fica claro qual escopo puxa a nota para baixo.
+
+No JSON: `score.grade`, `score.gradeBand` e `score.grades` (`overall`, `band`, `posture`, `coverage`, `cap`, `capReason`); `byPack[].grade` e `byPhase[].grade`. O histórico (`.lastro/history`) grava `grade` a partir desta versão; registros antigos, sem o campo, continuam válidos e aparecem como `n/d`.
+
+Como no resto da pontuação, a nota mede **evidência**, não segurança. Uma nota 3 pode ser de uma aplicação segura que ninguém provou; uma nota 9 cobre só o que o catálogo cobre. Os pesos, as fórmulas e as faixas são convenção do kit, não padrão de mercado.
+
 ## Níveis
 
 | Nível | Nome | Regra |
@@ -28,7 +59,7 @@ O mesmo cálculo é feito por pacote (base, web, autenticação etc.), para most
 | 3 | Verificado | 60% ou mais provado e nenhum controle alto ou crítico falhando ou sem prova. |
 | 4 | Comprovado | 90% ou mais provado, nenhum controle falhando e nenhum alto ou crítico sem prova. |
 
-Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo.
+Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo (`v2`: níveis do `v1` mais a nota de 0 a 10).
 
 ## Como interpretar
 

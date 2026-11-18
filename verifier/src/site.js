@@ -9,10 +9,15 @@ const path = require('node:path');
 const { formatHtml, ui } = require('./html');
 const { formatPlaybookHtml } = require('./playbook');
 const { diff } = require('./history');
+const { gradeText } = require('./score');
+const ST = require('./story');
 
 const { h, num, table, card, htmlShell, pctText } = ui;
 
-const PAGES = [['index.html', 'Visão geral'], ['relatorio.html', 'Relatório atual'], ['playbook.html', 'Playbook'], ['historico.html', 'Histórico']];
+const PAGES = [
+  ['index.html', 'Visão geral'], ['escopos.html', 'Implementado por escopo'], ['decisoes.html', 'Decisões'],
+  ['relatorio.html', 'Relatório atual'], ['playbook.html', 'Playbook'], ['historico.html', 'Histórico'],
+];
 const PAGE_NAMES = new Set(PAGES.map(([f]) => f));
 const MARKER = '.lastro-site';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -71,6 +76,55 @@ function attestationAlerts(report, now) {
   return { soon: soon.sort((a, b) => a.left - b.left), expired };
 }
 
+const STATE_CLS = { verified: 'ok', failed: 'bad', unverified: 'warn' };
+
+function scopesPage({ report, now, theme }) {
+  const list = ST.scopes(report, { now });
+  const sections = [];
+  sections.push('<section id="resumo-escopos" aria-labelledby="t-res"><h2 id="t-res">Resumo por escopo</h2>');
+  sections.push('<p>Cada escopo é um pacote de controles do catálogo. "Já implementado" quer dizer provado: pela máquina a cada execução, ou por uma pessoa com atestação que tem prazo. Controle sem prova não conta como implementado, mesmo que o código pareça fazer a coisa certa.</p>');
+  sections.push(table('Nota e situação de cada escopo', ['Escopo', 'Nota', 'Provado', 'Já implementado', 'Falhando', 'Falta provar'],
+    list.map((s) => [`<a href="#esc-${h(s.pack)}">${h(s.title.split(':')[0])}</a>`, h(gradeText(s.grade)), h(pctText(s.provenPct)), String(num(s.done.length)), String(num(s.failing.length)), String(num(s.missing.length))]), [1, 2, 3, 4, 5]));
+  sections.push('</section>');
+  for (const s of list) {
+    sections.push(`<section id="esc-${h(s.pack)}" aria-labelledby="t-esc-${h(s.pack)}"><h2 id="t-esc-${h(s.pack)}">${h(s.title.split(':')[0])}: nota ${h(gradeText(s.grade))} de 10</h2>`);
+    sections.push(`<p>Provado ${h(pctText(s.provenPct))} do peso (máquina ${h(pctText(s.machinePct))}, atestado ${h(pctText(s.attestedPct))}); falhando ${h(pctText(s.failedPct))}.</p>`);
+    const rows = [...s.done, ...s.failing, ...s.missing].map((c) => [
+      `<strong>${h(c.id)}</strong> ${h(c.title)}`, h(c.severityName),
+      `<span class="badge ${STATE_CLS[c.state] || 'info'}">${h(c.state === 'verified' ? 'implementado' : c.state === 'failed' ? 'falhando' : 'falta provar')}</span>`,
+      h(c.proof), h(c.next),
+    ]);
+    sections.push(rows.length ? table(`Controles de ${s.title.split(':')[0]}`, ['Controle', 'Gravidade', 'Situação', 'Como foi provado', 'Próximo passo'], rows) : '<p class="empty">Nenhum controle aplicável.</p>');
+    sections.push('</section>');
+  }
+  return htmlShell({
+    title: `Implementado por escopo: ${report.profile.name}`, eyebrow: 'Portal LASTRO',
+    meta: [`Gerado em ${report.generatedAt.slice(0, 10)} | ${list.length} escopo(s) aplicável(is)`],
+    nav: [['resumo-escopos', 'Resumo'], ...list.map((s) => [`esc-${s.pack}`, s.title.split(':')[0]])],
+    sections, theme, siteNav: siteNav('escopos.html'),
+  });
+}
+
+function decisionsPage({ report, now, theme }) {
+  const list = ST.decisions(report, { now });
+  const sections = ['<section id="registro" aria-labelledby="t-dec"><h2 id="t-dec">Registro de decisões</h2>'];
+  sections.push('<p>O que uma pessoa decidiu e assinou: atestações (teste manual com prazo), riscos aceitos, a revisão do modelo de ameaças e a decisão sobre cada ameaça. O kit nunca cria nem muda essas decisões; ele só as lê dos arquivos em <code>.lastro/</code>.</p>');
+  sections.push(list.length
+    ? table('Decisões registradas', ['Tipo', 'Referência', 'O quê', 'Quem', 'Quando', 'Vale até'],
+      list.map((d) => [h(d.kind), h(d.ref), h(d.what), h(d.who), h(d.when), d.expiring ? `<span class="warn">${h(d.until)} (vence logo)</span>` : h(d.until)]))
+    : '<p class="empty">Nenhuma decisão registrada ainda. As decisões aparecem aqui quando alguém atesta um controle, aceita um risco ou revisa o modelo de ameaças.</p>');
+  sections.push('</section>');
+  const story = ST.buildStory(report, { now });
+  sections.push('<section id="pendentes" aria-labelledby="t-pend"><h2 id="t-pend">Decisões pendentes</h2>');
+  sections.push(story.decide.length ? `<ul>${story.decide.map((x) => `<li>${h(x)}</li>`).join('')}</ul>` : '<p class="empty">Nenhuma.</p>');
+  sections.push('</section>');
+  return htmlShell({
+    title: `Decisões: ${report.profile.name}`, eyebrow: 'Portal LASTRO',
+    meta: [`${list.length} decisão(ões) registrada(s)`],
+    nav: [['registro', 'Registro'], ['pendentes', 'Pendentes']], sections, theme, siteNav: siteNav('decisoes.html'),
+  });
+}
+
 function riskCell(t) {
   return `${num(t.critical)} crítico, ${num(t.high)} alto, ${num(t.medium)} médio, ${num(t.low)} baixo`;
 }
@@ -81,9 +135,17 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   const delta = (a, b) => (b === null || b === undefined ? '' : ` (${a - b >= 0 ? '+' : ''}${String(Math.round((a - b) * 10) / 10).replace('.', ',')} ponto(s) desde o último registro)`);
   const sections = [];
 
-  sections.push('<section id="agora" aria-labelledby="t-agora"><h2 id="t-agora">Agora</h2><div class="cards">');
+  const story = ST.buildStory(report, { history, current, now });
+  sections.push('<section id="agora" aria-labelledby="t-agora"><h2 id="t-agora">Agora</h2>');
+  if (story.headline) sections.push(`<p><strong>${h(story.headline)}</strong></p>`);
+  sections.push('<div class="cards">');
+  if (s.grades) {
+    const prevGrade = prev && Number.isFinite(prev.grade) && prev.generatedAt !== current.generatedAt ? prev.grade : null;
+    const gd = prevGrade === null ? '' : ` (${s.grade - prevGrade >= 0 ? '+' : ''}${gradeText(Math.round((s.grade - prevGrade) * 10) / 10)} desde o último registro)`;
+    sections.push(card('Nota geral', `${h(gradeText(s.grade))} de 10`, `${s.gradeBand}; postura ${gradeText(s.grades.posture)}, cobertura ${gradeText(s.grades.coverage)}${gd}`));
+  }
   sections.push(card('Portão de CI', h(VERDICT_PT[report.verdict]), `${num(report.summary.blocking)} achado(s) bloqueante(s)`));
-  sections.push(card('Maturidade', `nível ${num(s.level)}`, h(s.levelName)));
+  sections.push(card('Maturidade', `nível ${num(s.level)} de 4`, s.levelName));
   sections.push(card('Peso provado', h(pctText(s.provenPct)), `máquina ${pctText(s.machinePct)}, atestado ${pctText(s.attestedPct)}${prev ? delta(s.provenPct, prev.provenPct) : ''}`));
   sections.push(card('Automáticos', s.automated.passRatePct === null ? 'n/d' : h(pctText(s.automated.passRatePct)), `${num(s.automated.verified)} passaram, ${num(s.automated.failed)} falharam, ${num(s.automated.notRun)} não rodaram`));
   sections.push('</div>');
@@ -93,6 +155,8 @@ function indexPage({ report, history, current, tickets, now, theme }) {
     ['Modelo de ameaças', h(`${num(current.threats.total)} ameaça(s): ${num(current.threats.exposed)} exposta(s), ${num(current.threats.mitigated)} mitigada(s), ${num(current.threats.pending)} sem decisão`)],
   ]));
   sections.push('</section>');
+  // A história, sem repetir a manchete (já está no topo): a mesma função do relatório, com a comparação do histórico.
+  sections.push(...ui.storySectionHtml({ ...story, headline: null }));
 
   // Visão do dev: o que fazer agora.
   const blockers = report.controls.filter((c) => c.findings.some((f) => f.blocking));
@@ -125,7 +189,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   return htmlShell({
     title: `Portal LASTRO: ${report.profile.name}`, eyebrow: 'Portal LASTRO',
     meta: [`Gerado em ${report.generatedAt.slice(0, 10)} | catálogo ${report.catalogVersion} | ${history.length} registro(s) no histórico`],
-    nav: [['agora', 'Agora'], ['dev', 'Para quem desenvolve'], ['appsec', 'Para segurança'], ['evolucao', 'Evolução']],
+    nav: [['agora', 'Agora'], ['em-resumo', 'A história'], ['dev', 'Para quem desenvolve'], ['appsec', 'Para segurança'], ['evolucao', 'Evolução']],
     sections, theme, siteNav: siteNav('index.html'),
   });
 }
@@ -135,8 +199,8 @@ function historyPage({ report, history, current, theme }) {
   if (!all.length || all[all.length - 1].generatedAt !== current.generatedAt) all.push({ ...current, _current: true });
   const sections = ['<section id="registros" aria-labelledby="t-reg"><h2 id="t-reg">Registros</h2>'];
   if (!history.length) sections.push('<p>Ainda não há histórico gravado. Rode <code>lastro history --write</code> a cada versão (ou no CI) para acompanhar a evolução.</p>');
-  sections.push(table('Execuções, da mais recente à mais antiga', ['Data', 'Portão', 'Nível', 'Provado', 'Falhando', 'Bloqueantes', 'Risco confirmado', 'Ameaças expostas'],
-    [...all].reverse().map((s) => [h(`${s.generatedAt.slice(0, 16).replace('T', ' ')}${s._current ? ' (agora, não gravado)' : ''}`), h(VERDICT_PT[s.verdict]), String(num(s.level)), h(pctText(s.provenPct)), h(pctText(s.failedPct)), String(num(s.summary.blocking)), h(riskCell(s.risk.confirmed)), String(num(s.threats.exposed))])));
+  sections.push(table('Execuções, da mais recente à mais antiga', ['Data', 'Portão', 'Nota', 'Nível', 'Provado', 'Falhando', 'Bloqueantes', 'Risco confirmado', 'Ameaças expostas'],
+    [...all].reverse().map((s) => [h(`${s.generatedAt.slice(0, 16).replace('T', ' ')}${s._current ? ' (agora, não gravado)' : ''}`), h(VERDICT_PT[s.verdict]), h(gradeText(s.grade)), String(num(s.level)), h(pctText(s.provenPct)), h(pctText(s.failedPct)), String(num(s.summary.blocking)), h(riskCell(s.risk.confirmed)), String(num(s.threats.exposed))])));
   sections.push('</section>');
   const prev = all.length > 1 ? all[all.length - 2] : null;
   const d = diff(prev, all[all.length - 1]);
@@ -160,6 +224,8 @@ function historyPage({ report, history, current, theme }) {
 function buildSite({ report, history, current, playbook, tickets = [], coverage = null, now = new Date(), theme = null }) {
   return {
     'index.html': indexPage({ report, history, current, tickets, now, theme }),
+    'escopos.html': scopesPage({ report, now, theme }),
+    'decisoes.html': decisionsPage({ report, now, theme }),
     'relatorio.html': withNav(formatHtml(report, { coverage, theme }), 'relatorio.html'),
     'playbook.html': withNav(formatPlaybookHtml(playbook, { theme }), 'playbook.html'),
     'historico.html': historyPage({ report, history, current, theme }),

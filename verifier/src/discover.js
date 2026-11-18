@@ -11,6 +11,7 @@
 const path = require('node:path');
 const { hasPrefix } = require('./util');
 const { isTestPath } = require('./engineering');
+const S = require('./surface');
 
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.py']);
 const MAX_FILES = 500;
@@ -34,7 +35,7 @@ const UPLOAD_DEPS = { multer: 'multer', formidable: 'formidable', busboy: 'busbo
 const DATA_CATEGORIES = [
   { id: 'identificacao', name: 'identificação pessoal', re: /\b(cpf|cnpj|rg|passaporte|cnh|ssn|document[oa]?_?id)\b/i, sensitive: false },
   { id: 'contato', name: 'contato', re: /\b(e-?mail|telefone|celular|phone|whatsapp|endereco|endereço|address|cep)\b/i, sensitive: false },
-  { id: 'credencial', name: 'credenciais', re: /\b(senha|password|passwd|password_?hash|token_?hash|api_?key|secret)\b/i, sensitive: false },
+  { id: 'credencial', name: 'credenciais', re: /\b(senha|senha_?hash|password|passwd|password_?hash|token_?hash|id_?hash|api_?key|secret|\w*_secret\w*)\b/i, sensitive: false },
   { id: 'financeiro', name: 'financeiro', re: /\b(cartao|cartão|card_?number|cvv|salario|salário|pix|iban|conta_?bancaria)\b/i, sensitive: false },
   { id: 'nascimento', name: 'data de nascimento', re: /\b(nascimento|birth_?date|data_?nasc|dob|idade)\b/i, sensitive: false },
   { id: 'sensivel', name: 'possível dado sensível (LGPD, art. 5º, II)', re: /\b((?:dados?_?|historico_?|ficha_?)sa[uú]de|sa[uú]de_?(?:paciente|usuario|aluno|cliente|dados?)|health_?(?:data|record|condition)|medical|medico|médico|prontuario|prontuário|diagnostico|diagnóstico|doenca|doença|biometri\w*|digital_?impressao|religiao|religião|etnia|raca|raça|orientacao_?sexual|filiacao_?sindical|genetic\w*)\b/i, sensitive: true },
@@ -121,7 +122,8 @@ function definitionOf(text, name) {
 /** O middleware tem pista de autenticação, pelo nome ou, se for uma variável do mesmo arquivo, pela definição dela. */
 function isAuthMiddleware(mw, text) {
   if (AUTH_HINT.test(mw)) return true;
-  const id = /^([A-Za-z_$][\w$]*)$/.exec(mw.trim());
+  // Lista espalhada (...professor) conta como a variável que ela espalha.
+  const id = /^(?:\.\.\.)?([A-Za-z_$][\w$]*)$/.exec(mw.trim());
   return !!(id && AUTH_HINT.test(definitionOf(text, id[1])));
 }
 
@@ -163,6 +165,21 @@ function authMountedFiles(ctx, files) {
   return covered;
 }
 
+/** Arquivo de rotas para o último argumento de um .use(): require('./x'), um nome importado ou uma fábrica importada. */
+function targetResolver(ctx) {
+  const fileSet = new Set(ctx.files);
+  const cache = new Map();
+  return (file, text, argsText) => {
+    if (!cache.has(file)) cache.set(file, importMap(ctx, fileSet, file, text));
+    const args = splitArgs(argsText);
+    const target = args[args.length - 1] || '';
+    const req = /require\(\s*['"]([^'"]+)['"]\s*\)/.exec(target);
+    if (req) return resolveSpec(fileSet, file, req[1]);
+    const id = /^([A-Za-z_$][\w$]*)/.exec(target);
+    return id && cache.get(file).has(id[1]) ? cache.get(file).get(id[1]) : null;
+  };
+}
+
 function discoverRoutes(ctx, files) {
   const routes = [];
   const mounted = authMountedFiles(ctx, files);
@@ -197,7 +214,8 @@ function discoverRoutes(ctx, files) {
         rest = m[5];
       }
       let auth;
-      if (PUBLIC_PATH.test(route)) auth = 'publica-esperada';
+      // "/" dentro de um roteador montado com autenticação é a raiz do módulo (/api/pedidos), não a home pública.
+      if (PUBLIC_PATH.test(route) && !(route === '/' && mounted.has(f))) auth = 'publica-esperada';
       else if (AUTH_HINT.test(rest)) auth = 'visivel';
       else if (!isPy && i + 1 > globalAuthLine) auth = 'global';
       else if (mounted.has(f)) auth = 'montagem';
@@ -285,7 +303,12 @@ function discover(ctx) {
   const pyUploads = files.some((f) => f.endsWith('.py') && /request\.files/.test(ctx.read(f) || ''));
   const uploads = [...pick(UPLOAD_DEPS), ...(pyUploads ? ['request.files (Python)'] : [])];
   const workflows = ctx.files.filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f)).length;
+  const prefixOf = S.mountPrefixes(ctx, files, targetResolver(ctx));
   return {
+    modules: S.routeModules(routes, prefixOf),
+    defenses: S.discoverDefenses(ctx, files, deps),
+    tables: S.discoverTables(ctx, DATA_CATEGORIES),
+    ciJobs: S.discoverCiJobs(ctx),
     sourceFilesRead: files.length,
     routes: {
       total: routes.length,

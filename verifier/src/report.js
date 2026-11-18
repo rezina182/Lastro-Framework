@@ -4,6 +4,25 @@
 
 const VERDICT = { pass: 'APROVADO', fail: 'FALHA', incomplete: 'INCOMPLETO' };
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const { gradeText } = require('./score');
+const { buildStory } = require('./story');
+
+function storyMd(st) {
+  const out = ['## Em resumo', ''];
+  if (st.headline) out.push(`**${st.headline}**`, '');
+  for (const [key, title] of [['done', 'Já foi feito'], ['attention', 'Precisa de atenção'], ['todo', 'O que fazer agora'], ['decide', 'O que alguém precisa decidir']]) {
+    out.push(`### ${title}`, '');
+    out.push(...(st[key].length ? st[key].map((x) => `- ${String(x).replace(/\r?\n/g, ' ')}`) : ['- Nada por aqui.']), '');
+  }
+  return out;
+}
+
+// "Nota 6,2 de 10 (Bom) | postura 8,0 | cobertura 4,4 | limitada a 6: ..." ou null em relatório sem nota.
+function gradeLine(k) {
+  if (!k || !k.grades) return null;
+  const g = k.grades;
+  return `Nota ${gradeText(g.overall)} de 10 (${g.band}) | postura ${gradeText(g.posture)} | cobertura ${gradeText(g.coverage)}${g.capReason ? ` | ${g.capReason}` : ''}`;
+}
 
 function formatReport(r) {
   const s = r.summary;
@@ -13,6 +32,7 @@ function formatReport(r) {
   out.push(`Achados bloqueantes (novos, alta/crítica): ${s.blocking} | dívida em baseline: ${s.debt} | riscos aceitos: ${s.accepted}`);
   if (r.score) {
     const k = r.score;
+    if (gradeLine(k)) out.push(gradeLine(k));
     out.push(`Maturidade: nível ${k.level} (${k.levelName}) | provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%`);
     if (k.automated && k.automated.controls) out.push(`  Automáticos: ${k.automated.verified} passaram, ${k.automated.failed} falharam${k.automated.passRatePct === null ? '' : ` (taxa ${k.automated.passRatePct}%)`}, ${k.automated.notRun} não rodaram`);
     out.push(`  ${k.nextStep}`);
@@ -298,8 +318,8 @@ function contextMd(r) {
 function phasesMd(r) {
   const out = ['## Aderência por fase do ciclo de vida (SSDLC)', ''];
   out.push('Cada controle conta em todas as fases em que atua, então as fases não somam o total. "Aderência" é a fatia do peso dos controles da fase que está provada, não uma certificação.', '');
-  out.push('| Fase | Controles | Provado | Falhando | Sem prova |', '|---|---|---|---|---|');
-  for (const p of r.score.byPhase) out.push(`| ${p.name} | ${p.controls} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
+  out.push('| Fase | Controles | Nota | Provado | Falhando | Sem prova |', '|---|---|---|---|---|---|');
+  for (const p of r.score.byPhase) out.push(`| ${p.name} | ${p.controls} | ${gradeText(p.grade)} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
   out.push('');
   return out;
 }
@@ -337,10 +357,15 @@ function formatMarkdown(r, { coverage = null } = {}) {
     ? `Alvo HTTP: ${md(r.target.url)} (${r.target.active ? 'sondas ativas ligadas' : 'somente sondas passivas'}, ${r.target.requestsSent} requisições).`
     : 'Escopo: somente verificações estáticas do repositório. Nenhuma requisição foi feita à aplicação, então cabeçalhos, cookies, CSP e HSTS ficaram sem verificação.');
   out.push('');
+  if (k) out.push(...storyMd(buildStory(r)));
   if (r.risk) out.push(...riskMd(r));
   if (r.threatModel) out.push(...threatMd(r));
   if (k) {
     out.push('## Maturidade', '');
+    if (k.grades) {
+      const g = k.grades;
+      out.push(`**Nota ${gradeText(g.overall)} de 10: ${g.band}.** Postura ${gradeText(g.posture)} (do que foi decidido, quanto passou) e cobertura ${gradeText(g.coverage)} (quanto do peso tem prova).${g.capReason ? ` Nota ${g.capReason}.` : ''} Método em docs/SCORE.md.`, '');
+    }
     out.push(`**Nível ${k.level}: ${k.levelName}.** Regra do nível: ${k.levelRule}.`, '');
     out.push('| Provado | Por máquina | Autodeclarado | Falhando | Sem prova |', '|---|---|---|---|---|');
     out.push(`| ${k.provenPct}% | ${k.machinePct}% | ${k.attestedPct}% | ${k.failedPct}% | ${k.unverifiedPct}% |`, '');
@@ -350,8 +375,8 @@ function formatMarkdown(r, { coverage = null } = {}) {
       out.push(`**Controles automáticos** (o que a máquina rodou): ${a.verified} passaram, ${a.failed} falharam${a.passRatePct === null ? '' : `, taxa de aprovação ${String(a.passRatePct).replace('.', ',')}%`}; ${a.notRun} não rodaram (por exemplo, as sondas HTTP sem \`--url\`) e ficam fora da taxa, sem virar aprovação. Esta taxa separa melhor duas aplicações do que o nível, que depende de muita prova manual.`, '');
     }
     out.push(`> ${k.disclaimer}`, '');
-    out.push('### Por pacote', '', '| Pacote | Controles | Provado | Falhando | Sem prova |', '|---|---|---|---|---|');
-    for (const p of k.byPack) out.push(`| ${md(p.title.split(':')[0])} | ${p.controls} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
+    out.push('### Por pacote', '', '| Pacote | Controles | Nota | Provado | Falhando | Sem prova |', '|---|---|---|---|---|---|');
+    for (const p of k.byPack) out.push(`| ${md(p.title.split(':')[0])} | ${p.controls} | ${gradeText(p.grade)} | ${p.provenPct}% | ${p.failedPct}% | ${p.unverifiedPct}% |`);
     out.push('');
   }
   if (r.context && k) out.push(...contextMd(r));

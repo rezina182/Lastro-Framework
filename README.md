@@ -36,7 +36,7 @@ O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em apli
 
 ## Histórico e portal
 
-`lastro history --write` grava a evolução em `.lastro/history/` (só números e estados). `lastro site --out ../portal` gera um portal estático, sem script nem servidor, com a visão do dev (o que fazer agora), a do time de segurança (prazos e decisões), o relatório, o playbook e o histórico. Veja [docs/PORTAL.md](docs/PORTAL.md).
+`lastro history --write` grava a evolução em `.lastro/history/` (só números e estados). `lastro site --out ../portal` gera um portal estático, sem script nem servidor, com a nota de 0 a 10, a história dos resultados (já feito, precisa de atenção, o que fazer agora, o que decidir), o que já está implementado em cada escopo, o registro de decisões, o relatório, o playbook e o histórico. Veja [docs/PORTAL.md](docs/PORTAL.md).
 
 ## Modo corrigir
 

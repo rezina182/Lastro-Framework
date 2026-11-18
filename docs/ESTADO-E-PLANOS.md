@@ -205,7 +205,17 @@ Peças: skills por tarefa (triagem, correção, testes do playbook, revisão de 
 
 ### 5.5 Histórico e portal estático (a "interface")
 
-**Feito:** `lastro history --write` grava em `.lastro/history/` só números, IDs e estados; `lastro site --out PASTA` gera quatro páginas sem script nem servidor (visão geral com a parte do dev e a do time de segurança, relatório atual, playbook e histórico com o que piorou e melhorou). Veja [PORTAL.md](PORTAL.md). **Falta:** portal de uma aplicação com vários repositórios e um job de exemplo no CI. Ver também a seção 6.
+**Feito:** `lastro history --write` grava em `.lastro/history/` só números, IDs e estados; `lastro site --out PASTA` gera páginas sem script nem servidor (visão geral com a parte do dev e a do time de segurança, relatório atual, playbook e histórico com o que piorou e melhorou; a 5.5.2 acrescentou escopos e decisões). Veja [PORTAL.md](PORTAL.md). **Falta:** portal de uma aplicação com vários repositórios e um job de exemplo no CI. Ver também a seção 6.
+
+### 5.5.1 Arquitetura de verdade e modelo de ameaças vivo
+
+**Feito:** o desenho mostra o design real lido do código: módulos de rotas com a proteção vista, defesas, tabelas com o tipo de dado e jobs do CI. Os fluxos são numerados, com o detalhe numa tabela. O modelo de ameaças guarda a assinatura da superfície, e o CORE-012 avisa quando o código muda depois da revisão. No App B, o desenho mostra 10 módulos de rotas (mais um grupo "outras"), 11 defesas vistas no código e 18 tabelas, das quais 7 guardam credenciais ou contato. Veja [THREAT-MODEL-ASSISTIDO.md](THREAT-MODEL-ASSISTIDO.md).
+
+### 5.5.2 Nota de 0 a 10, implementado por escopo e a história dos resultados
+
+**Feito:** nota de 0 a 10 (postura, cobertura e geral, com teto de 6 quando há bloqueante e de 4 quando há bloqueante crítico; faixas Inicial, Em evolução, Bom, Forte e Exemplar), também por escopo e por fase, no texto, no Markdown, no HTML, no portal e no histórico (método `v2`, nível 0 a 4 mantido). Portal com seis páginas: entram "Implementado por escopo" (cada controle com a situação, como foi provado e o próximo passo) e "Decisões" (registro de atestações, riscos aceitos, revisão e decisões de ameaças, e as decisões pendentes). Relatório e portal abrem com a história: já foi feito, precisa de atenção, o que fazer agora e o que alguém precisa decidir. Veja [SCORE.md](SCORE.md) e [PORTAL.md](PORTAL.md).
+
+**Próximo:** mais prova automática (sondas novas, prova parcial a partir do código, agente que executa o playbook e prepara a atestação para a pessoa confirmar).
 
 ### 5.6 Vários repositórios, segunda etapa
 

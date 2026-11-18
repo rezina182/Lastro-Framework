@@ -7,6 +7,22 @@
 
 const { groupCauses } = require('./causes');
 const { FLAG_LABELS } = require('./context');
+const { gradeText } = require('./score');
+const STORY = require('./story');
+
+// "Em resumo": a história desta execução (story.buildStory) em quatro listas. Os textos passam por h().
+const STORY_PARTS = [['done', 'Já foi feito', 'ok'], ['attention', 'Precisa de atenção', 'warn'], ['todo', 'O que fazer agora', 'bad'], ['decide', 'O que alguém precisa decidir', 'info']];
+function storySectionHtml(st) {
+  const out = ['<section id="em-resumo" aria-labelledby="t-em-resumo"><h2 id="t-em-resumo">Em resumo</h2>'];
+  if (st.headline) out.push(`<p><strong>${h(st.headline)}</strong></p>`);
+  out.push('<div class="cards">');
+  for (const [key, title, cls] of STORY_PARTS) {
+    const items = st[key];
+    out.push(`<div class="card"><p class="card-label ${cls}"><strong>${h(title)}</strong></p>${items.length ? `<ul>${items.map((x) => `<li>${h(x)}</li>`).join('')}</ul>` : '<p class="empty">Nada por aqui.</p>'}</div>`); // lastro-ignore xss-sinks: itens escapados com h()
+  }
+  out.push('</div></section>');
+  return out;
+}
 
 const VERDICT = { pass: ['APROVADO', 'ok'], fail: ['FALHA', 'bad'], incomplete: ['INCOMPLETO', 'warn'] };
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -93,7 +109,7 @@ details li{margin:6px 0;overflow-wrap:anywhere}
 .heat-critical{background:color-mix(in srgb,var(--bad) 38%,var(--surface))}}
 .kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0}
 .arch-wrap{padding:8px}
-.arch{width:100%;height:auto;max-width:850px;display:block;margin:0 auto}
+.arch{width:100%;height:auto;max-width:1170px;min-width:900px;display:block;margin:0 auto}
 .arch-zona{fill:none;stroke:var(--border);stroke-width:1.5;stroke-dasharray:6 4}
 .arch-titulo{fill:var(--muted);font-size:12px}
 .arch-no{fill:var(--surface);stroke:var(--accent);stroke-width:1.5}
@@ -106,6 +122,13 @@ details li{margin:6px 0;overflow-wrap:anywhere}
 .arch-seta{fill:var(--muted)}
 .arch-rotulo{fill:var(--text);font-size:11px}
 .arch-sub{fill:var(--muted)}
+.arch-det{fill:var(--text);font-size:11px}
+.arch-det-tit{fill:var(--accent);font-size:10.5px;font-weight:600;letter-spacing:.02em}
+.arch-det-warn{fill:var(--warn)}
+.arch-notexto{font-weight:600;font-size:13px}
+.arch-badge{fill:var(--surface);stroke:var(--muted);stroke-width:1.5}
+.arch-badge-bad{stroke:var(--bad);stroke-width:2.5}
+.arch-badge-txt{fill:var(--text);font-size:10px;font-weight:700}
 .why{color:var(--muted);font-size:.84rem;margin:4px 0 0}
 a{color:var(--accent)}
 footer{padding:24px;color:var(--muted);font-size:.85rem;text-align:center}
@@ -324,11 +347,12 @@ function threatHtml(r) {
       ? `Desenho <strong>declarado</strong> em <code>.lastro/system.json</code> (${h(a.name)}), combinado com o que o kit descobriu em ${num(a.repos.length || 1)} repositório(s). Origem do fluxo: declarado (você descreveu), descoberto (o kit viu no código e você não declarou) ou inferido (o kit deduziu pelos papéis). Borda tracejada: componente descoberto e não declarado.`
       : 'Desenho <strong>automático</strong>, só pelo que o kit descobriu em um repositório e pelo perfil. Para descrever vários repositórios ou componentes, crie <code>.lastro/system.json</code> (veja docs/THREAT-MODEL-ASSISTIDO.md).'}</p>`);
     out.push('<p>O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
-    out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`);
+    out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`, ARCH_LEGEND);
     out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Origem', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
       a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), h(f.source || '-'), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
         `${num(f.controls)}: ${num(f.verified)} verificado(s), ${num(f.failed)} falhando, ${num(f.unverified)} sem prova`, f.failing.length ? h(f.failing.join(', ')) : '-', h(f.note || '-')])));
     if ((a.warnings || []).length) out.push('<ul>', ...a.warnings.map((w) => `<li>Atenção: ${h(w)}</li>`), '</ul>');
+    out.push(...archComponentsHtml(a));
   }
   out.push('<h3>Ameaças (STRIDE por superfície)</h3>');
   const order = { exposed: 0, unproven: 1, mitigated: 2 };
@@ -394,6 +418,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push(`<p class="meta">${scope}</p>`);
   out.push('<nav class="toc" aria-label="Seções do relatório">');
   const links = [];
+  if (k) links.push(['em-resumo', 'Em resumo']);
   if (r.risk) links.push(['risco', 'Análise de risco']);
   if (r.threatModel) links.push(['ameacas', 'Modelo de ameaças']);
   links.push(['resumo', 'Resumo']);
@@ -407,6 +432,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   for (const [id, text] of links) out.push(`<a href="#${id}">${text}</a>`);
   out.push('</nav>', '</div></header>', '<main><div class="wrap">');
 
+  if (k) out.push(...storySectionHtml(STORY.buildStory(r)));
   if (r.risk) out.push(...riskHtml(r));
   if (r.threatModel) out.push(...threatHtml(r));
 
@@ -415,6 +441,13 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push('<div class="cards">');
   out.push(card('Portão de CI', `<span class="badge ${verdictCls}">${verdictText}</span>`, `${num(s.blocking)} achado(s) novo(s) de gravidade alta ou crítica`));
   if (k) {
+    if (k.grades) {
+      const g = k.grades;
+      const cls = g.overall >= 8 ? 'ok' : g.overall >= 6 ? 'info' : g.overall >= 4 ? 'warn' : 'bad';
+      out.push(card('Nota geral', `<span class="${cls}">${h(gradeText(g.overall))}</span> de 10`, `${g.band}${g.capReason ? `; ${g.capReason}` : ''}`));
+      out.push(card('Postura', `${h(gradeText(g.posture))} de 10`, 'do que foi decidido, quanto passou'));
+      out.push(card('Cobertura', `${h(gradeText(g.coverage))} de 10`, 'quanto do peso tem prova'));
+    }
     out.push(card('Nível de maturidade', `${num(k.level)} de 4`, k.levelName));
     out.push(card('Provado', pctText(k.provenPct), `por máquina ${pctText(k.machinePct)}, autodeclarado ${pctText(k.attestedPct)}`));
     if (k.automated && k.automated.controls) {
@@ -463,22 +496,22 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   if (k && k.byPhase && k.byPhase.length) {
     out.push('<section id="ssdlc" aria-labelledby="t-ssdlc"><h2 id="t-ssdlc">Aderência por fase do ciclo de vida (SSDLC)</h2>');
     out.push('<p>Cada controle conta em todas as fases em que atua, então as fases não somam o total. "Aderência" é a fatia do peso dos controles da fase que está provada, não uma certificação.</p>');
-    out.push(table('Peso provado, falhando e sem prova em cada fase', ['Fase', 'Controles', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
+    out.push(table('Nota, peso provado, falhando e sem prova em cada fase', ['Fase', 'Controles', 'Nota', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
       k.byPhase.map((p) => [
-        h(p.name), String(num(p.controls)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
+        h(p.name), String(num(p.controls)), h(gradeText(p.grade)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
         bar([{ cls: 'seg-ok', label: 'Por máquina', value: p.machinePct }, { cls: 'seg-info', label: 'Autodeclarado', value: p.attestedPct }, { cls: 'seg-bad', label: 'Falhando', value: p.failedPct }, { cls: 'seg-none', label: 'Sem prova', value: p.unverifiedPct }]),
-      ]), [1, 2, 3, 4]));
+      ]), [1, 2, 3, 4, 5]));
     out.push('</section>');
   }
 
   // Por pacote
   out.push('<section id="pacotes" aria-labelledby="t-pacotes"><h2 id="t-pacotes">Por pacote</h2>');
   if (k) {
-    out.push(table('Peso provado, falhando e sem prova em cada pacote de controles', ['Pacote', 'Controles', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
+    out.push(table('Nota, peso provado, falhando e sem prova em cada pacote de controles', ['Pacote', 'Controles', 'Nota', 'Provado', 'Falhando', 'Sem prova', 'Distribuição'],
       k.byPack.map((p) => [
-        h(p.title.split(':')[0]), String(num(p.controls)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
+        h(p.title.split(':')[0]), String(num(p.controls)), h(gradeText(p.grade)), h(pctText(p.provenPct)), h(pctText(p.failedPct)), h(pctText(p.unverifiedPct)),
         bar([{ cls: 'seg-ok', label: 'Por máquina', value: p.machinePct }, { cls: 'seg-info', label: 'Autodeclarado', value: p.attestedPct }, { cls: 'seg-bad', label: 'Falhando', value: p.failedPct }, { cls: 'seg-none', label: 'Sem prova', value: p.unverifiedPct }]),
-      ]), [1, 2, 3, 4]));
+      ]), [1, 2, 3, 4, 5]));
   }
   out.push('</section>');
 
@@ -605,11 +638,32 @@ function archSectionHtml(a) {
       : 'Desenho <strong>automático</strong>, só pelo que o kit descobriu em um repositório e pelo perfil.';
   out.push(`<p>${modeText}</p>`);
   out.push('<p>O kit desenha o que descobriu no código e o que foi declarado, e mostra, em cada fluxo, as ameaças e os controles que ele exige. Ele não inventa a arquitetura: onde colocar um proxy, como segmentar a rede e como separar ambientes são decisões de uma pessoa. Linha vermelha: o fluxo tem ameaça exposta.</p>');
-  out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`);
+  out.push(`<div class="table-wrap arch-wrap">${archSvg(a, h)}</div>`, ARCH_LEGEND);
   out.push(table('Fluxos, ameaças e controles exigidos', ['Fluxo', 'Fronteira', 'Origem', 'Ameaças', 'Controles exigidos', 'Falhando agora', 'Observação'],
     a.flows.map((f) => [`<strong>${h(f.id)}</strong> ${h(f.label)}`, h(f.boundary), h(f.source || '-'), `${num(f.threats)} (${num(f.exposed)} exposta(s), ${num(f.pending)} sem decisão)`,
       `${num(f.controls)}: ${num(f.verified)} verificado(s), ${num(f.failed)} falhando, ${num(f.unverified)} sem prova`, f.failing.length ? h(f.failing.join(', ')) : '-', h(f.note || '-')])));
   if ((a.warnings || []).length) out.push('<ul>', ...a.warnings.map((w) => `<li>Atenção: ${h(w)}</li>`), '</ul>');
+  return out;
+}
+
+const ARCH_LEGEND = '<p class="why">Os números nas linhas (F1, F2...) são os fluxos da tabela logo abaixo. Linha e número em vermelho: o fluxo tem ameaça exposta. Borda tracejada: componente descoberto ou inferido, a confirmar.</p>';
+const CAT_PT_HTML = { credencial: 'credenciais', contato: 'contato', identificacao: 'identificação', financeiro: 'financeiro', nascimento: 'nascimento', sensivel: 'possível dado sensível' };
+
+/** O que o código revela de cada componente, em tabelas (o desenho mostra o resumo). */
+function archComponentsHtml(a) {
+  const out = [];
+  const app = a.nodes.find((n) => n.modules && n.modules.length);
+  if (app) {
+    out.push(table('Módulos de rotas descobertos (prefixo de montagem + rota)', ['Módulo', 'Rotas', 'Métodos', 'Com proteção vista', 'Públicas esperadas', 'Sem proteção vista', 'Arquivos'],
+      app.modules.map((m) => [`<code>${h(m.prefix)}</code>`, String(num(m.routes)), h(m.methods.join(', ') || '-'), String(num(m.protected)), String(num(m.public)), m.notSeen ? `<span class="warn">${num(m.notSeen)}</span>` : '0', h(m.files.join(', ') || '-')]), [1, 3, 4, 5]));
+  }
+  const def = a.nodes.find((n) => n.defenses && n.defenses.length);
+  if (def) out.push(table('Defesas vistas no código (indício, não prova)', ['Defesa', 'Onde o kit viu'], def.defenses.map((d) => [h(d.label), `<code>${h(d.evidence)}</code>`])));
+  const db = a.nodes.find((n) => n.tables && n.tables.length);
+  if (db) out.push(table('Tabelas do banco (migrações SQL)', ['Tabela', 'Dados que as colunas sugerem', 'Arquivo'], db.tables.map((t) => [`<code>${h(t.name)}</code>`, h(t.categories.map((c) => CAT_PT_HTML[c] || c).join(', ') || '-'), h(t.file)])));
+  const ci = a.nodes.find((n) => n.jobs && n.jobs.length);
+  if (ci) out.push(table('Jobs do CI', ['Workflow', 'Job'], ci.jobs.map((j) => [h(j.workflow), h(j.job)])));
+  if (out.length) out.unshift('<h4>Componentes descobertos no código</h4><p class="why">Lido do código, sem executar nada. Serve para conferir o desenho e para a revisão do modelo de ameaças; não verifica nenhum controle.</p>');
   return out;
 }
 
@@ -629,6 +683,6 @@ function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null
   return `${out.join('\n')}\n`;
 }
 
-const ui = { h, num, table, card, sevBadge, classBadge, cweLinks, ext, bar, pctText, archSectionHtml, legendHtml, htmlShell };
+const ui = { h, num, table, card, sevBadge, classBadge, cweLinks, ext, bar, pctText, archSectionHtml, legendHtml, htmlShell, storySectionHtml };
 
 module.exports = { formatHtml, validateTheme, MAX_FINDINGS_PER_CONTROL, ui };

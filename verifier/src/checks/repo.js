@@ -11,6 +11,8 @@ const { isTestPath } = require('../engineering');
 const schema = require('../schema');
 const { evaluateFile: evaluateThreatFile } = require('../threatmodel');
 const { MARKER: SECURITY_MARKER } = require('../fix/security-md');
+const { discover } = require('../discover');
+const { signature } = require('../tm-surface');
 
 const TM_FILE = '.lastro/threat-model.json';
 
@@ -230,7 +232,10 @@ function threatModel(ctx) {
   if (ctx.has(TM_FILE)) {
     const j = readJson(ctx.root, TM_FILE);
     if (!j.ok) return failed([{ severity: 'medium', key: 'tm-unreadable', location: TM_FILE, message: `${TM_FILE} ilegível (${j.error}).` }]);
-    const problems = evaluateThreatFile(j.value, ctx.now, ctx.thresholds.threatModelMaxAgeDays);
+    // Modelo vivo: compara a superfície gravada com a de agora (a descoberta só lê o código).
+    let current = null;
+    try { current = signature(discover(ctx)); } catch (e) { current = null; }
+    const problems = evaluateThreatFile(j.value, ctx.now, ctx.thresholds.threatModelMaxAgeDays, current);
     if (problems.length) return failed(problems.map((p) => ({ severity: p.severity, key: p.key, location: TM_FILE, message: p.message })));
     return verified([`Modelo de ameaças estruturado revisado por ${j.value.reviewedBy} em ${String(j.value.reviewedAt).slice(0, 10)}, com ${j.value.threats.length} ameaça(s) decidida(s).`]);
   }

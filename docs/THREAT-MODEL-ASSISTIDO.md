@@ -95,6 +95,30 @@ Ler um repositório já gera o modelo e o desenho. Quando a aplicação tem **v�
 
 Sem `system.json`, o desenho é o automático de um repositório.
 
+## O que o desenho mostra de cada componente
+
+O desenho automático não para nas caixas genéricas. Ele mostra o que o código revela, sempre como indício para a revisão e nunca como verificação de controle:
+
+| Componente | O que aparece |
+|---|---|
+| Aplicação | **Módulos de rotas** pelo prefixo de montagem (`app.use('/api/quizzes', ...)` mais a rota), com quantas têm proteção vista, quantas são públicas esperadas e quantas não têm proteção vista (destacadas). Também tempo real, upload e as **defesas vistas no código**: cabeçalhos e CSP, CSRF, conferência de origem, limite de requisições, cookie `HttpOnly`, hash de senha forte, segundo fator, limite de corpo, reprocessamento de imagem, anti-robô e trilha de auditoria |
+| Armazenamento | As **tabelas** criadas nas migrações SQL, com o tipo de dado que as colunas sugerem (credenciais, contato, identificação, financeiro, sensível) |
+| Repositório e CI | Os workflows e os **jobs** |
+| Serviços externos | Os hosts chamados pelo código |
+
+Os fluxos são linhas com um número (F1, F2...). O detalhe de cada fluxo, com ameaças, controles exigidos e o que está falhando, fica na tabela logo abaixo do desenho. Assim nenhum texto fica cortado ou escondido atrás de uma caixa. Linha e número em vermelho indicam que o fluxo tem ameaça exposta. Abaixo do desenho, a seção "Componentes descobertos no código" lista os módulos, as defesas, as tabelas e os jobs em tabelas.
+
+Limites: a montagem precisa estar numa linha só (`app.use('/x', ..., roteador)`). Uma montagem escrita em várias linhas aparece com o prefixo da própria rota. "Sem proteção vista" é pergunta, não veredito: rotas de recuperação de senha ou de convite costumam ser públicas por desenho.
+
+## Modelo vivo: quando o código muda
+
+A cada `lastro threat-model --write`, o kit grava no `.lastro/threat-model.json` uma **assinatura da superfície**: módulos e quantidade de rotas, tabelas, armazenamento, tempo real, upload e hosts externos. Ela não guarda caminho de arquivo, valor nem segredo. A cada `lastro check`, a assinatura gravada é comparada com a do código de hoje, e o CORE-012 avisa em dois casos:
+
+- **A superfície mudou desde a última gravação.** O aviso diz o que mudou, por exemplo "módulo novo /api/pagamentos (4 rotas); tabela nova: cartoes". Rode `lastro threat-model --write`: as ameaças novas entram como pendentes e as decisões existentes ficam.
+- **A revisão é anterior à última mudança.** O campo `surface.changedAt` só anda quando a superfície muda de fato. A primeira gravação da assinatura não conta como mudança. Se `reviewedAt` for mais antigo que a mudança, alguém precisa revisar de novo e atualizar `reviewedAt`.
+
+A revisão humana (`reviewedBy`, `reviewedAt` e as decisões) nunca é apagada nem alterada pelo kit.
+
 ## Rotas e middleware de autenticação
 
 A descoberta liga a **montagem do roteador** ao arquivo das rotas: em `app.use('/api', requireAuth, require('./rotas'))` ou `app.use('/api', requireAuth, rotas)` (com `const rotas = require('./rotas')` ou `import`), as rotas de `rotas.js`, e as dos roteadores que ele monta, contam como "autenticação na montagem do roteador". Também vale `router.use(auth)` dentro do arquivo e `app.use(auth)` antes das rotas. Fica de fora o que o texto não mostra: importação dinâmica, fábrica de roteador com lógica própria e montagem em várias linhas. Isso é pista, não prova.

@@ -138,7 +138,8 @@ test('o motor devolve o score no relatório e atestação conta como autodeclara
   const root = makeProject({ '.lastro/profile.json': profileJson({ aiCodingAgents: true }), '.gitignore': '.env\n' });
   try {
     const r = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z') });
-    assert.equal(r.score.method, 'v1');
+    assert.equal(r.score.method, 'v2');
+    assert.ok(r.score.grade >= 0 && r.score.grade <= 6, 'com bloqueante a nota geral fica no teto de 6 (ou 4)');
     assert.equal(r.score.level, 0, 'sem CI nem threat model há bloqueantes');
     assert.ok(r.score.byPack.some((p) => p.pack === 'agent'));
     assert.ok(r.score.byPack.find((p) => p.pack === 'agent').title.length > 5, 'usa o título do pacote do catálogo');
@@ -180,4 +181,50 @@ test('controles automáticos: taxa de aprovação só entre os que rodaram; o qu
   assert.equal(semRodar.automated.passRatePct, null, 'nada rodou: sem taxa, nunca 0% nem 100%');
   const semTipo = cs({ controls: [{ id: 'X', pack: 'core', severity: 'low', state: 'verified', findings: [], evidence: null, phase: ['build'] }], summary: { blocking: 0 } });
   assert.equal(semTipo.automated.controls, 0, 'relatório antigo, sem checkType, não quebra');
+});
+
+test('nota 0 a 10: postura, cobertura, média e faixa', () => {
+  const { gradeText, bandOf } = require('../src/score');
+  // peso: A crítica 8 verificada, B alta 5 sem prova, C média 3 falhando, D baixa 1 atestada (total 17).
+  const s = computeScore(rep([
+    ctl('A', 'core', 'critical', 'verified', 'verifier-repo'),
+    ctl('B', 'core', 'high', 'unverified'),
+    ctl('C', 'web', 'medium', 'failed'),
+    ctl('D', 'web', 'low', 'verified', 'manual-attestation'),
+  ]));
+  assert.equal(s.method, 'v2');
+  assert.equal(s.grades.posture, 7.5, 'provado 9 de 12 decididos');
+  assert.equal(s.grades.coverage, 5.3, '52,9% de prova');
+  assert.equal(s.grade, 6.4);
+  assert.equal(s.gradeBand, 'Bom');
+  assert.equal(s.grades.capReason, null);
+  assert.equal(gradeText(6.4), '6,4');
+  assert.equal(gradeText(null), 'n/d');
+  assert.deepEqual([0, 3.9, 4, 5.9, 6, 7.9, 8, 8.9, 9, 10].map(bandOf),
+    ['Inicial', 'Inicial', 'Em evolução', 'Em evolução', 'Bom', 'Bom', 'Forte', 'Forte', 'Exemplar', 'Exemplar']);
+});
+
+test('nota 0 a 10: teto de 6 com bloqueante e de 4 com bloqueante crítico; sem decisão usa só a cobertura', () => {
+  const many = Array.from({ length: 20 }, (_, i) => ctl(`V${i}`, 'core', 'critical', 'verified', 'verifier-repo'));
+  const alta = computeScore(rep([...many, { ...ctl('B', 'core', 'high', 'failed'), findings: [{ severity: 'high', blocking: true }] }], 1));
+  assert.ok(alta.grades.posture > 9 && alta.grades.coverage > 9);
+  assert.equal(alta.grade, 6);
+  assert.match(alta.grades.capReason, /limitada a 6/);
+  const crit = computeScore(rep([...many, { ...ctl('B', 'core', 'critical', 'failed'), findings: [{ severity: 'critical', blocking: true }] }], 1));
+  assert.equal(crit.grade, 4);
+  assert.match(crit.grades.capReason, /limitada a 4/);
+  const semDecisao = computeScore(rep([ctl('X', 'core', 'high', 'unverified')]));
+  assert.equal(semDecisao.grades.posture, null);
+  assert.equal(semDecisao.grade, 0);
+  assert.equal(semDecisao.gradeBand, 'Inicial');
+});
+
+test('nota por pacote e por fase, sem teto', () => {
+  const s = computeScore(rep([
+    { ...ctl('W1', 'web', 'high', 'verified', 'verifier-http'), phase: ['build'] },
+    { ...ctl('C1', 'core', 'high', 'failed'), phase: ['build'], findings: [{ severity: 'high', blocking: true }] },
+  ], 1));
+  assert.equal(s.byPack.find((p) => p.pack === 'web').grade, 10);
+  assert.equal(s.byPack.find((p) => p.pack === 'core').grade, 0);
+  assert.equal(s.byPhase.find((p) => p.phase === 'build').grade, 5);
 });

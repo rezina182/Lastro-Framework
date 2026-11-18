@@ -34,6 +34,7 @@ function snapshot(report) {
     name: report.profile.name,
     verdict: report.verdict,
     level: report.score.level,
+    grade: report.score.grade,
     provenPct: report.score.provenPct,
     machinePct: report.score.machinePct,
     attestedPct: report.score.attestedPct,
@@ -58,6 +59,8 @@ function validateSnapshot(s) {
   if (typeof s.name !== 'string' || s.name.length > 80) errs.push('name: texto de até 80 caracteres');
   if (!['pass', 'fail', 'incomplete'].includes(s.verdict)) errs.push('verdict inválido');
   if (!Number.isInteger(s.level) || s.level < 0 || s.level > 4) errs.push('level: 0 a 4');
+  // grade (nota 0 a 10) é opcional: registros gravados antes da nota não têm o campo.
+  if (s.grade !== undefined && !(Number.isFinite(s.grade) && s.grade >= 0 && s.grade <= 10)) errs.push('grade: 0 a 10');
   for (const k of ['provenPct', 'machinePct', 'attestedPct', 'failedPct']) if (!Number.isFinite(s[k]) || s[k] < 0 || s[k] > 100) errs.push(`${k}: 0 a 100`);
   if (s.automatedPassRatePct !== null && !(Number.isFinite(s.automatedPassRatePct) && s.automatedPassRatePct >= 0 && s.automatedPassRatePct <= 100)) errs.push('automatedPassRatePct: 0 a 100 ou null');
   if (!isObj(s.summary) || !isObj(s.risk) || !isObj(s.threats)) errs.push('summary, risk e threats são obrigatórios');

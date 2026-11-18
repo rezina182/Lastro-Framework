@@ -168,7 +168,7 @@ test('desenho declarado: Mermaid e SVG com zonas, ids seguros, texto escapado e 
     assert.ok(m.code.includes('(descoberto)'));
     const svg = toSvg(a, esc);
     assert.ok(svg.includes('arch-desc'), 'componente descoberto tem borda própria');
-    assert.ok(/viewBox="0 0 850 \d+"/.test(svg));
+    assert.ok(/viewBox="0 0 1170 \d+"/.test(svg));
     assert.ok(!/<script|href=|src=/i.test(svg));
     const md = formatMarkdown(r);
     for (const s of ['Desenho **declarado**', '| Fluxo | Fronteira | Origem |', 'declarado', 'descoberto']) assert.ok(md.includes(s), `faltou no Markdown: ${s}`);

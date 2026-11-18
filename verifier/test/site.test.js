@@ -56,7 +56,7 @@ test('história: grava sem sobrescrever, lê em ordem, ignora registro inválido
   } finally { cleanup(root); }
 });
 
-test('portal: quatro páginas sem script, com CSP, links só para as próprias páginas ou fontes oficiais, e texto escapado', async () => {
+test('portal: páginas sem script, com CSP, links só para as próprias páginas ou fontes oficiais, e texto escapado', async () => {
   const root = project({ '.lastro/profile.json': profileJson({}, { name: 'App <b>x</b>' }) });
   try {
     const report = await runCheck({ root, now: NOW });
@@ -78,6 +78,9 @@ test('portal: quatro páginas sem script, com CSP, links só para as próprias p
     const idx = pages['index.html'];
     for (const re of [/Para quem desenvolve/, /Para o time de segurança/, /\[CORE-007\]|CORE-007/, /<svg role="img"/, /Atestações que vencem/, /ponto\(s\) desde o último registro/]) assert.match(idx, re);
     assert.match(pages['historico.html'], /<td>piorou<\/td><td>CORE-007<\/td><td>verificado<\/td><td>falhando<\/td>/);
+    for (const re of [/Nota geral/, /id="em-resumo"/, /Já foi feito/, /Precisa de atenção/, /O que fazer agora/, /O que alguém precisa decidir/, /Pioraram desde o registro anterior: CORE-007/]) assert.match(idx, re);
+    for (const re of [/Resumo por escopo/, /Como foi provado/, /Próximo passo/, /href="#esc-core"/]) assert.match(pages['escopos.html'], re);
+    for (const re of [/Registro de decisões/, /Decisões pendentes/]) assert.match(pages['decisoes.html'], re);
   } finally { cleanup(root); }
 });
 

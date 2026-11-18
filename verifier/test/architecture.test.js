@@ -101,3 +101,55 @@ test('arquitetura: sem modelo de ameaças com fluxos, o relatório não quebra',
   assert.deepEqual(a.flows, []);
   assert.equal(toMermaid(a).code, 'flowchart LR');
 });
+
+test('SVG novo: componentes mostram módulos, defesas e tabelas; fluxos viram números; nada de texto de fluxo solto no desenho', async () => {
+  const files = FILES();
+  files['package.json'] = JSON.stringify({ name: 'x', version: '1.0.0', dependencies: { express: '4.19.2', pg: '8.11.0', multer: '1.4.5', ws: '8.0.0', helmet: '8.0.0' } });
+  files['src/rotas.js'] = "router.get('/', listar);\nrouter.post('/', criar);\n";
+  files['server.js'] = `${files['server.js']}const rotas = require('./src/rotas');\napp.use('/api/pedidos', exigirSessao, rotas);\n`;
+  files['migrations/001.sql'] = 'CREATE TABLE usuarios (id int, email text, senha_hash text);\n';
+  const root = makeProject(files);
+  try {
+    const r = await runCheck({ root, now: NOW });
+    const a = r.threatModel.architecture;
+    const app = a.nodes.find((n) => n.id === 'A');
+    assert.ok(app.modules.some((m) => m.prefix === '/api/pedidos' && m.protected === 2));
+    assert.ok(app.defenses.some((d) => d.id === 'headers'));
+    assert.ok(a.nodes.find((n) => n.id === 'D').tables.some((t) => t.name === 'usuarios' && t.categories.includes('credencial')));
+    const svg = toSvg(a, esc);
+    for (const s of ['/api/pedidos', 'Módulos de rotas', 'Defesas vistas no código', 'usuarios [', 'class="arch-badge']) assert.ok(svg.includes(s), `faltou no SVG: ${s}`);
+    for (const f of a.flows) assert.ok(svg.includes(`class="arch-badge-txt">${f.id}</text>`), `fluxo ${f.id} sem número`);
+    assert.ok(!svg.includes('arch-rotulo'), 'rótulos de fluxo soltos no meio da linha não existem mais');
+    if (a.flows.some((f) => f.exposed > 0)) assert.ok(svg.includes('arch-badge-bad'));
+    const html = formatHtml(r);
+    for (const s of ['Componentes descobertos no código', 'Módulos de rotas descobertos', 'Tabelas do banco', 'Os números nas linhas']) assert.ok(html.includes(s), `faltou no HTML: ${s}`);
+  } finally { cleanup(root); }
+});
+
+test('SVG novo: nome comprido quebra em linhas e texto vindo do código é escapado nos detalhes', () => {
+  const a = {
+    nodes: [
+      { id: 'U', label: 'Usuário' },
+      { id: 'A', label: 'Aplicação com um nome bem comprido que precisaria ser cortado no desenho antigo', modules: [{ prefix: '/api/<b>x</b>', routes: 3, methods: ['GET'], protected: 1, public: 0, notSeen: 2, files: [] }], defenses: [{ id: 'h', label: '<i>y</i>', evidence: 'z' }] },
+    ],
+    flows: [{ id: 'F1', from: 'U', to: 'A', label: 'web', boundary: 'b', threats: 2, exposed: 1, source: 'descoberto' }],
+  };
+  const svg = toSvg(a, esc);
+  assert.ok(!svg.includes('<b>') && !svg.includes('<i>'));
+  assert.ok(svg.includes('&lt;b&gt;x&lt;/b&gt;'));
+  assert.ok(svg.includes('arch-det-warn'), 'módulo com rota sem proteção vista fica destacado');
+  const titleLines = (svg.match(/class="arch-notexto">/g) || []).length;
+  assert.ok(titleLines >= 3, 'o título comprido foi quebrado em mais de uma linha');
+  assert.ok(!svg.includes('…') || svg.indexOf('…') > 0);
+});
+
+test('SVG novo: números de fluxos paralelos (mesmo par de caixas) nunca se sobrepõem', () => {
+  const a = {
+    nodes: [{ id: 'U', label: 'Usuário' }, { id: 'A', label: 'App' }],
+    flows: ['F1', 'F2', 'F3'].map((id) => ({ id, from: 'U', to: 'A', label: id, boundary: 'b', threats: 1, exposed: 0, source: 'descoberto' })),
+  };
+  const svg = toSvg(a, esc);
+  const ys = [...svg.matchAll(/<circle cx="(\d+)" cy="(\d+)" r="12"/g)].map((m) => Number(m[2])).sort((x, y) => x - y);
+  assert.equal(ys.length, 3);
+  for (let i = 1; i < ys.length; i += 1) assert.ok(ys[i] - ys[i - 1] >= 26, `números a ${ys[i] - ys[i - 1]}px um do outro`);
+});

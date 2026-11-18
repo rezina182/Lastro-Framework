@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const U = require('./util');
 const { discover } = require('./discover');
+const SURF = require('./tm-surface');
 
 const STRIDE = {
   S: { name: 'Falsificação de identidade', en: 'Spoofing', ask: 'Quem poderia se passar por outro usuário, sistema ou componente, e o que ganharia com isso?' },
@@ -78,8 +79,9 @@ function validateModel(m) {
   const errs = [];
   const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (!isObj(m)) return ['threat-model.json: deve ser objeto'];
-  const allowed = ['schemaVersion', 'generatedAt', 'reviewedBy', 'reviewedAt', 'note', 'assets', 'threats'];
+  const allowed = ['schemaVersion', 'generatedAt', 'reviewedBy', 'reviewedAt', 'note', 'assets', 'threats', 'surface'];
   for (const k of Object.keys(m)) if (!allowed.includes(k)) errs.push(`threat-model: campo desconhecido "${k}"`);
+  if (m.surface !== undefined) SURF.validateSurface(m.surface, errs);
   if (m.schemaVersion !== 1) errs.push('threat-model.schemaVersion: use 1');
   if (U.parseDate(m.generatedAt) === null) errs.push('threat-model.generatedAt: data inválida');
   if (m.reviewedAt !== undefined && U.parseDate(m.reviewedAt) === null) errs.push('threat-model.reviewedAt: data inválida');
@@ -137,10 +139,18 @@ function isPending(t, now) {
 /**
  * Avalia o arquivo persistido para o CORE-012. Devolve a lista de problemas (vazia = modelo em dia).
  */
-function evaluateFile(model, now, maxAgeDays) {
+function evaluateFile(model, now, maxAgeDays, currentSurface = null) {
   const problems = [];
   const errs = validateModel(model);
   if (errs.length) return [{ key: 'tm-invalid', severity: 'medium', message: `threat-model.json inválido: ${errs[0]}` }];
+  // Modelo vivo: a superfície de hoje é comparada com a gravada, e a revisão com a data da última mudança.
+  if (currentSurface && model.surface) {
+    const changes = SURF.diffSurface(model.surface, currentSurface);
+    if (changes.length) problems.push({ key: `tm-surface:${currentSurface.hash}`, severity: 'medium', message: `A superfície da aplicação mudou desde a última gravação do modelo (${changes.slice(0, 5).join('; ')}${changes.length > 5 ? '...' : ''}). Rode "lastro threat-model --write" e revise as ameaças.` });
+    else if (model.reviewedAt && model.surface.changedAt && U.parseDate(model.reviewedAt) < Date.parse(model.surface.changedAt) - 24 * 60 * 60 * 1000) {
+      problems.push({ key: `tm-review-before-change:${model.surface.hash}`, severity: 'medium', message: `A revisão (${String(model.reviewedAt).slice(0, 10)}) é anterior à última mudança da superfície (${String(model.surface.changedAt).slice(0, 10)}). Revise as ameaças e atualize reviewedAt.` });
+    }
+  }
   const pending = model.threats.filter((t) => isPending(t, now));
   if (!model.reviewedBy || !model.reviewedAt) problems.push({ key: 'tm-draft', severity: 'high', message: 'O modelo de ameaças é um rascunho: ninguém o revisou (reviewedBy e reviewedAt).' });
   if (model.threats.length === 0) problems.push({ key: 'tm-empty', severity: 'high', message: 'O modelo de ameaças não tem nenhuma ameaça. Rode "lastro threat-model --write".' });
@@ -251,6 +261,9 @@ function buildThreatModel({ ctx, controls, riskMap, profile, persisted = null, n
     unproven: threats.filter((t) => t.state === 'unproven').length,
     mitigated: threats.filter((t) => t.state === 'mitigated').length,
   };
+  // Modelo vivo: o que mudou na superfície desde a última gravação, para o relatório contar a história.
+  const currentSurface = SURF.signature(disc);
+  const surfaceChanges = persisted && persisted.surface ? SURF.diffSurface(persisted.surface, currentSurface) : [];
   const assets = persisted && Array.isArray(persisted.assets) && persisted.assets.length
     ? persisted.assets
     : draftAssets(profile, disc).map((a, i) => ({ id: `A-${String(i + 1).padStart(2, '0')}`, ...a }));
@@ -261,6 +274,13 @@ function buildThreatModel({ ctx, controls, riskMap, profile, persisted = null, n
     reviewedAt: (persisted && persisted.reviewedAt) || null,
     generatedAt: now.toISOString(),
     assets, discovery: disc, threats, counts, orphans,
+    surface: {
+      hash: currentSurface.hash,
+      recorded: !!(persisted && persisted.surface),
+      changedAt: (persisted && persisted.surface && persisted.surface.changedAt) || null,
+      changes: surfaceChanges,
+      reviewBeforeChange: !!(persisted && persisted.surface && persisted.surface.changedAt && persisted.reviewedAt && !surfaceChanges.length && U.parseDate(persisted.reviewedAt) < Date.parse(persisted.surface.changedAt) - 24 * 60 * 60 * 1000),
+    },
   };
 }
 
@@ -306,6 +326,11 @@ function serialize(model, persisted, now) {
   out.note = 'Rascunho gerado pelo LASTRO. Decida cada ameaça (decision: mitigate, accept ou not_applicable), informe a probabilidade (likelihood de 1 a 4) quando souber, e preencha reviewedBy e reviewedAt ao terminar. Só as decisões são gravadas aqui.';
   out.assets = model.assets;
   out.threats = threats;
+  // Assinatura da superfície: a data de mudança só anda quando a superfície de fato muda.
+  const sig = SURF.signature(model.discovery);
+  const prevSurface = persisted && persisted.surface;
+  const changedAt = !prevSurface ? undefined : prevSurface.hash === sig.hash ? prevSurface.changedAt : now.toISOString();
+  out.surface = { hash: sig.hash, ...(changedAt ? { changedAt } : {}), summary: sig.summary };
   return out;
 }
 

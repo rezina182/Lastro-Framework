@@ -30,6 +30,47 @@ const PHASES = [
   ['respond', 'Resposta a incidentes'],
 ];
 
+// Notas de 0 a 10 (docs/SCORE.md). Leitura humana do mesmo dado; o nível 0 a 4 continua valendo para o alvo.
+//  - postura: do que foi decidido (verificado ou falhando), quanto passou, pelo peso;
+//  - cobertura: quanto do peso aplicável tem prova (máquina ou atestação);
+//  - geral: média das duas, com teto quando há bloqueante (crítico: 4; qualquer bloqueante: 6).
+const BANDS = [
+  { min: 9, name: 'Exemplar' },
+  { min: 8, name: 'Forte' },
+  { min: 6, name: 'Bom' },
+  { min: 4, name: 'Em evolução' },
+  { min: 0, name: 'Inicial' },
+];
+const round1 = (n) => Math.round(n * 10) / 10;
+const bandOf = (g) => (g === null || g === undefined ? null : BANDS.find((b) => g >= b.min).name);
+// "6,2" (vírgula decimal, uma casa) ou "n/d" quando não há o que medir.
+const gradeText = (g) => (Number.isFinite(g) ? g.toFixed(1).replace('.', ',') : 'n/d');
+
+function computeGrades(report, sum, provenPct) {
+  const decided = sum.machine + sum.attested + sum.failed;
+  const posture = decided === 0 ? null : round1((10 * (sum.machine + sum.attested)) / decided);
+  const coverage = round1(provenPct / 10);
+  const findings = (report.controls || []).flatMap((c) => c.findings || []);
+  const blocking = findings.filter((f) => f.blocking);
+  const criticalBlocking = blocking.filter((f) => f.severity === 'critical').length;
+  const cap = criticalBlocking > 0 ? 4 : blocking.length > 0 ? 6 : 10;
+  const raw = posture === null ? coverage : 0.5 * posture + 0.5 * coverage;
+  const overall = round1(Math.min(raw, cap));
+  const capReason = raw > cap
+    ? (criticalBlocking > 0 ? `limitada a 4: ${criticalBlocking} achado(s) crítico(s) bloqueante(s)` : `limitada a 6: ${blocking.length} achado(s) bloqueante(s)`)
+    : null;
+  return { overall, band: bandOf(overall), posture, coverage, cap, capReason };
+}
+
+// Nota 0 a 10 de um recorte (escopo ou fase): mesma média, sem teto (o teto é do portão, que é geral).
+function sliceGrade(b) {
+  if (b.total === 0) return null;
+  const proven = b.machine + b.attested;
+  const decided = proven + b.failed;
+  const coverage = (10 * proven) / b.total;
+  return round1(decided === 0 ? coverage : 0.5 * ((10 * proven) / decided) + 0.5 * coverage);
+}
+
 function computeScore(report, { packTitles = {} } = {}) {
   const sum = { total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 };
   const byPack = {};
@@ -87,6 +128,8 @@ function computeScore(report, { packTitles = {} } = {}) {
   else if (provenPct >= 30) level = 2;
   else level = 1;
 
+  const grades = computeGrades(report, sum, provenPct);
+
   const needs = [];
   if (level === 0) needs.push(`corrigir, ou aceitar com dono e validade, os ${blocking} achado(s) bloqueante(s)`);
   else if (level < 4) {
@@ -100,8 +143,11 @@ function computeScore(report, { packTitles = {} } = {}) {
     : `Para o nível ${level + 1} (${LEVELS[level + 1].name}): ${needs.join('; ') || 'continuar provando controles'}.`;
 
   return {
-    method: 'v1',
+    method: 'v2',
     disclaimer: DISCLAIMER,
+    grade: grades.overall,
+    gradeBand: grades.band,
+    grades,
     level,
     levelName: LEVELS[level].name,
     levelRule: LEVELS[level].rule,
@@ -118,6 +164,7 @@ function computeScore(report, { packTitles = {} } = {}) {
       phase: b.phase,
       name: b.name,
       controls: b.controls,
+      grade: sliceGrade(b),
       provenPct: pct(b.machine + b.attested, b.total),
       machinePct: pct(b.machine, b.total),
       attestedPct: pct(b.attested, b.total),
@@ -130,6 +177,7 @@ function computeScore(report, { packTitles = {} } = {}) {
         pack: p.pack,
         title: p.title,
         controls: p.controls,
+        grade: sliceGrade(p),
         provenPct: pct(p.machine + p.attested, p.total),
         machinePct: pct(p.machine, p.total),
         attestedPct: pct(p.attested, p.total),
@@ -139,4 +187,4 @@ function computeScore(report, { packTitles = {} } = {}) {
   };
 }
 
-module.exports = { WEIGHT, LEVELS, PHASES, DISCLAIMER, computeScore };
+module.exports = { WEIGHT, LEVELS, PHASES, BANDS, DISCLAIMER, computeScore, computeGrades, bandOf, gradeText };

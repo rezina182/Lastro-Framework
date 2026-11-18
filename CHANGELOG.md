@@ -4,6 +4,16 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (nota de 0 a 10, escopos e a história dos resultados)
+- Nota de 0 a 10 (`score.method` `v2`): postura (do que foi decidido, quanto passou), cobertura (quanto do peso tem prova) e nota geral (média das duas), com teto de 6 quando há bloqueante e de 4 quando há bloqueante crítico. Faixas: Inicial, Em evolução, Bom, Forte e Exemplar. Também por pacote e por fase, sem teto. Aparece no texto, no Markdown, no HTML, no portal e no histórico (campo `grade`, opcional para registros antigos). O nível de 0 a 4 continua valendo para a meta. Veja `docs/SCORE.md`.
+- Relatório (HTML e Markdown) e portal abrem com "Em resumo": já foi feito, precisa de atenção, o que fazer agora e o que alguém precisa decidir, montados só com o que o relatório já tem (`verifier/src/story.js`).
+- Portal com duas páginas novas: `escopos.html` (o que já está implementado em cada escopo, como foi provado e o próximo passo) e `decisoes.html` (registro de atestações, riscos aceitos, revisão e decisões de ameaças, com vencimentos, e as decisões pendentes). Veja `docs/PORTAL.md`.
+
+### Alterado (arquitetura e modelo de ameaças vivo)
+- Desenho da arquitetura refeito. Cada componente mostra o que o código revela: módulos de rotas pelo prefixo de montagem, com a proteção vista em cada um; as defesas vistas no código; as tabelas das migrações SQL, com o tipo de dado; os jobs do CI; os hosts externos. Os fluxos viram números sobre as linhas, sem rótulo cortado nem escondido, e fluxos paralelos não se sobrepõem. O relatório ganha a seção "Componentes descobertos no código".
+- Modelo de ameaças vivo: `threat-model.json` guarda a assinatura da superfície, e o CORE-012 avisa quando a superfície muda depois da gravação ou quando a revisão é anterior à última mudança. A revisão humana nunca é apagada.
+- Descoberta: a rota `/` dentro de um roteador montado com autenticação não conta mais como página pública. Lista espalhada (`...middlewares`) na montagem é reconhecida. A coluna `senha_hash` entra na categoria de credenciais.
+
 ### Corrigido (teste real com sondas autenticadas no App B)
 - Sondas autenticadas aceitam `csrfToken` no perfil (campo do JSON do login e cabeçalho das escritas). A requisição legítima e o logout mandam o token, e a forjada não. Antes, a sonda de CSRF ficava inconclusiva numa aplicação com token.
 - Logout recusado (por exemplo, por falta de token) agora é inconclusivo. Antes, ele virava um falso positivo de "sessão não encerrada".

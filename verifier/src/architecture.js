@@ -95,10 +95,17 @@ function buildArchitecture({ model, profile, controls }) {
 
   const labels = { ...NODE_LABEL };
   if (d.stores.length) labels.D = `Armazenamento (${clean(d.stores.join(', '))})`.slice(0, 30);
+  // O que o código revela de cada componente (indícios para o desenho; nada aqui verifica controle).
+  const details = {
+    A: { modules: d.modules || [], defenses: d.defenses || [], realtime: d.realtime || [], uploads: d.uploads || [] },
+    D: { tables: d.tables || [] },
+    P: { jobs: d.ciJobs || [], workflows: d.workflows || 0 },
+    X: { hosts: d.externalHosts || [] },
+  };
   return {
     mode: 'automático',
     name: null,
-    nodes: [...nodes].map((id) => ({ id, label: labels[id], zone: NODE_ZONE[id], source: 'automático', note: '' })),
+    nodes: [...nodes].map((id) => ({ id, label: labels[id], zone: NODE_ZONE[id], source: 'automático', note: '', ...(details[id] || {}) })),
     flows,
     warnings: [],
     repos: [],
@@ -283,89 +290,7 @@ function toMermaid(arch) {
   return { code: out.join('\n'), exposedFlows: bad };
 }
 
-const NODE_W = 180;
-const NODE_H = 54;
-const ROW = 76;
-const COLS = { internet: 10, app: 300, dados: 590 };
-const COL_W = 250;
-
-function layout(arch) {
-  const pos = new Map();
-  const boxes = [];
-  const byZone = (z) => arch.nodes.filter((n) => zoneOf(n) === z);
-  const maxRows = Math.max(1, ...['internet', 'app', 'dados'].map((z) => byZone(z).length));
-  const topH = 44 + maxRows * ROW;
-  for (const z of ['internet', 'app', 'dados']) {
-    const list = byZone(z);
-    if (!list.length) continue;
-    boxes.push({ zone: z, title: ZONES[z], x: COLS[z], y: 14, w: COL_W, h: topH });
-    list.forEach((n, i) => pos.set(n.id, { x: COLS[z] + (COL_W - NODE_W) / 2, y: 14 + 40 + i * ROW }));
-  }
-  const ent = byZone('entrega');
-  let height = 14 + topH + 14;
-  if (ent.length) {
-    const rows = Math.ceil(ent.length / 4);
-    const y0 = 14 + topH + 28;
-    boxes.push({ zone: 'entrega', title: ZONES.entrega, x: 10, y: y0, w: 830, h: 44 + rows * ROW });
-    ent.forEach((n, i) => pos.set(n.id, { x: 30 + (i % 4) * 205, y: y0 + 40 + Math.floor(i / 4) * ROW }));
-    height = y0 + 44 + rows * ROW + 14;
-  }
-  return { pos, boxes, width: 850, height };
-}
-
-function clipToBox(cx, cy, dx, dy) {
-  const tx = dx === 0 ? Infinity : (NODE_W / 2) / Math.abs(dx);
-  const ty = dy === 0 ? Infinity : (NODE_H / 2) / Math.abs(dy);
-  const t = Math.min(tx, ty);
-  return [cx + dx * t, cy + dy * t];
-}
-
-/** SVG estático, sem script, com texto escapado pelo chamador (esc). Cor nunca é o único sinal: o texto traz o número. */
-function toSvg(arch, esc) {
-  const { pos, boxes, width, height } = layout(arch);
-  const out = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Fluxo de dados e fronteiras de confiança" class="arch">`];
-  out.push('<defs><marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arch-seta"/></marker></defs>');
-  for (const b of boxes) {
-    out.push(`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="10" class="arch-zona"/>`);
-    out.push(`<text x="${b.x + 12}" y="${b.y + 20}" class="arch-titulo">${esc(b.title)}</text>`);
-  }
-  const pair = new Map();
-  for (const f of arch.flows) {
-    const a = pos.get(f.from);
-    const b = pos.get(f.to);
-    if (!a || !b) continue;
-    const key = [f.from, f.to].sort().join('|');
-    const k = pair.get(key) || 0;
-    pair.set(key, k + 1);
-    const c1 = [a.x + NODE_W / 2, a.y + NODE_H / 2];
-    const c2 = [b.x + NODE_W / 2, b.y + NODE_H / 2];
-    let dx = c2[0] - c1[0];
-    let dy = c2[1] - c1[1];
-    const len = Math.hypot(dx, dy) || 1;
-    const off = (k - 0) * 22;
-    const px = (-dy / len) * off;
-    const py = (dx / len) * off;
-    const [sx, sy] = clipToBox(c1[0], c1[1], dx, dy);
-    const [ex, ey] = clipToBox(c2[0], c2[1], -dx, -dy);
-    const x1 = Math.round(sx + px);
-    const y1 = Math.round(sy + py);
-    const x2 = Math.round(ex + px);
-    const y2 = Math.round(ey + py);
-    out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="arch-fluxo${f.exposed > 0 ? ' arch-exposto' : ''}${f.source === 'declarado' || f.source === 'descoberto' ? '' : ' arch-inferido'}" marker-end="url(#seta)"/>`);
-    const mx = Math.round((x1 + x2) / 2);
-    const my = Math.round((y1 + y2) / 2) - 4;
-    out.push(`<text x="${mx}" y="${my}" text-anchor="middle" class="arch-rotulo">${esc(`${f.id} ${clip(f.label, 30)}`)}</text>`);
-    out.push(`<text x="${mx}" y="${my + 12}" text-anchor="middle" class="arch-rotulo arch-sub">${esc(`${f.threats} ameaça(s), ${f.exposed} exposta(s)`)}</text>`);
-  }
-  for (const n of arch.nodes) {
-    const p = pos.get(n.id);
-    if (!p) continue;
-    out.push(`<rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" rx="8" class="arch-no${n.source === 'descoberto' || n.source === 'inferido' ? ' arch-desc' : ''}"/>`);
-    out.push(`<text x="${p.x + NODE_W / 2}" y="${p.y + (n.note ? 22 : 31)}" text-anchor="middle" class="arch-notexto">${esc(clip(n.label, 28))}</text>`);
-    if (n.note) out.push(`<text x="${p.x + NODE_W / 2}" y="${p.y + 40}" text-anchor="middle" class="arch-rotulo arch-sub">${esc(clip(n.note, 34))}</text>`);
-  }
-  out.push('</svg>');
-  return out.join('');
-}
+// Desenho em SVG: veja arch-svg.js (componentes com o que o código revela e fluxos numerados).
+const { toSvg } = require('./arch-svg');
 
 module.exports = { buildArchitecture, buildSystemArchitecture, toMermaid, toSvg, NODE_LABEL, ZONES };
