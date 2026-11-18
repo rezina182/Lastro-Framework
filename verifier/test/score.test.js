@@ -138,7 +138,7 @@ test('o motor devolve o score no relatório e atestação conta como autodeclara
   const root = makeProject({ '.lastro/profile.json': profileJson({ aiCodingAgents: true }), '.gitignore': '.env\n' });
   try {
     const r = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z') });
-    assert.equal(r.score.method, 'v2');
+    assert.equal(r.score.method, 'v3');
     assert.ok(r.score.grade >= 0 && r.score.grade <= 6, 'com bloqueante a nota geral fica no teto de 6 (ou 4)');
     assert.equal(r.score.level, 0, 'sem CI nem threat model há bloqueantes');
     assert.ok(r.score.byPack.some((p) => p.pack === 'agent'));
@@ -192,7 +192,7 @@ test('nota 0 a 10: postura, cobertura, média e faixa', () => {
     ctl('C', 'web', 'medium', 'failed'),
     ctl('D', 'web', 'low', 'verified', 'manual-attestation'),
   ]));
-  assert.equal(s.method, 'v2');
+  assert.equal(s.method, 'v3');
   assert.equal(s.grades.posture, 7.5, 'provado 9 de 12 decididos');
   assert.equal(s.grades.coverage, 5.3, '52,9% de prova');
   assert.equal(s.grade, 6.4);
@@ -227,4 +227,19 @@ test('nota por pacote e por fase, sem teto', () => {
   assert.equal(s.byPack.find((p) => p.pack === 'web').grade, 10);
   assert.equal(s.byPack.find((p) => p.pack === 'core').grade, 0);
   assert.equal(s.byPhase.find((p) => p.phase === 'build').grade, 5);
+});
+
+test('nota v3: prova parcial da máquina vale metade do peso na nota, mas não no peso provado nem no nível', () => {
+  const sem = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified')]));
+  const com = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), { ...ctl('B', 'core', 'high', 'unverified'), partial: { source: 'verifier-http', tested: 2 } }]));
+  assert.equal(com.provenPct, sem.provenPct, 'peso provado continua estrito');
+  assert.equal(com.level, sem.level, 'nível continua estrito');
+  assert.equal(com.partialPct, 50);
+  assert.equal(com.partialControls, 1);
+  assert.equal(sem.grades.coverage, 5);
+  assert.equal(com.grades.coverage, 7.5, '(5 + 0,5 x 5) / 10 de peso');
+  assert.ok(com.grade > sem.grade);
+  // Marca "partial" em controle que já falha ou foi verificado não dá crédito extra.
+  const falha = computeScore(rep([{ ...ctl('B', 'core', 'high', 'failed'), partial: { source: 'x', tested: 1 } }]));
+  assert.equal(falha.partialPct, 0);
 });

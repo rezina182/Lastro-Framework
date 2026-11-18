@@ -46,10 +46,15 @@ const bandOf = (g) => (g === null || g === undefined ? null : BANDS.find((b) => 
 // "6,2" (vírgula decimal, uma casa) ou "n/d" quando não há o que medir.
 const gradeText = (g) => (Number.isFinite(g) ? g.toFixed(1).replace('.', ',') : 'n/d');
 
+// Crédito da prova parcial (a máquina testou parte do controle manual e passou): metade do peso, na cobertura e na
+// postura. O "peso provado" e o nível de 0 a 4 continuam só com o que foi provado por inteiro.
+const PARTIAL_CREDIT = 0.5;
+
 function computeGrades(report, sum, provenPct) {
-  const decided = sum.machine + sum.attested + sum.failed;
-  const posture = decided === 0 ? null : round1((10 * (sum.machine + sum.attested)) / decided);
-  const coverage = round1(provenPct / 10);
+  const credit = PARTIAL_CREDIT * (sum.partial || 0);
+  const decided = sum.machine + sum.attested + sum.failed + credit;
+  const posture = decided === 0 ? null : round1((10 * (sum.machine + sum.attested + credit)) / decided);
+  const coverage = sum.total === 0 ? round1(provenPct / 10) : round1((10 * (sum.machine + sum.attested + credit)) / sum.total);
   const findings = (report.controls || []).flatMap((c) => c.findings || []);
   const blocking = findings.filter((f) => f.blocking);
   const criticalBlocking = blocking.filter((f) => f.severity === 'critical').length;
@@ -65,23 +70,25 @@ function computeGrades(report, sum, provenPct) {
 // Nota 0 a 10 de um recorte (escopo ou fase): mesma média, sem teto (o teto é do portão, que é geral).
 function sliceGrade(b) {
   if (b.total === 0) return null;
-  const proven = b.machine + b.attested;
+  const proven = b.machine + b.attested + PARTIAL_CREDIT * (b.partial || 0);
   const decided = proven + b.failed;
   const coverage = (10 * proven) / b.total;
   return round1(decided === 0 ? coverage : 0.5 * ((10 * proven) / decided) + 0.5 * coverage);
 }
 
 function computeScore(report, { packTitles = {} } = {}) {
-  const sum = { total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 };
+  const sum = { total: 0, machine: 0, attested: 0, failed: 0, unverified: 0, partial: 0 };
   const byPack = {};
-  const byPhase = Object.fromEntries(PHASES.map(([k, name]) => [k, { phase: k, name, controls: 0, total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 }]));
+  const byPhase = Object.fromEntries(PHASES.map(([k, name]) => [k, { phase: k, name, controls: 0, total: 0, machine: 0, attested: 0, failed: 0, unverified: 0, partial: 0 }]));
+  // Prova parcial só conta em controle ainda sem prova (engine.js marca "partial").
+  const isPartial = (c) => c.state === 'unverified' && !!c.partial;
   const open = [];
   let applicable = 0;
   for (const c of report.controls) {
     if (c.state === 'not_applicable') continue;
     applicable += 1;
     const w = WEIGHT[c.severity] || 1;
-    const p = (byPack[c.pack] = byPack[c.pack] || { pack: c.pack, title: packTitles[c.pack] || c.pack, controls: 0, total: 0, machine: 0, attested: 0, failed: 0, unverified: 0 });
+    const p = (byPack[c.pack] = byPack[c.pack] || { pack: c.pack, title: packTitles[c.pack] || c.pack, controls: 0, total: 0, machine: 0, attested: 0, failed: 0, unverified: 0, partial: 0 });
     p.controls += 1;
     sum.total += w;
     p.total += w;
@@ -95,6 +102,7 @@ function computeScore(report, { packTitles = {} } = {}) {
     } else {
       sum.unverified += w;
       p.unverified += w;
+      if (isPartial(c)) { sum.partial += w; p.partial += w; }
     }
     if ((c.severity === 'critical' || c.severity === 'high') && c.state !== 'verified') open.push(c.id);
     // Um controle conta em cada fase em que atua (o peso total por fase pode somar mais que o geral).
@@ -105,7 +113,7 @@ function computeScore(report, { packTitles = {} } = {}) {
       b.total += w;
       if (c.state === 'verified') b[c.evidence && c.evidence.source === 'manual-attestation' ? 'attested' : 'machine'] += w;
       else if (c.state === 'failed') b.failed += w;
-      else b.unverified += w;
+      else { b.unverified += w; if (isPartial(c)) b.partial += w; }
     }
   }
 
@@ -143,7 +151,7 @@ function computeScore(report, { packTitles = {} } = {}) {
     : `Para o nível ${level + 1} (${LEVELS[level + 1].name}): ${needs.join('; ') || 'continuar provando controles'}.`;
 
   return {
-    method: 'v2',
+    method: 'v3',
     disclaimer: DISCLAIMER,
     grade: grades.overall,
     gradeBand: grades.band,
@@ -157,6 +165,9 @@ function computeScore(report, { packTitles = {} } = {}) {
     attestedPct: pct(sum.attested, sum.total),
     failedPct: pct(sum.failed, sum.total),
     unverifiedPct: pct(sum.unverified, sum.total),
+    // Parte do "sem prova" em que a máquina testou e passou (crédito de metade do peso na nota de 0 a 10).
+    partialPct: pct(sum.partial, sum.total),
+    partialControls: report.controls.filter(isPartial).length,
     highOrCriticalOpen: open.length,
     automated,
     nextStep,
@@ -170,6 +181,7 @@ function computeScore(report, { packTitles = {} } = {}) {
       attestedPct: pct(b.attested, b.total),
       failedPct: pct(b.failed, b.total),
       unverifiedPct: pct(b.unverified, b.total),
+      partialPct: pct(b.partial, b.total),
     })),
     byPack: Object.values(byPack)
       .sort((a, b) => a.pack.localeCompare(b.pack))
@@ -183,6 +195,7 @@ function computeScore(report, { packTitles = {} } = {}) {
         attestedPct: pct(p.attested, p.total),
         failedPct: pct(p.failed, p.total),
         unverifiedPct: pct(p.unverified, p.total),
+        partialPct: pct(p.partial, p.total),
       })),
   };
 }

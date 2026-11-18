@@ -147,7 +147,7 @@ function indexPage({ report, history, current, tickets, now, theme }) {
     sections.push(card('Nota geral', `${h(gradeText(s.grade))} de 10`, `${s.gradeBand}; postura ${gradeText(s.grades.posture)}, cobertura ${gradeText(s.grades.coverage)}${gd}`));
   }
   sections.push(card('Portão de CI', h(VERDICT_PT[report.verdict]), `${num(report.summary.blocking)} achado(s) bloqueante(s)`));
-  sections.push(card('Peso provado', h(pctText(s.provenPct)), `máquina ${pctText(s.machinePct)}, atestado ${pctText(s.attestedPct)}${prev ? delta(s.provenPct, prev.provenPct) : ''}`));
+  sections.push(card('Peso provado', h(pctText(s.provenPct)), `máquina ${pctText(s.machinePct)}, atestado ${pctText(s.attestedPct)}${s.partialPct ? `; mais ${pctText(s.partialPct)} com prova parcial da máquina (${num(s.partialControls)} controle(s))` : ''}${prev ? delta(s.provenPct, prev.provenPct) : ''}`));
   sections.push('</div>');
   sections.push('<p class="empty">Como ler: a nota mede quanto já foi <strong>provado</strong>, não quão segura a aplicação é. Controle sem prova conta zero. Abaixo, o porquê da nota e os próximos passos; o restante fica em "Mais detalhes".</p>');
   sections.push('</section>');

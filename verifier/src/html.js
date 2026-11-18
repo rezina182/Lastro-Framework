@@ -456,7 +456,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
       out.push(card('Controles automáticos', a.passRatePct === null ? '-' : pctText(a.passRatePct), `${num(a.verified)} passaram, ${num(a.failed)} falharam, ${num(a.notRun)} não rodaram (fora da taxa)`));
     }
     out.push(card('Falhando', `<span class="bad">${h(pctText(k.failedPct))}</span>`));
-    out.push(card('Sem prova', pctText(k.unverifiedPct), 'conta como zero'));
+    out.push(card('Sem prova', pctText(k.unverifiedPct), k.partialPct ? `dos quais ${pctText(k.partialPct)} com prova parcial da máquina (meio peso na nota)` : 'conta como zero'));
   }
   out.push(card('Controles aplicáveis', String(num(s.applicable)), `${num(s.verified)} verificados, ${num(s.failed)} falhando, ${num(s.unverified)} sem prova`));
   out.push('</div>');

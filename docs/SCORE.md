@@ -28,6 +28,8 @@ Desde o método `v2`, o relatório mostra também uma **nota de 0 a 10**, mais f
 | **Cobertura** | Quanto do peso aplicável tem prova (máquina ou atestação): `provado% / 10`. Responde "quanto já olhamos?". |
 | **Nota geral** | Média das duas: `0,5 × postura + 0,5 × cobertura`. Sem postura, vale só a cobertura. |
 
+**Prova parcial da máquina (método `v3`).** Quando a máquina testa parte de um controle manual e passa (prova assistida ou sonda autenticada, veja [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md)), o controle continua "sem prova", mas ganha **metade do peso** na cobertura e na postura. Exemplo: a sonda provou que o login limita tentativas do mesmo endereço, mas não provou o limite por conta. O "peso provado" (`provenPct`) e o nível de 0 a 4 não mudam: só contam o que foi provado por inteiro. O relatório mostra a fatia em `partialPct` e `partialControls`. O caminho para o crédito inteiro é separar o pedaço testável num controle automático próprio, que pode ser verificado de verdade.
+
 A nota geral tem **teto** quando o portão falha, para que um número alto nunca esconda um bloqueio:
 
 - algum achado **crítico** bloqueante: no máximo **4**;
@@ -59,7 +61,7 @@ Como no resto da pontuação, a nota mede **evidência**, não segurança. Uma n
 | 3 | Verificado | 60% ou mais provado e nenhum controle alto ou crítico falhando ou sem prova. |
 | 4 | Comprovado | 90% ou mais provado, nenhum controle falhando e nenhum alto ou crítico sem prova. |
 
-Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo (`v2`: níveis do `v1` mais a nota de 0 a 10).
+Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo (`v2`: níveis do `v1` mais a nota de 0 a 10; `v3`: a prova parcial da máquina vale metade do peso na nota de 0 a 10).
 
 ## Por que a nota está baixa (`lastro gaps`)
 

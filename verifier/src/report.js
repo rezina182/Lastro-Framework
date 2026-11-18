@@ -34,7 +34,7 @@ function formatReport(r) {
   if (r.score) {
     const k = r.score;
     if (gradeLine(k)) out.push(gradeLine(k));
-    out.push(`Maturidade: nível ${k.level} (${k.levelName}) | provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%`);
+    out.push(`Maturidade: nível ${k.level} (${k.levelName}) | provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%${k.partialPct ? ` (dos quais ${k.partialPct}% com prova parcial da máquina, ${k.partialControls} controle(s))` : ''}`);
     if (k.automated && k.automated.controls) out.push(`  Automáticos: ${k.automated.verified} passaram, ${k.automated.failed} falharam${k.automated.passRatePct === null ? '' : ` (taxa ${k.automated.passRatePct}%)`}, ${k.automated.notRun} não rodaram`);
     out.push(`  ${k.nextStep}`);
     out.push(`  ${k.disclaimer}`);
@@ -370,6 +370,7 @@ function formatMarkdown(r, { coverage = null } = {}) {
     out.push(`**Nível ${k.level}: ${k.levelName}.** Regra do nível: ${k.levelRule}.`, '');
     out.push('| Provado | Por máquina | Autodeclarado | Falhando | Sem prova |', '|---|---|---|---|---|');
     out.push(`| ${k.provenPct}% | ${k.machinePct}% | ${k.attestedPct}% | ${k.failedPct}% | ${k.unverifiedPct}% |`, '');
+    if (k.partialPct) out.push(`Prova parcial da máquina: ${k.partialControls} controle(s) manual(is), ${k.partialPct}% do peso. A máquina testou parte do controle e passou; isso vale metade do peso na nota de 0 a 10, mas não conta como provado (nem no nível).`, '');
     out.push(`Próximo passo: ${k.nextStep}`, '');
     if (k.automated && k.automated.controls) {
       const a = k.automated;

@@ -4,6 +4,10 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Alterado (nota v3 e o kit usando os próprios hooks)
+- Nota `v3`: controle manual com prova parcial da máquina vale metade do peso na cobertura e na postura da nota de 0 a 10. O peso provado e o nível de 0 a 4 continuam estritos. Novos campos `partialPct` e `partialControls`, também no histórico. Veja `docs/SCORE.md`.
+- O repositório do kit passa a usar o próprio adaptador do Kiro (`.kiro/agents`, `skills`, `steering` e `hooks`). Push e PR feitos pelo agente passam pela autorização de quem mantém o repositório.
+
 ### Adicionado (automação dos controles manuais)
 - Prova assistida (`verifier/src/assist.js`): a máquina faz a parte automatizável de controles manuais. Achou a falha, o controle falha com prova de máquina; passou, fica a nota "Prova parcial da máquina". Cobertura inicial: CORE-015 (testes no CI com banco real), AUTH-002 (biblioteca e custo do hash de senha), AG-001 e AG-007 (mecanismo que barra o agente), WEB-016 (documentação, métricas e listagem expostas), WEB-018 (Content-Type), AUTH-011 (credenciais padrão, com `--active`) e AUTH-016 (25 tentativas erradas sem limite, com `--active`).
 - Sondas autenticadas novas: AUTH-022 (cookie de sessão adulterado aceito; fixação de sessão no login), WEB-010 (rota autenticada sem `Cache-Control: no-store`), CORE-056 (hash de senha, segredo do MFA ou token nas respostas, sem configuração extra) e AUTH-028 (atribuição em massa nas rotas de `massAssignment` do perfil).

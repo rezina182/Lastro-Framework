@@ -112,6 +112,8 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
   const attested = ctl.filter((c) => c.state === 'verified' && isAttested(c));
   if (machine.length) done.push(`${machine.length} controle(s) provado(s) pela máquina a cada execução.`);
   if (attested.length) done.push(`${attested.length} controle(s) testado(s) por uma pessoa e atestado(s) com prazo.`);
+  const partial = ctl.filter((c) => c.state === 'unverified' && c.partial);
+  if (partial.length) done.push(`${partial.length} controle(s) manual(is) com prova parcial da máquina (${partial.slice(0, 5).map((c) => c.id).join(', ')}${partial.length > 5 ? '...' : ''}): falta só a parte que a pessoa confere, e o playbook já traz a atestação pré-preenchida.`);
   for (const s of scopes({ ...report, controls: ctl }, { now }).filter((x) => x.missing.length === 0 && x.failing.length === 0 && x.done.length)) done.push(`Escopo "${s.title.split(':')[0]}" com todos os controles provados.`);
   if (tm && tm.counts.mitigated) done.push(`${tm.counts.mitigated} ameaça(s) do modelo com todos os controles provados.`);
   if (tm && tm.reviewed) done.push(`Modelo de ameaças revisado por ${tm.reviewedBy} em ${String(tm.reviewedAt).slice(0, 10)}.`);

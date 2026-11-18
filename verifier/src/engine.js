@@ -189,7 +189,10 @@ function overlayProbe(r, probe, now) {
   }
   // "Não se aplica" decidido por uma pessoa não ganha nota de prova parcial: a máquina não muda essa decisão.
   if (r.state === 'not_applicable') return r;
-  return { ...r, notes: [...probe.notes, ...r.notes] };
+  // Prova parcial: a máquina testou e passou, mas o controle pede mais do que ela vê. O estado continua o mesmo
+  // (sem prova, ou verificado por atestação); a marca só serve para a nota dar crédito parcial (score.js).
+  const partial = r.state === 'unverified' && (probe.tested || 0) > 0 ? { source: probe.source || 'verifier-http', tested: probe.tested } : null;
+  return { ...r, notes: [...probe.notes, ...r.notes], partial };
 }
 
 /** Junta o resultado da sonda autenticada e o da prova assistida do mesmo controle (qualquer um pode faltar). */
@@ -301,7 +304,7 @@ async function runCheck(opts = {}) {
     });
     controls.push({
       id: c.id, title: c.title, pack: c.pack, tier: c.tier, severity: c.severity, enforcement: c.enforcement, phase: c.phase, remediation: c.remediation, checkType: c.check.type,
-      state: r.state, notes: r.notes || [], evidence: r.evidence || null, findings,
+      state: r.state, notes: r.notes || [], evidence: r.evidence || null, findings, partial: r.partial || null,
       controlRiskAccepted: r.state === 'unverified' && !!controlRisk ? controlRisk.id : null,
     });
   }

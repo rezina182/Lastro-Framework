@@ -39,6 +39,7 @@ function snapshot(report) {
     machinePct: report.score.machinePct,
     attestedPct: report.score.attestedPct,
     failedPct: report.score.failedPct,
+    partialPct: report.score.partialPct || 0,
     automatedPassRatePct: report.score.automated.passRatePct,
     summary: {
       applicable: report.summary.applicable, verified: report.summary.verified, failed: report.summary.failed,
@@ -61,6 +62,7 @@ function validateSnapshot(s) {
   if (!Number.isInteger(s.level) || s.level < 0 || s.level > 4) errs.push('level: 0 a 4');
   // grade (nota 0 a 10) é opcional: registros gravados antes da nota não têm o campo.
   if (s.grade !== undefined && !(Number.isFinite(s.grade) && s.grade >= 0 && s.grade <= 10)) errs.push('grade: 0 a 10');
+  if (s.partialPct !== undefined && !(Number.isFinite(s.partialPct) && s.partialPct >= 0 && s.partialPct <= 100)) errs.push('partialPct: 0 a 100');
   for (const k of ['provenPct', 'machinePct', 'attestedPct', 'failedPct']) if (!Number.isFinite(s[k]) || s[k] < 0 || s[k] > 100) errs.push(`${k}: 0 a 100`);
   if (s.automatedPassRatePct !== null && !(Number.isFinite(s.automatedPassRatePct) && s.automatedPassRatePct >= 0 && s.automatedPassRatePct <= 100)) errs.push('automatedPassRatePct: 0 a 100 ou null');
   if (!isObj(s.summary) || !isObj(s.risk) || !isObj(s.threats)) errs.push('summary, risk e threats são obrigatórios');
