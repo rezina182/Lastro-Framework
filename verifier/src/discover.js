@@ -366,10 +366,12 @@ function discover(ctx) {
   const uploads = [...pick(UPLOAD_DEPS), ...(pyUploads ? ['request.files (Python)'] : [])];
   const workflows = ctx.files.filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f)).length;
   const prefixOf = S.mountPrefixes(ctx, files, targetResolver(ctx));
+  const tables = S.discoverTables(ctx, DATA_CATEGORIES);
   return {
     modules: S.routeModules(routes, prefixOf),
+    map: S.appMap(ctx, routes, prefixOf, tables),
     defenses: S.discoverDefenses(ctx, files, deps),
-    tables: S.discoverTables(ctx, DATA_CATEGORIES),
+    tables,
     ciJobs: S.discoverCiJobs(ctx),
     sourceFilesRead: files.length,
     routes: {

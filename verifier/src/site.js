@@ -18,7 +18,7 @@ const { loadCatalog } = require('./catalog');
 const { h, num, table, htmlShell, pctText, sevBadge } = ui;
 
 const PAGES = [
-  ['index.html', 'Visão geral'], ['analise.html', 'Análise completa'], ['escopos.html', 'Implementado por escopo'], ['decisoes.html', 'Decisões'],
+  ['index.html', 'Visão geral'], ['analise.html', 'Análise completa'], ['mapa.html', 'Mapa da aplicação'], ['escopos.html', 'Implementado por escopo'], ['decisoes.html', 'Decisões'],
   ['relatorio.html', 'Relatório atual'], ['playbook.html', 'Playbook'], ['historico.html', 'Histórico'],
 ];
 const PAGE_NAMES = new Set(PAGES.map(([f]) => f));
@@ -352,6 +352,7 @@ function overviewPage({ report, history, current, now, theme }) {
   })), 'Nota de cada escopo, de 0 a 10'), '</div></section>');
   const links = [
     ['analise.html', 'Análise completa', 'Sumário executivo, por que a nota está assim, controles que exigem ação e por que importam, e o que cabe ao dev e à segurança.'],
+    ['mapa.html', 'Mapa da aplicação', 'Quem usa, por quais áreas entra e que dados cada área toca: onde uma funcionalidade nova pode ter impacto.'],
     ['escopos.html', 'Implementado por escopo', 'Cada controle com a situação, como foi provado e o próximo passo.'],
     ['decisoes.html', 'Decisões', 'Atestações, riscos aceitos e decisões de ameaça, com quem e até quando.'],
     ['playbook.html', 'Playbook', 'O roteiro de cada teste manual e a atestação pronta.'],
@@ -361,11 +362,20 @@ function overviewPage({ report, history, current, now, theme }) {
   sections.push('<section aria-labelledby="t-onde"><h2 id="t-onde">Onde ver os detalhes</h2><ul class="link-list">', ...links.map(([f, t, d]) => `<li><a href="${h(f)}"><strong>${h(t)}</strong></a><span>${h(d)}</span></li>`), '</ul></section>'); // lastro-ignore xss-sinks: lista fixa do próprio gerador, escapada com h()
   sections.push('</div>');
 
+  // Por fim, o mapa conceitual: quem usa, as áreas e os dados. O detalhe de cada área e o impacto ficam em mapa.html.
+  const d = (report.threatModel && report.threatModel.discovery) || {};
+  if (d.map && d.map.areas.length) {
+    sections.push('<section id="mapa" aria-labelledby="t-mapa"><h2 id="t-mapa">Mapa da aplicação</h2>');
+    sections.push('<p>Quem usa a aplicação, por quais áreas entra e que dados cada área toca, lido do código. Vermelho é área com ação sem autenticação vista.</p>');
+    sections.push(`<div class="panel map-wrap">${mapSvg(d.map, d.externalHosts || [])}</div>`);
+    sections.push('<p class="decide-link"><a href="mapa.html">Ver cada área e o impacto de uma mudança →</a></p></section>');
+  }
+
   return htmlShell({
     title: report.profile.name, eyebrow: 'Portal LASTRO · Visão geral',
     meta: [story1(report)],
     filters: filtersOf(report),
-    nav: [['numeros', 'Os números'], ['decisoes-agora', 'Decisões para agora'], ['onde', 'Escopos e detalhes']],
+    nav: [['numeros', 'Os números'], ['decisoes-agora', 'Decisões para agora'], ['onde', 'Escopos e detalhes'], ...(d.map && d.map.areas.length ? [['mapa', 'Mapa da aplicação']] : [])],
     sections, theme, siteNav: siteNav('index.html'),
   });
 }
@@ -375,6 +385,111 @@ function story1(report) {
   const s = report.score;
   const b = report.controls.filter((c) => c.state !== 'not_applicable' && blockingOf(c)).length;
   return `Nota ${gradeText(s.grade)} de 10 (${s.gradeBand || '-'}). ${b ? `${b} controle(s) bloqueiam o portão.` : 'Nada bloqueia o portão.'} ${pctText(s.provenPct)} do peso tem prova.`;
+}
+
+// ---- Mapa da aplicação: para produto, negócio e quem não é técnico ----
+
+const PERSONAL = new Set(['identificacao', 'contato', 'credencial', 'financeiro', 'nascimento', 'sensivel']);
+const CAT_NAME = { identificacao: 'identificação', contato: 'contato', credencial: 'credenciais', financeiro: 'financeiro', nascimento: 'nascimento', sensivel: 'sensível' };
+/** "/api/contas-correntes" vira "Contas correntes"; a raiz vira "Páginas e início". */
+function areaName(key) {
+  const seg = String(key).split('/').filter(Boolean).pop();
+  if (!seg || key === '/') return 'Páginas e início';
+  if (seg === '*') return 'Rotas com parâmetro na raiz';
+  const s = seg.replace(/[-_]+/g, ' ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+const toneArea = (a) => (a.access.naoVista > 0 ? 'bad' : a.access.protegida === 0 ? 'info' : 'ok');
+const WHO = { publico: 'Visitante (sem conta)', logado: 'Pessoa logada', admin: 'Administração' };
+
+/** Mapa conceitual em SVG estático: quem usa -> áreas -> dados. Todo texto passa por h(); coordenadas por num(). */
+function mapSvg(map, external) {
+  const areas = map.areas;
+  const used = new Map();
+  for (const a of areas) for (const t of a.tables) used.set(t, (used.get(t) || 0) + 1);
+  const tables = map.tables.filter((t) => used.has(t.name)).sort((x, y) => used.get(y.name) - used.get(x.name) || x.name.localeCompare(y.name)).slice(0, 14);
+  const actors = ['publico', 'logado', 'admin'].filter((w) => areas.some((a) => a.who === w || (w === 'publico' && a.access.naoVista > 0)));
+  const ROW = 56;
+  const rows = Math.max(areas.length, tables.length + (external.length ? 2 : 0), actors.length * 2, 3);
+  const H = 70 + rows * ROW;
+  const W = 1120;
+  const X = { actor: 20, area: 360, data: 800 };
+  const BW = { actor: 210, area: 300, data: 290 };
+  const yOf = (i, n) => 60 + ((rows * ROW) / Math.max(n, 1)) * (i + 0.5) - 20;
+  const ay = new Map(actors.map((w, i) => [w, yOf(i, actors.length)]));
+  const ry = new Map(areas.map((a, i) => [a.key, 60 + i * ROW]));
+  const ty = new Map(tables.map((t, i) => [t.name, 60 + i * ROW]));
+  const curve = (x1, y1, x2, y2, cls) => `<path class="${cls}" d="M${num(x1.toFixed(0))},${num(y1.toFixed(0))} C${num(((x1 + x2) / 2).toFixed(0))},${num(y1.toFixed(0))} ${num(((x1 + x2) / 2).toFixed(0))},${num(y2.toFixed(0))} ${num(x2.toFixed(0))},${num(y2.toFixed(0))}"/>`; // lastro-ignore xss-sinks: cls vem de constantes; números por num()
+  const box = (x, y, w, title, sub, cls) => `<g class="${cls}"><rect x="${num(x)}" y="${num(y.toFixed(0))}" width="${num(w)}" height="40" rx="9"/><text x="${num(x + 12)}" y="${num((y + 17).toFixed(0))}" class="mt">${h(clip(title, 34))}</text><text x="${num(x + 12)}" y="${num((y + 32).toFixed(0))}" class="ms">${h(clip(sub, 44))}</text></g>`; // lastro-ignore xss-sinks: textos com h(), números com num(), cls de constantes
+  const edges = [];
+  for (const a of areas) {
+    const y2 = ry.get(a.key) + 20;
+    if (ay.has(a.who)) edges.push(curve(X.actor + BW.actor, ay.get(a.who) + 20, X.area, y2, 'me'));
+    if (a.access.naoVista > 0 && a.who !== 'publico' && ay.has('publico')) edges.push(curve(X.actor + BW.actor, ay.get('publico') + 20, X.area, y2, 'me me-bad'));
+    for (const t of a.tables) if (ty.has(t)) edges.push(curve(X.area + BW.area, y2, X.data, ty.get(t) + 20, 'me me-data'));
+  }
+  const nodes = [
+    ...actors.map((w) => box(X.actor, ay.get(w), BW.actor, WHO[w], w === 'publico' ? 'qualquer pessoa na internet' : w === 'admin' ? 'quem administra o sistema' : 'quem tem conta', 'mn mn-actor')),
+    ...areas.map((a) => box(X.area, ry.get(a.key), BW.area, areaName(a.key), `${a.routes} ação(ões) · ${a.key}`, `mn mn-${toneArea(a)}`)),
+    ...tables.map((t) => box(X.data, ty.get(t.name), BW.data, t.name, t.categories.filter((c) => PERSONAL.has(c)).map((c) => CAT_NAME[c]).join(', ') || 'dado da aplicação', `mn ${t.categories.some((c) => PERSONAL.has(c)) ? 'mn-personal' : 'mn-data'}`)),
+  ];
+  if (external.length) nodes.push(box(X.data, 60 + tables.length * ROW + 10, BW.data, 'Serviços externos', external.slice(0, 3).join(', '), 'mn mn-ext'));
+  const heads = [['Quem usa', X.actor], ['Áreas da aplicação', X.area], ['Dados guardados', X.data]].map(([t, x]) => `<text x="${num(x)}" y="30" class="mh">${h(t)}</text>`); // lastro-ignore xss-sinks: rótulos fixos com h()
+  return [
+    `<svg role="img" aria-labelledby="map-t map-d" viewBox="0 0 ${num(W)} ${num(H)}" class="appmap">`,
+    '<title id="map-t">Mapa da aplicação</title>',
+    `<desc id="map-d">${h(`${actors.length} tipo(s) de pessoa, ${areas.length} área(s) e ${tables.length} conjunto(s) de dados, ligados pelo que o código mostra.`)}</desc>`,
+    ...heads, ...edges, ...nodes, '</svg>',
+  ].join('');
+}
+
+function mapPage({ report, theme }) {
+  const d = (report.threatModel && report.threatModel.discovery) || {};
+  const map = d.map || { areas: [], tables: [], more: 0 };
+  const external = d.externalHosts || [];
+  const sections = [];
+  sections.push('<section id="como-ler" aria-labelledby="t-ler"><h2 id="t-ler">Como a aplicação funciona</h2>');
+  sections.push('<p class="lead">Quem usa a aplicação, por quais áreas entra e que dados cada área toca. Serve para conversar sobre uma funcionalidade nova: olhando o mapa, dá para ver onde ela entra e o que pode ser afetado.</p>');
+  sections.push('<ul class="legend"><li><i class="seg-ok"></i>área que exige login</li><li><i class="seg-info"></i>área pública</li><li><i class="seg-bad"></i>área com ação sem autenticação vista no código</li><li><i class="seg-warn"></i>dado pessoal</li><li><i class="seg-none"></i>outro dado</li></ul>');
+  if (!map.areas.length) sections.push('<p class="empty">O kit não encontrou rotas no código desta aplicação, então não há mapa. Rotas declaradas de um jeito que o kit ainda não lê (outro framework, por exemplo) não aparecem.</p>');
+  else sections.push(`<div class="panel map-wrap">${mapSvg(map, external)}</div>`);
+  sections.push('<p class="why">A ligação entre área e dado é um indício: o nome da tabela ou do modelo aparece no código das rotas daquela área. Uma área que chama outra camada (um serviço, por exemplo) pode tocar dados que o mapa não mostra.</p></section>');
+
+  if (map.areas.length) {
+    sections.push('<section id="areas" aria-labelledby="t-areas"><h2 id="t-areas">As áreas, uma a uma</h2><div class="why-grid">');
+    for (const a of map.areas) {
+      const acts = Object.entries(a.actions).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} (${v})`).join(', ');
+      const access = a.who === 'publico' ? 'qualquer pessoa, sem conta' : a.who === 'admin' ? 'administração' : 'pessoas logadas';
+      sections.push(`<article class="why-card ${toneArea(a) === 'bad' ? 'w-bad' : ''}"><h3>${h(areaName(a.key))} <small><code>${h(a.key)}</code></small></h3>`);
+      sections.push(`<span class="label">O que dá para fazer</span><p>${h(`${a.routes} ação(ões): ${acts}.`)}</p>`);
+      sections.push(`<span class="label">Quem usa</span><p>${h(access)}${a.access.naoVista ? ` <span class="badge bad">${h(`${a.access.naoVista} sem autenticação vista`)}</span>` : ''}</p>`);
+      sections.push(`<span class="label">Dados que toca</span>${a.tables.length ? `<ul class="tags">${a.tables.map((t) => `<li>${h(t)}</li>`).join('')}</ul>` : '<p class="empty">nenhum visto direto no código da área</p>'}`); // lastro-ignore xss-sinks: nomes escapados com h()
+      sections.push('</article>');
+    }
+    sections.push('</div>');
+    if (map.more) sections.push(`<p class="empty">${h(`E mais ${map.more} área(s) menor(es), fora do mapa.`)}</p>`);
+    sections.push('</section>');
+
+    const touched = map.tables.filter((t) => t.areas.length).sort((x, y) => y.areas.length - x.areas.length || x.name.localeCompare(y.name));
+    sections.push('<section id="impacto" aria-labelledby="t-imp"><h2 id="t-imp">Se eu mudar um dado, o que é afetado</h2>');
+    sections.push('<p>Antes de mudar como um dado é guardado ou criar uma função que mexe nele, confira as áreas que já o usam: são elas que precisam de teste e de revisão.</p>');
+    sections.push(touched.length
+      ? table('Dados e as áreas que os usam', ['Dado', 'Tipo de informação', 'Áreas que usam', 'Impacto'], touched.map((t) => [
+        `<strong>${h(t.name)}</strong>`, h(t.categories.map((c) => CAT_NAME[c] || c).join(', ') || 'dado da aplicação'),
+        h(t.areas.map(areaName).join(', ')), t.areas.length >= 3 ? '<span class="badge warn">amplo</span>' : t.areas.length === 2 ? '<span class="badge info">médio</span>' : '<span class="badge ok">local</span>',
+      ]))
+      : '<p class="empty">O kit não ligou nenhum dado a uma área.</p>');
+    const loose = map.tables.filter((t) => !t.areas.length).map((t) => t.name);
+    if (loose.length) sections.push(`<p class="empty">${h(`Dados sem área ligada no código das rotas (podem ser usados por serviços ou tarefas): ${loose.slice(0, 20).join(', ')}${loose.length > 20 ? '...' : ''}.`)}</p>`);
+    sections.push('</section>');
+  }
+  return htmlShell({
+    title: `Mapa da aplicação: ${report.profile.name}`, eyebrow: 'Portal LASTRO · Mapa da aplicação',
+    meta: [`${map.areas.length} área(s), ${map.tables.length} conjunto(s) de dados, ${external.length} serviço(s) externo(s), lidos do código`],
+    filters: filtersOf(report),
+    nav: [['como-ler', 'O mapa'], ['areas', 'As áreas'], ['impacto', 'Impacto de uma mudança']],
+    sections, theme, siteNav: siteNav('mapa.html'),
+  });
 }
 
 /** A análise completa: tudo o que explica a nota, no formato de relatório de maturidade. */
@@ -510,6 +625,7 @@ function buildSite({ report, history, current, playbook, tickets = [], coverage 
   return {
     'index.html': overviewPage({ report, history, current, now, theme }),
     'analise.html': analysisPage({ report, history, current, tickets, now, theme, catalog: catalogOf(catalog) }),
+    'mapa.html': mapPage({ report, theme }),
     'escopos.html': scopesPage({ report, now, theme }),
     'decisoes.html': decisionsPage({ report, now, theme }),
     'relatorio.html': withNav(formatHtml(report, { coverage, theme }), 'relatorio.html'),

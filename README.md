@@ -72,10 +72,11 @@ O agente prepara; quem decide e publica é você. Detalhes em [docs/KIRO.md](doc
 
 ## O portal
 
-`lastro site --out ../portal` gera sete páginas HTML, sem script e sem servidor:
+`lastro site --out ../portal` gera oito páginas HTML, sem script e sem servidor:
 
 - **Visão geral:** os números grandes (nota, portão, o que bloqueia, quanto está provado, quanto falta) e as **decisões para agora**, cada uma com quem decide e o link para o detalhe.
 - **Análise completa:** sumário executivo, nota por escopo e por fase, evolução, os controles que exigem ação e por que importam.
+- **Mapa da aplicação:** para quem é de produto ou de negócio. Quem usa a aplicação, por quais áreas entra, o que cada área faz e que dados toca, desenhado a partir do código. Mostra também, para cada dado, as áreas que o usam: é o que uma funcionalidade nova pode afetar.
 - **Implementado por escopo, Decisões, Playbook, Relatório e Histórico.**
 
 Para compartilhar fora do time, `--redact "Empresa,Produto"` troca os nomes por `[omitido]`. Veja [docs/PORTAL.md](docs/PORTAL.md).

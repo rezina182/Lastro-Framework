@@ -4,6 +4,10 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (mapa da aplicação)
+- Página nova `mapa.html` e o mesmo mapa no fim da visão geral: um mapa conceitual em SVG estático (quem usa, áreas da aplicação, dados guardados e serviços externos), cada área em linguagem simples e a tabela "Se eu mudar um dado, o que é afetado". Feito para produto, negócio e quem não é técnico. O portal tem oito páginas.
+- A descoberta monta o mapa (`discovery.map`): áreas pelo prefixo das rotas, ações (consultar, criar, alterar, apagar), quem pode usar e os dados que o código de cada área toca (indício pelo nome da tabela ou do modelo).
+
 ### Adicionado (terceira aplicação: App C, Next.js com Prisma)
 - A descoberta lê as rotas do Next.js pelo caminho do arquivo (App Router `app/**/route.ts` e `pages/api/**`), com grupos `(x)` e segmentos `[id]`, e o `middleware.ts` com o `matcher`. Antes, uma aplicação Next.js saía com 0 rotas, classificada como frontend. Repositório que serve páginas do framework e API passa a ser full stack.
 - Os modelos do Prisma (`schema.prisma`) entram como tabelas no desenho e no inventário de dados, com as categorias que os campos sugerem.

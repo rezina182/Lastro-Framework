@@ -92,6 +92,8 @@ test('portal: páginas sem script, com CSP, links só para as próprias páginas
     assert.match(idx, /class="rank-track" role="img" aria-label="[^"]+"><span class="f-(ok|info|warn|bad)" style="width:\d+%"><\/span>/);
     for (const re of [/Resumo por escopo/, /Como foi provado/, /Próximo passo/, /href="#esc-core"/]) assert.match(pages['escopos.html'], re);
     for (const re of [/Registro de decisões/, /Decisões pendentes/]) assert.match(pages['decisoes.html'], re);
+    // O projeto de teste não tem rotas: o mapa diz isso em vez de desenhar um mapa vazio.
+    for (const re of [/Como a aplicação funciona/, /não encontrou rotas/]) assert.match(pages['mapa.html'], re);
   } finally { cleanup(root); }
 });
 

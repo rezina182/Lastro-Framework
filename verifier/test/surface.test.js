@@ -86,3 +86,26 @@ test('superfície: rotas do Next.js (App Router e pages/api), middleware com mat
     assert.deepEqual(t.lancamento, ['financeiro']);
   } finally { cleanup(root); }
 });
+
+// Mapa para quem não é técnico: áreas, quem usa, o que fazem e que dados tocam (indício pelo nome no código da área).
+test('superfície: mapa da aplicação com áreas, quem usa, ações e dados tocados', () => {
+  const root = makeProject({
+    'package.json': JSON.stringify({ name: 'n', version: '1.0.0', dependencies: { next: '15.0.0' } }),
+    'app/api/contas/route.ts': "import { requireAuth } from '@/lib/auth';\nexport async function GET() { await requireAuth(); return prisma.conta.findMany() }\nexport async function POST() { await requireAuth(); return prisma.conta.create({ data: {} }) }\n",
+    'app/api/admin/limpar/route.ts': 'export async function POST() { await prisma.transacao.deleteMany() }\n',
+    'app/api/health/route.ts': "export const GET = () => Response.json({ status: 'ok' })\n",
+    'prisma/schema.prisma': 'model Conta {\n  id String @id\n  saldo Decimal\n}\n\nmodel Transacao {\n  id String @id\n}\n\nmodel Log {\n  id String @id\n}\n',
+  });
+  try {
+    const m = discover(ctxFor(root)).map;
+    const by = Object.fromEntries(m.areas.map((a) => [a.key, a]));
+    assert.deepEqual(by['/api/contas'].actions, { consultar: 1, 'criar ou enviar': 1 });
+    assert.equal(by['/api/contas'].who, 'logado');
+    assert.deepEqual(by['/api/contas'].tables, ['conta']);
+    assert.equal(by['/api/admin'].who, 'admin');
+    assert.equal(by['/api/admin'].access.naoVista, 1);
+    assert.deepEqual(by['/api/admin'].tables, ['transacao']);
+    assert.equal(by['/api/health'].who, 'publico');
+    assert.deepEqual(m.tables.find((t) => t.name === 'log').areas, []);
+  } finally { cleanup(root); }
+});

@@ -148,4 +148,45 @@ function discoverCiJobs(ctx) {
   return out.slice(0, 20);
 }
 
-module.exports = { mountPrefixes, routeModules, discoverDefenses, discoverTables, discoverCiJobs, moduleKey, DEFENSES };
+// Mapa da aplicação para quem não é técnico: áreas (módulos de rotas), o que cada uma faz (consultar, criar, alterar,
+// apagar), quem pode usar, e que dados ela toca. A ligação área -> tabela é INDÍCIO: o nome da tabela ou do modelo
+// aparece no código das rotas da área (prisma.modelo, FROM tabela, Modelo.find...). Não segue importações.
+const MAX_AREAS = 14;
+const ACTION = { GET: 'consultar', POST: 'criar ou enviar', PUT: 'alterar', PATCH: 'alterar', DELETE: 'apagar', ALL: 'várias', ROUTE: 'várias' };
+const ADMIN_KEY = /(^|\/)(admin|administra\w*|gestao|manage|internal|interno|backoffice)(\/|$)/i;
+
+function tableRefRe(name) {
+  const n = name.replace(/[^a-z0-9_]/gi, '');
+  return new RegExp(`prisma\\.${n}\\b|\\b(?:from|into|update|join|table)\\s+["'\`]?${n}["'\`]?\\b|\\b${n}\\s*\\.\\s*(?:find\\w*|create\\w*|update\\w*|delete\\w*|upsert|count|aggregate|destroy|insert\\w*)\\s*\\(`, 'i');
+}
+
+function appMap(ctx, routes, prefixOf, tables) {
+  const areas = new Map();
+  for (const r of routes) {
+    const full = `${prefixOf.get(r.file) || ''}${r.path}`.replace(/\/{2,}/g, '/') || '/';
+    const key = moduleKey(full);
+    const a = areas.get(key) || { key, routes: 0, actions: {}, access: { protegida: 0, publica: 0, naoVista: 0 }, files: new Set() };
+    a.routes += 1;
+    const act = ACTION[r.method] || 'várias';
+    a.actions[act] = (a.actions[act] || 0) + 1;
+    if (PROTECTED.has(r.auth)) a.access.protegida += 1;
+    else if (r.auth === 'publica-esperada') a.access.publica += 1;
+    else a.access.naoVista += 1;
+    a.files.add(r.file);
+    areas.set(key, a);
+  }
+  const res = tables.map((t) => ({ ...t, re: tableRefRe(t.name) }));
+  const list = [...areas.values()].sort((x, y) => y.routes - x.routes || x.key.localeCompare(y.key)).slice(0, MAX_AREAS).map((a) => {
+    const text = [...a.files].map((f) => ctx.read(f) || '').join('\n');
+    const who = ADMIN_KEY.test(a.key) ? 'admin' : a.access.protegida === 0 && a.access.naoVista === 0 ? 'publico' : 'logado';
+    return {
+      key: a.key, routes: a.routes, actions: a.actions, access: a.access, who,
+      tables: res.filter((t) => t.re.test(text)).map((t) => t.name).slice(0, 8),
+      files: [...a.files].slice(0, 4),
+    };
+  });
+  const byTable = tables.map((t) => ({ name: t.name, categories: t.categories, areas: list.filter((a) => a.tables.includes(t.name)).map((a) => a.key) }));
+  return { areas: list, more: Math.max(0, areas.size - MAX_AREAS), tables: byTable };
+}
+
+module.exports = { mountPrefixes, routeModules, discoverDefenses, discoverTables, discoverCiJobs, moduleKey, appMap, DEFENSES };

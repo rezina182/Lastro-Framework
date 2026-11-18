@@ -5,7 +5,7 @@ O relatório mostra uma foto. O histórico guarda as fotos ao longo do tempo, e 
 ```bash
 lastro history                 # compara agora com o último registro, sem gravar
 lastro history --write         # grava o registro em .lastro/history/
-lastro site --out ../portal    # gera o portal (sete páginas, veja a tabela abaixo)
+lastro site --out ../portal    # gera o portal (oito páginas, veja a tabela abaixo)
 lastro site --out ../portal --theme meu-tema.css --redact "Empresa X,Produto Y"
 ```
 
@@ -24,6 +24,7 @@ Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com
 |---|---|---|
 | `index.html` | todos, para começar | **Visão geral, para ler em um minuto.** Os números grandes (nota de 0 a 10 com a meta, portão de CI, controles que bloqueiam, peso provado e controles sem prova), as **decisões para agora** (cada uma com quem decide, o que fazer, por quê e o link para o detalhe), a nota por escopo e os links para as outras páginas |
 | `analise.html` | dev, segurança e liderança | **Análise completa**, no formato de relatório de maturidade (veja [a análise completa](#a-análise-completa)) |
+| `mapa.html` | produto, negócio e quem não é técnico | **Mapa da aplicação** (veja [o mapa](#o-mapa-da-aplicação)): quem usa, as áreas, o que cada uma faz, que dados toca e o impacto de mudar cada dado. A visão geral traz o mesmo mapa no fim |
 | `escopos.html` | dev, segurança e liderança | **O que já está implementado, por escopo** (base, web, autenticação, dados etc.): barras com a nota de cada escopo e, para cada escopo, quatro indicadores (nota, peso provado, falhando, falta provar) e cada controle com a situação (implementado, falhando, falta provar), **como foi provado** (leitura do repositório, sonda HTTP, ou atestação com quem, quando e até quando) e o próximo passo |
 | `decisoes.html` | segurança e liderança | **Registro de decisões:** atestações, riscos aceitos, a revisão do modelo de ameaças e a decisão de cada ameaça, com quem e até quando (avisa o que vence em 30 dias). **Decisões pendentes:** o que alguém ainda precisa decidir |
 | `relatorio.html` | todos | O relatório completo de hoje (o mesmo do `lastro report`), que também abre com "Em resumo" |
@@ -35,6 +36,18 @@ Todas as páginas têm a mesma moldura: a faixa do topo com a navegação, o tí
 ### As decisões para agora (visão geral)
 
 Até cinco cartões numerados, na ordem: corrigir o que bloqueia o portão (quem desenvolve); provar os controles altos e críticos sem prova (quem testa); confirmar o que provavelmente não se aplica (segurança); revisar o modelo de ameaças ou decidir as ameaças pendentes (segurança); confirmar a meta e o prazo (liderança). Cada cartão leva à página com o detalhe. Os cartões só organizam o que o relatório já tem: quem decide continua sendo uma pessoa.
+
+### O mapa da aplicação
+
+Um mapa conceitual em três colunas, desenhado a partir do código, para quem precisa entender a aplicação sem ler o código:
+
+- **Quem usa:** visitante sem conta, pessoa logada e administração. Uma linha tracejada vermelha liga o visitante a cada área que tem ação sem autenticação vista: é por ali que qualquer pessoa entra.
+- **Áreas da aplicação:** os grupos de rotas (`/api/contas`, `/api/admin`...), com a cor de quem pode usar (verde exige login, azul é pública, vermelho tem ação sem autenticação vista).
+- **Dados guardados:** as tabelas das migrações SQL e os modelos do Prisma, em destaque quando guardam dado pessoal, e os serviços externos que o código chama.
+
+Abaixo do mapa, cada área em linguagem simples (o que dá para fazer: consultar, criar, alterar, apagar; quem usa; que dados toca) e a tabela **"Se eu mudar um dado, o que é afetado"**, com as áreas que usam cada dado. É a resposta para "onde uma funcionalidade nova pode ter impacto".
+
+A ligação entre área e dado é um indício: o nome da tabela ou do modelo aparece no código das rotas da área (`prisma.conta`, `FROM contas`, `Conta.find`). O kit não segue importações, então uma área que passa por um serviço pode tocar dados que o mapa não mostra.
 
 ### A análise completa
 
@@ -56,9 +69,9 @@ A paleta padrão do LASTRO é roxa com destaque âmbar, sobre fundo lavanda clar
 Regras de segurança do portal:
 
 - **Sem script, sem servidor, sem recurso externo.** Cada página tem CSP `default-src 'none'`. O gráfico é SVG estático.
-- **Links em lista fechada.** Entre páginas, só para as sete páginas do próprio portal (com ou sem âncora, como `analise.html#acao`). Para fora, só para as fontes oficiais que os relatórios já usam (CWE, CVE, GHSA, ASVS e LGPD).
+- **Links em lista fechada.** Entre páginas, só para as oito páginas do próprio portal (com ou sem âncora, como `analise.html#acao`). Para fora, só para as fontes oficiais que os relatórios já usam (CWE, CVE, GHSA, ASVS e LGPD).
 - **Tudo que vem do projeto é escapado.** Os testes conferem com um nome de perfil que contém HTML.
-- **Não apaga nada que não seja dele.** O comando só grava numa pasta nova, vazia ou que já seja um portal (tem o marcador `.lastro-site`) e só com os nomes das sete páginas.
+- **Não apaga nada que não seja dele.** O comando só grava numa pasta nova, vazia ou que já seja um portal (tem o marcador `.lastro-site`) e só com os nomes das oito páginas.
 - **Para compartilhar:** `--redact` troca os termos por `[omitido]` em todas as páginas, inclusive no histórico.
 
 ## A história dos resultados
