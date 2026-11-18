@@ -35,7 +35,7 @@ function fakeReport(over = {}) {
 test('HTML: estrutura, idioma, seções, âncoras internas e aviso de que a nota mede evidência', () => {
   const html = formatHtml(fakeReport());
   assert.ok(html.startsWith('<!doctype html>'));
-  for (const trecho of ['<html lang="pt-BR">', '<title>Relatório LASTRO: App de teste</title>', 'id="resumo"', 'id="pacotes"', 'id="bloqueantes"', 'id="achados"', 'id="sem-prova"', 'id="limites"', 'Nível de maturidade', 'não a segurança da aplicação']) {
+  for (const trecho of ['<html lang="pt-BR">', '<title>Relatório LASTRO: App de teste</title>', 'id="resumo"', 'id="pacotes"', 'id="bloqueantes"', 'id="achados"', 'id="sem-prova"', 'id="limites"', 'Nota geral', 'não a segurança da aplicação']) {
     assert.ok(html.includes(trecho), `faltou: ${trecho}`);
   }
   assert.ok(html.includes('role="img" aria-label="Provado por máquina'), 'a barra tem texto alternativo');
@@ -183,7 +183,7 @@ test('redact: troca os termos em todo o relatório, sem diferenciar maiúsculas,
   assert.equal(red.warnings[0], 'aviso sobre [omitido]');
   assert.equal(red.controls[0].findings[0].location, 'public/img/logo_[omitido].png');
   assert.equal(red.controls[1].findings[0].message, 'usa o domínio [omitido].exemplo e Segredo');
-  assert.equal(red.score.level, r.score.level);
+  assert.equal(red.score.grade, r.score.grade);
   assert.equal(red.summary.blocking, 1);
   assert.equal(r.profile.name, 'Meu AcmeCorp App', 'o original não é alterado');
   assert.ok(!JSON.stringify(red).match(/acmecorp|acme-interno/i));

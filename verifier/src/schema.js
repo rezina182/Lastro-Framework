@@ -194,11 +194,14 @@ function validateProfile(p) {
   if (p.context !== undefined) {
     if (!isObj(p.context)) errs.push('profile.context: deve ser objeto');
     else {
-      checkKeys(p.context, [], ['criticality', 'targetLevel', 'sensitiveData'], 'profile.context', errs);
+      checkKeys(p.context, [], ['criticality', 'targetGrade', 'targetLevel', 'sensitiveData'], 'profile.context', errs);
+      if (p.context.targetGrade !== undefined && !(Number.isFinite(p.context.targetGrade) && p.context.targetGrade >= 0 && p.context.targetGrade <= 10)) {
+        errs.push('profile.context.targetGrade: nota de 0 a 10');
+      }
       if (p.context.sensitiveData !== undefined && typeof p.context.sensitiveData !== 'boolean') errs.push('profile.context.sensitiveData: deve ser true ou false');
       if (p.context.criticality !== undefined) oneOf(p.context.criticality, ['low', 'medium', 'high'], 'profile.context.criticality', errs);
       if (p.context.targetLevel !== undefined && !(Number.isInteger(p.context.targetLevel) && p.context.targetLevel >= 0 && p.context.targetLevel <= 4)) {
-        errs.push('profile.context.targetLevel: inteiro de 0 a 4');
+        errs.push('profile.context.targetLevel: inteiro de 0 a 4 (campo antigo; prefira targetGrade, de 0 a 10)');
       }
     }
   }

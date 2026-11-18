@@ -34,14 +34,14 @@ function formatReport(r) {
   if (r.score) {
     const k = r.score;
     if (gradeLine(k)) out.push(gradeLine(k));
-    out.push(`Maturidade: nível ${k.level} (${k.levelName}) | provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%${k.partialPct ? ` (dos quais ${k.partialPct}% com prova parcial da máquina, ${k.partialControls} controle(s))` : ''}`);
+    out.push(`Evidência: provado ${k.provenPct}% (máquina ${k.machinePct}%, autodeclarado ${k.attestedPct}%) | falhando ${k.failedPct}% | sem prova ${k.unverifiedPct}%${k.partialPct ? ` (dos quais ${k.partialPct}% com prova parcial da máquina, ${k.partialControls} controle(s))` : ''}`);
     if (k.automated && k.automated.controls) out.push(`  Automáticos: ${k.automated.verified} passaram, ${k.automated.failed} falharam${k.automated.passRatePct === null ? '' : ` (taxa ${k.automated.passRatePct}%)`}, ${k.automated.notRun} não rodaram`);
     out.push(`  ${k.nextStep}`);
     out.push(`  ${k.disclaimer}`);
   }
   if (r.context && r.score) {
     const c = r.context;
-    out.push(`Contexto: risco ${c.risk} (${c.points} pontos) | meta de maturidade: nível ${c.targetLevel} | hoje: nível ${r.score.level}${c.meetsTarget ? ' (meta atingida)' : ` (faltam ${c.gap})`}`);
+    out.push(`Contexto: risco ${c.risk} (${c.points} pontos) | meta: nota ${gradeText(c.targetGrade)} | hoje: ${gradeText(r.score.grade)}${c.meetsTarget ? ' (meta atingida)' : ` (faltam ${gradeText(c.gap)} ponto(s))`}`);
   }
   if (r.risk) {
     const c = r.risk.summary.confirmed;
@@ -307,7 +307,7 @@ function contextMd(r) {
   const c = r.context;
   const out = ['## Contexto e meta', ''];
   out.push(`- **Risco inerente: ${c.risk}** (${c.points} pontos, ${c.riskSource}). A aplicação ${c.factors.length ? c.factors.join('; ') : 'não declara fatores de exposição no perfil'}.`);
-  out.push(`- **Meta de maturidade para este contexto: nível ${c.targetLevel}** (${c.targetSource}). Hoje: nível ${r.score.level}. ${c.meetsTarget ? 'Meta atingida.' : `Faltam ${c.gap} nível(is).`}`);
+  out.push(`- **Meta para este contexto: nota ${gradeText(c.targetGrade)}** (${c.targetSource}). Hoje: ${gradeText(r.score.grade)}. ${c.meetsTarget ? 'Meta atingida.' : `Faltam ${gradeText(c.gap)} ponto(s).`}`);
   if (r.scope) {
     out.push(`- Pacotes no escopo: ${r.scope.on.map((p) => p.title.split(':')[0]).join('; ')}.`);
     if (r.scope.off.length) out.push(`- Fora do escopo, porque o perfil declara que a aplicação não tem: ${r.scope.off.map((p) => `${p.title.split(':')[0]} (${flagList(p.missing)})`).join('; ')}.`);
@@ -367,14 +367,13 @@ function formatMarkdown(r, { coverage = null } = {}) {
       const g = k.grades;
       out.push(`**Nota ${gradeText(g.overall)} de 10: ${g.band}.** Postura ${gradeText(g.posture)} (do que foi decidido, quanto passou) e cobertura ${gradeText(g.coverage)} (quanto do peso tem prova).${g.capReason ? ` Nota ${g.capReason}.` : ''} Método em docs/SCORE.md.`, '');
     }
-    out.push(`**Nível ${k.level}: ${k.levelName}.** Regra do nível: ${k.levelRule}.`, '');
     out.push('| Provado | Por máquina | Autodeclarado | Falhando | Sem prova |', '|---|---|---|---|---|');
     out.push(`| ${k.provenPct}% | ${k.machinePct}% | ${k.attestedPct}% | ${k.failedPct}% | ${k.unverifiedPct}% |`, '');
-    if (k.partialPct) out.push(`Prova parcial da máquina: ${k.partialControls} controle(s) manual(is), ${k.partialPct}% do peso. A máquina testou parte do controle e passou; isso vale metade do peso na nota de 0 a 10, mas não conta como provado (nem no nível).`, '');
+    if (k.partialPct) out.push(`Prova parcial da máquina: ${k.partialControls} controle(s) manual(is), ${k.partialPct}% do peso. A máquina testou parte do controle e passou; isso vale metade do peso na nota de 0 a 10, mas não conta no peso provado.`, '');
     out.push(`Próximo passo: ${k.nextStep}`, '');
     if (k.automated && k.automated.controls) {
       const a = k.automated;
-      out.push(`**Controles automáticos** (o que a máquina rodou): ${a.verified} passaram, ${a.failed} falharam${a.passRatePct === null ? '' : `, taxa de aprovação ${String(a.passRatePct).replace('.', ',')}%`}; ${a.notRun} não rodaram (por exemplo, as sondas HTTP sem \`--url\`) e ficam fora da taxa, sem virar aprovação. Esta taxa separa melhor duas aplicações do que o nível, que depende de muita prova manual.`, '');
+      out.push(`**Controles automáticos** (o que a máquina rodou): ${a.verified} passaram, ${a.failed} falharam${a.passRatePct === null ? '' : `, taxa de aprovação ${String(a.passRatePct).replace('.', ',')}%`}; ${a.notRun} não rodaram (por exemplo, as sondas HTTP sem \`--url\`) e ficam fora da taxa, sem virar aprovação. Esta taxa separa melhor duas aplicações do que a cobertura, que depende de muita prova manual.`, '');
     }
     out.push(`> ${k.disclaimer}`, '');
     out.push('### Por pacote', '', '| Pacote | Controles | Nota | Provado | Falhando | Sem prova |', '|---|---|---|---|---|---|');

@@ -30,8 +30,7 @@ test('pesos por gravidade e só "verificado" vale ponto; falhando e sem prova va
   assert.equal(s.unverifiedPct, 29.4);
   assert.equal(s.applicableControls, 4);
   assert.equal(s.highOrCriticalOpen, 1);
-  assert.equal(s.level, 2);
-  assert.equal(s.levelName, 'Estruturado');
+  assert.equal(s.level, undefined, 'o nível de 0 a 4 foi descontinuado: só a nota de 0 a 10');
 });
 
 test('o que não se aplica não entra na conta', () => {
@@ -43,38 +42,18 @@ test('o que não se aplica não entra na conta', () => {
   assert.equal(com.provenPct, 100);
 });
 
-test('níveis: bloqueante derruba para 0; abaixo de 30% é 1; 30% é 2', () => {
-  const quase = [ctl('A', 'core', 'low', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified'), ctl('C', 'core', 'high', 'unverified')];
-  assert.equal(computeScore(rep(quase)).level, 1);
-  assert.equal(computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified'), ctl('C', 'core', 'low', 'unverified')])).level, 2);
-  const perfeito = rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo')], 3);
-  assert.equal(computeScore(perfeito).level, 0, 'achado bloqueante vale mais que qualquer percentual');
-});
-
-test('nível 3 exige 60% e nenhum alto ou crítico aberto; nível 4 exige 90% e nenhuma falha', () => {
-  const alto = ctl('H1', 'core', 'high', 'verified', 'manual-attestation');
-  const alto2 = ctl('H2', 'core', 'high', 'verified', 'verifier-repo');
-  const medAberto = ctl('M1', 'core', 'medium', 'unverified');
-  assert.equal(computeScore(rep([alto, alto2, medAberto])).level, 3);
-  // 100% provado mas um alto sem prova: não passa de 2
-  assert.equal(computeScore(rep([alto, ctl('H3', 'core', 'high', 'unverified'), ctl('M', 'core', 'medium', 'verified', 'manual-attestation'), ctl('M2', 'core', 'medium', 'verified', 'manual-attestation')])).level, 2);
-  const tudo = [alto, alto2, ctl('M2', 'core', 'medium', 'verified', 'verifier-repo')];
-  assert.equal(computeScore(rep(tudo)).level, 4);
-  assert.equal(computeScore(rep(tudo)).nextStep, 'Manter as atestações dentro da validade e rodar o kit a cada PR.');
-  // 90%+ com uma falha baixa: fica em 3
-  const muitos = Array.from({ length: 20 }, (_, i) => ctl(`H${i}`, 'core', 'high', 'verified', 'verifier-repo'));
-  assert.equal(computeScore(rep([...muitos, ctl('L', 'core', 'low', 'failed')])).level, 3);
-});
-
-test('o próximo passo diz o que falta, com os números', () => {
-  const s0 = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo')], 4));
-  assert.ok(s0.nextStep.includes('4 achado(s) bloqueante(s)'));
-  assert.ok(s0.nextStep.includes('nível 1'));
-  const s1 = computeScore(rep([ctl('A', 'core', 'low', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified')]));
-  assert.ok(s1.nextStep.includes('30%'));
-  const s2 = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified'), ctl('C', 'core', 'low', 'unverified')]));
-  assert.ok(s2.nextStep.includes('60%'));
-  assert.ok(s2.nextStep.includes('1 controle(s) alto(s) ou crítico(s)'));
+test('o próximo passo fala da próxima faixa da nota, com os números', () => {
+  const bloq = { ...ctl('B', 'core', 'high', 'failed'), findings: [{ severity: 'high', blocking: true }] };
+  const s0 = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), bloq], 1));
+  assert.match(s0.nextStep, /^Corrigir, ou aceitar com dono e validade, os 1 achado\(s\) bloqueante\(s\): enquanto existirem, a nota fica limitada a 6\./);
+  const meio = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified'), ctl('C', 'core', 'low', 'unverified')]));
+  assert.equal(meio.gradeBand, 'Bom');
+  assert.match(meio.nextStep, /^Para chegar a 8,0 \(Forte\): provar mais controles \(a cobertura está em 4,5 de 10; comece pelos 1 alto\(s\) ou crítico\(s\)/);
+  const comFalha = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('L', 'core', 'low', 'failed')]));
+  assert.match(comFalha.nextStep, /corrigir os controles que falham \(a postura está em/);
+  const tudo = computeScore(rep([ctl('H1', 'core', 'high', 'verified', 'manual-attestation'), ctl('H2', 'core', 'high', 'verified', 'verifier-repo')]));
+  assert.equal(tudo.grade, 10);
+  assert.equal(tudo.nextStep, 'Manter: atestações dentro da validade e o kit rodando a cada PR.');
 });
 
 test('por pacote: agrupa, ordena, usa o título do catálogo e separa máquina de autodeclarado', () => {
@@ -95,7 +74,7 @@ test('por pacote: agrupa, ordena, usa o título do catálogo e separa máquina d
 test('sem nenhum controle aplicável não quebra e não inventa nota', () => {
   const s = computeScore(rep([]));
   assert.equal(s.provenPct, 0);
-  assert.equal(s.level, 1);
+  assert.equal(s.grade, 0);
   assert.equal(s.applicableControls, 0);
 });
 
@@ -138,9 +117,10 @@ test('o motor devolve o score no relatório e atestação conta como autodeclara
   const root = makeProject({ '.lastro/profile.json': profileJson({ aiCodingAgents: true }), '.gitignore': '.env\n' });
   try {
     const r = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z') });
-    assert.equal(r.score.method, 'v3');
+    assert.equal(r.score.method, 'v4');
     assert.ok(r.score.grade >= 0 && r.score.grade <= 6, 'com bloqueante a nota geral fica no teto de 6 (ou 4)');
-    assert.equal(r.score.level, 0, 'sem CI nem threat model há bloqueantes');
+    assert.ok(r.summary.blocking > 0 && r.score.grades.cap <= 6, 'sem CI nem threat model há bloqueantes, e a nota tem teto');
+    assert.match(r.score.nextStep, /^Corrigir, ou aceitar com dono e validade/);
     assert.ok(r.score.byPack.some((p) => p.pack === 'agent'));
     assert.ok(r.score.byPack.find((p) => p.pack === 'agent').title.length > 5, 'usa o título do pacote do catálogo');
     fs.writeFileSync(path.join(root, '.lastro', 'status.json'), JSON.stringify({
@@ -164,7 +144,8 @@ test('CLI report: grava o Markdown, inclui o ASVS e cria a pasta de destino', ()
     const md = fs.readFileSync(out, 'utf8');
     assert.ok(md.includes('## Maturidade'));
     assert.ok(md.includes('## Cobertura do ASVS 5.0.0 (até L2)'));
-    assert.ok(md.includes('Nível 0: Inicial'));
+    assert.match(md, /\*\*Nota \d+,\d de 10: (Inicial|Em evolução)\.\*\*/);
+    assert.ok(!/Nível \d/.test(md), 'o nível de 0 a 4 não aparece mais');
     const stdout = spawnSync(process.execPath, [CLI, 'report', '--root', root], { encoding: 'utf8' });
     assert.equal(stdout.status, 0);
     assert.ok(stdout.stdout.includes('# Relatório LASTRO'));
@@ -192,7 +173,7 @@ test('nota 0 a 10: postura, cobertura, média e faixa', () => {
     ctl('C', 'web', 'medium', 'failed'),
     ctl('D', 'web', 'low', 'verified', 'manual-attestation'),
   ]));
-  assert.equal(s.method, 'v3');
+  assert.equal(s.method, 'v4');
   assert.equal(s.grades.posture, 7.5, 'provado 9 de 12 decididos');
   assert.equal(s.grades.coverage, 5.3, '52,9% de prova');
   assert.equal(s.grade, 6.4);
@@ -229,11 +210,10 @@ test('nota por pacote e por fase, sem teto', () => {
   assert.equal(s.byPhase.find((p) => p.phase === 'build').grade, 5);
 });
 
-test('nota v3: prova parcial da máquina vale metade do peso na nota, mas não no peso provado nem no nível', () => {
+test('nota: prova parcial da máquina vale metade do peso na nota, mas não no peso provado', () => {
   const sem = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), ctl('B', 'core', 'high', 'unverified')]));
   const com = computeScore(rep([ctl('A', 'core', 'high', 'verified', 'verifier-repo'), { ...ctl('B', 'core', 'high', 'unverified'), partial: { source: 'verifier-http', tested: 2 } }]));
   assert.equal(com.provenPct, sem.provenPct, 'peso provado continua estrito');
-  assert.equal(com.level, sem.level, 'nível continua estrito');
   assert.equal(com.partialPct, 50);
   assert.equal(com.partialControls, 1);
   assert.equal(sem.grades.coverage, 5);

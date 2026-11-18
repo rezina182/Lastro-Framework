@@ -1,6 +1,6 @@
 # Pontuação de maturidade
 
-O relatório do LASTRO traz um nível de maturidade e percentuais. Esta página explica como eles são calculados, para que ninguém precise confiar em um número sem saber de onde ele vem.
+O relatório do LASTRO traz uma nota de 0 a 10 e percentuais. Esta página explica como eles são calculados, para que ninguém precise confiar em um número sem saber de onde ele vem.
 
 ## O que a pontuação mede
 
@@ -20,7 +20,7 @@ O mesmo cálculo é feito por pacote (base, web, autenticação etc.), para most
 
 ## Nota de 0 a 10
 
-Desde o método `v2`, o relatório mostra também uma **nota de 0 a 10**, mais fácil de ler numa reunião. Ela usa os mesmos pesos e os mesmos estados; o nível de 0 a 4 continua valendo para a meta de maturidade.
+O número do LASTRO é uma **nota de 0 a 10**. Ela usa os pesos e os estados acima.
 
 | Nota | Como se calcula |
 |---|---|
@@ -28,7 +28,7 @@ Desde o método `v2`, o relatório mostra também uma **nota de 0 a 10**, mais f
 | **Cobertura** | Quanto do peso aplicável tem prova (máquina ou atestação): `provado% / 10`. Responde "quanto já olhamos?". |
 | **Nota geral** | Média das duas: `0,5 × postura + 0,5 × cobertura`. Sem postura, vale só a cobertura. |
 
-**Prova parcial da máquina (método `v3`).** Quando a máquina testa parte de um controle manual e passa (prova assistida ou sonda autenticada, veja [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md)), o controle continua "sem prova", mas ganha **metade do peso** na cobertura e na postura. Exemplo: a sonda provou que o login limita tentativas do mesmo endereço, mas não provou o limite por conta. O "peso provado" (`provenPct`) e o nível de 0 a 4 não mudam: só contam o que foi provado por inteiro. O relatório mostra a fatia em `partialPct` e `partialControls`. O caminho para o crédito inteiro é separar o pedaço testável num controle automático próprio, que pode ser verificado de verdade.
+**Prova parcial da máquina (método `v3`).** Quando a máquina testa parte de um controle manual e passa (prova assistida ou sonda autenticada, veja [SONDAS-AUTENTICADAS.md](SONDAS-AUTENTICADAS.md)), o controle continua "sem prova", mas ganha **metade do peso** na cobertura e na postura. Exemplo: a sonda provou que o login limita tentativas do mesmo endereço, mas não provou o limite por conta. O "peso provado" (`provenPct`) não muda: só conta o que foi provado por inteiro. O relatório mostra a fatia em `partialPct` e `partialControls`. O caminho para o crédito inteiro é separar o pedaço testável num controle automático próprio, que pode ser verificado de verdade.
 
 A nota geral tem **teto** quando o portão falha, para que um número alto nunca esconda um bloqueio:
 
@@ -51,17 +51,18 @@ No JSON: `score.grade`, `score.gradeBand` e `score.grades` (`overall`, `band`, `
 
 Como no resto da pontuação, a nota mede **evidência**, não segurança. Uma nota 3 pode ser de uma aplicação segura que ninguém provou; uma nota 9 cobre só o que o catálogo cobre. Os pesos, as fórmulas e as faixas são convenção do kit, não padrão de mercado.
 
-## Níveis
+## Próximo passo
 
-| Nível | Nome | Regra |
-|---|---|---|
-| 0 | Inicial | Há achados bloqueantes: o portão falha. Vale mais que qualquer percentual. |
-| 1 | Básico | Sem bloqueantes, mas com menos de 30% do peso provado. |
-| 2 | Estruturado | Sem bloqueantes e com 30% ou mais provado. |
-| 3 | Verificado | 60% ou mais provado e nenhum controle alto ou crítico falhando ou sem prova. |
-| 4 | Comprovado | 90% ou mais provado, nenhum controle falhando e nenhum alto ou crítico sem prova. |
+O relatório diz o que falta para a **próxima faixa** da nota. Exemplo: "Para chegar a 8,0 (Forte): provar mais controles (a cobertura está em 4,5 de 10; comece pelos 3 altos ou críticos sem prova ou falhando)". Com bloqueante, o próximo passo é sempre corrigir ou aceitar o bloqueante, porque enquanto ele existir a nota fica no teto.
 
-Os limites (30, 60 e 90) e os pesos são uma convenção do kit, escolhida para ser simples de explicar. Não são um padrão de mercado e podem mudar entre versões do catálogo. O campo `score.method` do relatório JSON identifica a versão do cálculo (`v2`: níveis do `v1` mais a nota de 0 a 10; `v3`: a prova parcial da máquina vale metade do peso na nota de 0 a 10).
+O campo `score.method` do relatório JSON identifica a versão do cálculo:
+
+- `v4`: só a nota de 0 a 10;
+- `v3`: prova parcial com metade do peso;
+- `v2`: primeira nota de 0 a 10;
+- `v1`: níveis de 0 a 4, descontinuados.
+
+O histórico ainda lê registros antigos que têm só o nível.
 
 ## Por que a nota está baixa (`lastro gaps`)
 
@@ -94,17 +95,17 @@ O relatório estima o **risco inerente** da aplicação a partir do que o perfil
 
 | Pontos | Risco inerente | Meta padrão |
 |---|---|---|
-| 0 a 3 | baixo | nível 2 |
-| 4 a 7 | moderado | nível 3 |
-| 8 ou mais | alto | nível 4 |
+| 0 a 3 | baixo | nota 6 (Bom) |
+| 4 a 7 | moderado | nota 7 |
+| 8 ou mais | alto | nota 8 (Forte) |
 
 O perfil pode sobrescrever o risco e a meta quando quem conhece a aplicação discorda da estimativa:
 
 ```json
-{ "context": { "criticality": "high", "targetLevel": 3 } }
+{ "context": { "criticality": "high", "targetGrade": 7.5 } }
 ```
 
-`criticality` aceita `low`, `medium` ou `high`. `targetLevel` vai de 0 a 4. O relatório mostra de onde veio cada valor.
+`criticality` aceita `low`, `medium` ou `high`. `targetGrade` vai de 0 a 10. Perfis antigos com `targetLevel` (0 a 4) continuam valendo: o valor é convertido para a nota (0, 4, 6, 8 e 9). O relatório mostra de onde veio cada valor.
 
 O escopo também depende do contexto: o relatório lista os pacotes que ficaram fora porque o perfil declara que a aplicação não tem aquele recurso. Um perfil que subdeclara a aplicação melhora o número e piora a segurança.
 
@@ -126,6 +127,6 @@ Para a conversa sobre qualidade de desenvolvimento, o relatório lista fatos obj
 
 ## Taxa de aprovação dos controles automáticos
 
-O nível de maturidade depende de muita prova manual e por isso separa pouco duas aplicações que ainda não têm atestações. O relatório mostra também, à parte, o que a **máquina rodou**: quantos controles automáticos passaram, quantos falharam e a taxa de aprovação entre os que rodaram. Os que não rodaram (por exemplo, as sondas HTTP sem `--url`) ficam fora da taxa e nunca contam como aprovados. Sem nenhum controle automático rodado, não há taxa (nem 0%, nem 100%).
+A cobertura depende de muita prova manual e por isso separa pouco duas aplicações que ainda não têm atestações. O relatório mostra também, à parte, o que a **máquina rodou**: quantos controles automáticos passaram, quantos falharam e a taxa de aprovação entre os que rodaram. Os que não rodaram (por exemplo, as sondas HTTP sem `--url`) ficam fora da taxa e nunca contam como aprovados. Sem nenhum controle automático rodado, não há taxa (nem 0%, nem 100%).
 
 Esta taxa não é nota de segurança: um controle automático cobre um ponto estreito, e passar em todos não prova que a aplicação é segura.

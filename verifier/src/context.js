@@ -3,7 +3,7 @@
 // Contexto da aplicação: nem toda aplicação precisa do mesmo nível de rigor.
 // O risco inerente é estimado a partir do que o perfil declara (exposição, dados, superfície), e define uma
 // META de maturidade. A meta não muda quais controles se aplicam (isso é o papel dos flags), só diz quanto
-// de evidência é razoável esperar dessa aplicação. O perfil pode sobrescrever o risco ou a meta.
+// de evidência é razoável esperar dessa aplicação (uma nota de 0 a 10). O perfil pode sobrescrever o risco ou a meta.
 
 const FACTORS = [
   ['publicInternet', 2, 'é acessível pela internet'],
@@ -19,7 +19,16 @@ const FACTORS = [
 ];
 
 const RISK_BY_LEVEL = { low: 'baixo', medium: 'moderado', high: 'alto' };
-const TARGET_BY_RISK = { baixo: 2, moderado: 3, alto: 4 };
+// Meta: nota de 0 a 10 que é razoável esperar para o risco (faixas em score.js: 6 Bom, 8 Forte).
+const TARGET_BY_RISK = { baixo: 6, moderado: 7, alto: 8 };
+// Perfis antigos declaravam "targetLevel" (0 a 4): cada nível vira a nota equivalente.
+const GRADE_BY_LEGACY_LEVEL = [0, 4, 6, 8, 9];
+
+function targetOf(given, risk) {
+  if (Number.isFinite(given.targetGrade)) return { grade: given.targetGrade, source: 'definida no perfil' };
+  if (Number.isInteger(given.targetLevel)) return { grade: GRADE_BY_LEGACY_LEVEL[given.targetLevel], source: `definida no perfil (targetLevel ${given.targetLevel} convertido)` };
+  return { grade: TARGET_BY_RISK[risk], source: `padrão para risco ${risk}` };
+}
 
 function deriveContext(profile) {
   const flags = profile.flags || {};
@@ -29,15 +38,15 @@ function deriveContext(profile) {
   const points = hit.reduce((s, [, p]) => s + p, 0) + (sensitive ? 2 : 0);
   const derived = points >= 8 ? 'alto' : points >= 4 ? 'moderado' : 'baixo';
   const risk = given.criticality ? RISK_BY_LEVEL[given.criticality] : derived;
-  const targetLevel = Number.isInteger(given.targetLevel) ? given.targetLevel : TARGET_BY_RISK[risk];
+  const target = targetOf(given, risk);
   return {
     risk,
     points,
     factors: [...hit.map(([, , text]) => text), ...(sensitive ? ['trata dados pessoais sensíveis (LGPD, art. 5º, II)'] : [])],
     data: { personal: !!flags.personalData, minors: !!flags.minorsData, sensitive },
     riskSource: given.criticality ? 'definido no perfil' : 'estimado pelos flags do perfil',
-    targetLevel,
-    targetSource: Number.isInteger(given.targetLevel) ? 'definida no perfil' : `padrão para risco ${risk}`,
+    targetGrade: target.grade,
+    targetSource: target.source,
   };
 }
 

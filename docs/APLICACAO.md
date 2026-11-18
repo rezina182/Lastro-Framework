@@ -55,7 +55,7 @@ O que você declarou passa a valer: o papel vira "declarado por você", e o comp
 
 ## O que o relatório traz
 
-- **Repositórios identificados:** papel, confiança, motivo, perfil (declarado ou derivado), portão de CI, nível de maturidade, taxa dos controles automáticos, risco confirmado e ameaças expostas.
+- **Repositórios identificados:** papel, confiança, motivo, perfil (declarado ou derivado), portão de CI, nota de 0 a 10, taxa dos controles automáticos, risco confirmado e ameaças expostas.
 - **Arquitetura da aplicação:** o fluxo de dados com as fronteiras de confiança, e em cada fluxo as ameaças e os controles exigidos. As ameaças de cada fluxo vêm do repositório certo.
 - **Riscos de segurança confirmados**, de todos os repositórios, em ordem de criticidade, com CWE (link para a fonte oficial), pilares e local.
 - **Privacidade e dados pessoais**, **avisos**, **limites** e a **legenda**.

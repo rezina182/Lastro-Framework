@@ -18,31 +18,37 @@ const flags = (over) => ({ ...ALL_FALSE, ...over });
 test('contexto: o risco inerente vem do que a aplicação declara e define a meta de maturidade', () => {
   const kit = deriveContext({ flags: flags({ aiCodingAgents: true }) });
   assert.equal(kit.risk, 'baixo');
-  assert.equal(kit.targetLevel, 2);
+  assert.equal(kit.targetGrade, 6);
   const painel = deriveContext({ flags: flags({ webApp: true, hasAuth: true, anonymousUsers: true, personalData: true, publicInternet: true, aiCodingAgents: true }) });
   assert.equal(painel.risk, 'moderado');
   assert.equal(painel.points, 7);
-  assert.equal(painel.targetLevel, 3);
+  assert.equal(painel.targetGrade, 7);
   const quiz = deriveContext({ flags: flags({ webApp: true, hasAuth: true, anonymousUsers: true, realtime: true, uploads: true, personalData: true, minorsData: true, publicInternet: true, aiCodingAgents: true }) });
   assert.equal(quiz.risk, 'alto');
-  assert.equal(quiz.targetLevel, 4);
+  assert.equal(quiz.targetGrade, 8);
   assert.ok(quiz.factors.includes('trata dados de crianças ou adolescentes'));
   assert.equal(quiz.riskSource, 'estimado pelos flags do perfil');
 });
 
 test('contexto: o perfil pode sobrescrever o risco e a meta, e a origem aparece', () => {
-  const c = deriveContext({ flags: flags({ aiCodingAgents: true }), context: { criticality: 'high', targetLevel: 1 } });
+  const c = deriveContext({ flags: flags({ aiCodingAgents: true }), context: { criticality: 'high', targetGrade: 5.5 } });
   assert.equal(c.risk, 'alto');
-  assert.equal(c.targetLevel, 1);
+  assert.equal(c.targetGrade, 5.5);
   assert.equal(c.riskSource, 'definido no perfil');
   assert.equal(c.targetSource, 'definida no perfil');
   const soRisco = deriveContext({ flags: flags({}), context: { criticality: 'medium' } });
-  assert.equal(soRisco.targetLevel, 3, 'sem meta própria, usa o padrão do risco');
+  assert.equal(soRisco.targetGrade, 7, 'sem meta própria, usa o padrão do risco');
   assert.equal(soRisco.targetSource, 'padrão para risco moderado');
+  // Perfil antigo com targetLevel (0 a 4) continua valendo, convertido para a nota.
+  const antigo = deriveContext({ flags: flags({}), context: { targetLevel: 3 } });
+  assert.equal(antigo.targetGrade, 8);
+  assert.match(antigo.targetSource, /targetLevel 3 convertido/);
 });
 
-test('contexto: o schema do perfil valida criticality e targetLevel', () => {
+test('contexto: o schema do perfil valida criticality, targetGrade e o targetLevel antigo', () => {
   const base = { schemaVersion: 1, name: 't', flags: Object.fromEntries(schema.FLAGS.map((f) => [f, false])) };
+  assert.deepEqual(schema.validateProfile({ ...base, context: { criticality: 'low', targetGrade: 7.5 } }), []);
+  assert.ok(schema.validateProfile({ ...base, context: { targetGrade: 11 } }).length > 0);
   assert.deepEqual(schema.validateProfile({ ...base, context: { criticality: 'low', targetLevel: 0 } }), []);
   assert.ok(schema.validateProfile({ ...base, context: { criticality: 'enorme' } }).length > 0);
   assert.ok(schema.validateProfile({ ...base, context: { targetLevel: 5 } }).length > 0);
@@ -175,9 +181,9 @@ test('motor: o relatório traz contexto, escopo, fases, engenharia e a visão co
   try {
     const r = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z') });
     assert.equal(r.context.risk, 'baixo');
-    assert.equal(r.context.targetLevel, 2);
+    assert.equal(r.context.targetGrade, 6);
     assert.equal(r.context.meetsTarget, false);
-    assert.equal(r.context.gap, 2 - r.score.level);
+    assert.equal(r.context.gap, Math.round((6 - r.score.grade) * 10) / 10);
     assert.ok(r.scope.off.some((p) => p.pack === 'web' && p.missing.includes('webApp')));
     assert.ok(r.scope.on.some((p) => p.pack === 'agent'));
     assert.ok(r.score.byPhase.some((p) => p.phase === 'build'));
@@ -191,13 +197,13 @@ test('motor: o relatório traz contexto, escopo, fases, engenharia e a visão co
 
 test('motor: sem bloqueantes não há visão de baseline, e uma meta própria no perfil vale', async () => {
   const root = makeProject({
-    '.lastro/profile.json': profileJson({}, { context: { targetLevel: 0 } }),
+    '.lastro/profile.json': profileJson({}, { context: { targetGrade: 0 } }),
     '.gitignore': '.env\n',
   });
   try {
     const r = await runCheck({ root, now: new Date('2026-11-12T12:00:00Z'), only: ['CORE-011'] });
     assert.equal(r.baselineView === null || r.baselineView.findings === r.summary.blocking, true);
-    assert.equal(r.context.targetLevel, 0);
+    assert.equal(r.context.targetGrade, 0);
     assert.equal(r.context.meetsTarget, true);
   } finally { cleanup(root); }
 });
@@ -213,7 +219,7 @@ function fullReport() {
     tool: { version: '0.1.0' }, catalogVersion: '0.1.0', generatedAt: '2026-11-12T12:00:00.000Z',
     target: { root: 'x', url: null, active: false, requestsSent: 0, delayMs: 150 },
     profile: { name: 'App de teste', flags: {} }, verdict: 'fail', summary, controls, warnings: [], score,
-    context: { risk: 'moderado', points: 7, factors: ['é acessível pela internet', 'trata dados pessoais'], riskSource: 'estimado pelos flags do perfil', targetLevel: 3, targetSource: 'padrão para risco moderado', gap: 3, meetsTarget: false },
+    context: { risk: 'moderado', points: 7, factors: ['é acessível pela internet', 'trata dados pessoais'], riskSource: 'estimado pelos flags do perfil', targetGrade: 7, targetSource: 'padrão para risco moderado', gap: 7, meetsTarget: false },
     scope: { on: [{ pack: 'core', title: 'Base: cadeia' }], off: [{ pack: 'uploads', title: 'Upload de arquivos', missing: ['uploads'] }] },
     baselineView: { findings: 3, causes: 1, verdictIfAdopted: 'incomplete' },
     engineering: {
@@ -229,7 +235,7 @@ function fullReport() {
 
 test('relatório em Markdown: contexto, fases, causas agrupadas, baseline e engenharia', () => {
   const md = formatMarkdown(fullReport());
-  for (const t of ['## Contexto e meta', 'Risco inerente: moderado', 'Meta de maturidade para este contexto: nível 3', 'Faltam 3 nível(is)', 'Fora do escopo, porque o perfil declara que a aplicação não tem: Upload de arquivos (upload de arquivos)',
+  for (const t of ['## Contexto e meta', 'Risco inerente: moderado', 'Meta para este contexto: nota 7,0', 'Faltam 7,0 ponto(s)', 'Fora do escopo, porque o perfil declara que a aplicação não tem: Upload de arquivos (upload de arquivos)',
     '## Aderência por fase do ciclo de vida (SSDLC)', '| Projeto |', '| Desenvolvimento |', '## Causas dos bloqueios', '3 achado(s) em 1 causa(s)', 'Corrija CORE-006.', 'ci.yml:1, ci.yml:2, ci.yml:3',
     'lastro baseline --write', 'o portão ficaria incompleto', '### Todas as ocorrências', '## Fatos de engenharia (não entram na pontuação)', 'portão de CI: **FALHA**']) {
     assert.ok(md.includes(t), `faltou: ${t}`);
@@ -238,7 +244,7 @@ test('relatório em Markdown: contexto, fases, causas agrupadas, baseline e enge
 
 test('relatório em texto: linhas de contexto e de baseline', () => {
   const txt = formatReport(fullReport());
-  assert.ok(txt.includes('Contexto: risco moderado (7 pontos) | meta de maturidade: nível 3 | hoje: nível 0 (faltam 3)'));
+  assert.ok(txt.includes('Contexto: risco moderado (7 pontos) | meta: nota 7,0 | hoje: 0,0 (faltam 7,0 ponto(s))'), txt.split('\n').find((l) => l.startsWith('Contexto')));
   assert.ok(txt.includes('3 achado(s) bloqueante(s) em 1 causa(s)'));
   assert.ok(txt.includes('deixaria o portão incompleto'));
 });

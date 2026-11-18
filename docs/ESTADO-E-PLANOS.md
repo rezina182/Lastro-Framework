@@ -20,7 +20,7 @@ Um kit, sem dependências de execução, que mede **quanta evidência** existe d
 | Perfil | `lastro init` | Flags que dizem o que a aplicação tem (web, login, upload, dados de menores...). Decidem o escopo e o contexto | [PROFILE.md](PROFILE.md) |
 | Verificação | `lastro check` | Roda as verificações automáticas, lê as atestações e dá o portão de CI (bloqueia achado novo alto ou crítico) | [README](../README.md) |
 | Sondas HTTP | `lastro check --url` | Cabeçalhos, CSP, HSTS, cookies, erros, arquivos sensíveis; `--active` para TRACE e CORS | [README](../README.md) |
-| Maturidade | dentro do relatório | Nível 0 a 4, provado por máquina e autodeclarado, por pacote e por fase do SSDLC, mais a taxa dos controles automáticos | [SCORE.md](SCORE.md) |
+| Maturidade | dentro do relatório | Nota de 0 a 10 (postura e cobertura, com prova parcial), provado por máquina e autodeclarado, por pacote e por fase do SSDLC, mais a taxa dos controles automáticos | [SCORE.md](SCORE.md) |
 | Risco | dentro do relatório | Separa risco de segurança, boa prática e qualidade; probabilidade x impacto, pilares, CWE, LGPD; dependências vulneráveis com `--audit-file` | [RISCO.md](RISCO.md) |
 | Modelo de ameaças | `lastro threat-model` | Rascunho STRIDE por superfície a partir do código, com pistas (rotas sem autenticação vista, dado sensível), decisões gravadas e o desenho da arquitetura | [THREAT-MODEL-ASSISTIDO.md](THREAT-MODEL-ASSISTIDO.md) |
 | Aplicação com vários repositórios | `lastro app` | Identifica o papel de cada repositório, verifica cada um e junta tudo num relatório com a arquitetura | [APLICACAO.md](APLICACAO.md) |
@@ -46,7 +46,7 @@ Um kit, sem dependências de execução, que mede **quanta evidência** existe d
 | ASVS | Mapa dos 345 requisitos e classificação dos 17 capítulos até L2 | Ligar cada controle ao padrão de mercado, com cobertura inteira ou parcial declarada |
 | Testes dinâmicos | Sondas passivas, sondas ativas com trava, ritmo e teto de requisições | Ver o comportamento da aplicação sem derrubá-la nem tocar produção |
 | Varreduras estáticas | SQL montado por texto, aleatoriedade e hash fracos, segredos literais, HTML cru | Pegar o comum em cada PR, sem tocar a aplicação |
-| Maturidade e relatório | Nível 0 a 4, relatório em Markdown e HTML, tema e redação | Mostrar evidência sem parecer reprovação, e poder compartilhar sem expor nomes |
+| Maturidade e relatório | Nota de 0 a 10, relatório em Markdown e HTML, tema e redação | Mostrar evidência sem parecer reprovação, e poder compartilhar sem expor nomes |
 | Contexto | Risco inerente, meta, escopo, fases do SSDLC, fatos de engenharia, causas agrupadas | Nem toda aplicação precisa do mesmo rigor |
 | Risco | Natureza, probabilidade x impacto, pilares, CWE, LGPD, `npm audit` | Saber o que é brecha, o que é processo e o que é qualidade |
 | Modelo de ameaças | Rascunho STRIDE a partir do código, decisões gravadas, CORE-012 exigindo revisão, desenho da arquitetura | Tornar a probabilidade específica e achar riscos de desenho |

@@ -449,7 +449,6 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
       out.push(card('Postura', `${h(gradeText(g.posture))} de 10`, 'do que foi decidido, quanto passou'));
       out.push(card('Cobertura', `${h(gradeText(g.coverage))} de 10`, 'quanto do peso tem prova'));
     }
-    out.push(card('Nível de maturidade', `${num(k.level)} de 4`, k.levelName));
     out.push(card('Provado', pctText(k.provenPct), `por máquina ${pctText(k.machinePct)}, autodeclarado ${pctText(k.attestedPct)}`));
     if (k.automated && k.automated.controls) {
       const a = k.automated;
@@ -468,7 +467,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
       { cls: 'seg-none', label: 'Sem prova', value: k.unverifiedPct },
     ]));
     out.push('<ul class="legend"><li><i class="seg-ok"></i>Provado por máquina</li><li><i class="seg-info"></i>Autodeclarado (atestação)</li><li><i class="seg-bad"></i>Falhando</li><li><i class="seg-none"></i>Sem prova</li></ul>');
-    out.push(`<div class="note"><p><strong>Regra do nível ${num(k.level)}:</strong> ${h(k.levelRule)}.</p><p><strong>Próximo passo:</strong> ${h(k.nextStep)}</p></div>`);
+    out.push(`<div class="note"><p><strong>Próximo passo:</strong> ${h(k.nextStep)}</p></div>`);
     out.push(`<p class="empty">${h(k.disclaimer)}</p>`);
   }
   out.push('</section>');
@@ -479,8 +478,8 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
     const riskCls = c.risk === 'alto' ? 'bad' : c.risk === 'moderado' ? 'warn' : 'ok';
     out.push('<section id="contexto" aria-labelledby="t-ctx"><h2 id="t-ctx">Contexto e meta</h2>', '<div class="cards">');
     out.push(card('Risco inerente', `<span class="badge ${riskCls}">${h(c.risk)}</span>`, `${num(c.points)} pontos, ${c.riskSource}`));
-    out.push(card('Meta de maturidade', `nível ${num(c.targetLevel)}`, c.targetSource));
-    out.push(card('Hoje', `nível ${num(k.level)}`, c.meetsTarget ? 'meta atingida' : `faltam ${num(c.gap)} nível(is)`));
+    out.push(card('Meta de maturidade', `nota ${h(gradeText(c.targetGrade))}`, c.targetSource));
+    out.push(card('Hoje', `nota ${h(gradeText(k.grade))}`, c.meetsTarget ? 'meta atingida' : `faltam ${gradeText(c.gap)} ponto(s)`));
     out.push('</div>');
     out.push(`<p>A aplicação ${h(c.factors.length ? c.factors.join('; ') : 'não declara fatores de exposição no perfil')}.</p>`);
     if (r.scope) {

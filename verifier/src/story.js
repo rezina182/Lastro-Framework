@@ -159,7 +159,7 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
   if (tm) for (const t of tm.threats.filter((x) => x.decision === 'accept' && x.expires && !x.pending && daysLeft(x.expires, now) <= EXPIRING_DAYS)) decide.push(`A aceitação de ${t.id} (${t.owner}) vence em ${Math.max(0, daysLeft(t.expires, now))} dia(s): renovar ou mitigar.`);
   if (report.summary && report.summary.debt) decide.push(`${report.summary.debt} achado(s) no baseline: dívida conhecida, que precisa de dono e prazo.`);
   if (blockers.length) decide.push('Para cada bloqueante que não der para corrigir agora: aceitar o risco com dono, justificativa e validade (.lastro/risks), ou registrar no baseline.');
-  if (k && report.context && !report.context.meetsTarget) decide.push(`A meta de maturidade para o risco desta aplicação é o nível ${report.context.targetLevel}; hoje é ${k.level}. Confirmar a meta ou o prazo para chegar.`);
+  if (k && report.context && !report.context.meetsTarget) decide.push(`A meta para o risco desta aplicação é a nota ${gradeText(report.context.targetGrade)}; hoje é ${gradeText(k.grade)}. Confirmar a meta ou o prazo para chegar.`);
 
   const why = PM.explainGaps(PM.analyzeGaps({ ...report, controls: report.controls.map((c) => ({ ...c, findings: c.findings || [], notes: c.notes || [] })) }));
   const g = k && k.grades;

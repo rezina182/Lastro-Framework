@@ -64,7 +64,7 @@ Os relatórios trazem uma legenda no final (o que é `CORE`, `AUTH`, estados, cl
 
 ## Maturidade
 
-Todo relatório traz um nível de 0 a 4 e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
+Todo relatório traz uma nota de 0 a 10 (com faixas de Inicial a Exemplar) e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
 
 ## Risco
 
@@ -88,7 +88,7 @@ node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exe
 node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
 node /caminho/para/lastro/verifier/bin/lastro.js threat-model --write                    # rascunho do modelo de ameaças em .lastro/threat-model.json
 node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
-node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com nível de maturidade
+node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com a nota de 0 a 10
 node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html            # o mesmo em HTML autocontido (sem scripts nem recursos externos)
 node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html --theme meu-tema.css   # com a sua identidade visual
 npm audit --json > audit.json   # você roda: envia a lista de pacotes ao registro do npm

@@ -329,8 +329,8 @@ async function runCheck(opts = {}) {
   const score = computeScore({ controls, summary }, { packTitles });
   // Contexto: o risco inerente da aplicação define a meta de maturidade razoável para ela.
   const context = deriveContext(profile);
-  context.gap = Math.max(0, context.targetLevel - score.level);
-  context.meetsTarget = score.level >= context.targetLevel;
+  context.gap = Math.max(0, Math.round((context.targetGrade - score.grade) * 10) / 10);
+  context.meetsTarget = score.grade >= context.targetGrade;
   // Se a dívida atual fosse registrada como baseline, o portão só bloquearia achados novos.
   const blockingCauses = new Set(controls.filter((x) => x.findings.some((f) => f.blocking)).map((x) => x.id)).size;
   let audit = null;

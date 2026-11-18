@@ -133,7 +133,7 @@ function generateSystem(name, entries) {
   return { schemaVersion: 1, name: name.slice(0, 80), components, flows };
 }
 
-const lvl = (r) => (r && r.score ? r.score.level : null);
+const gradeOf = (r) => (r && r.score ? r.score.grade : null);
 
 /**
  * Analisa a aplicação. `dir`: pasta com os repositórios. `repos`: nomes ou caminhos (opcional). `match`: padrão dos nomes.
@@ -220,7 +220,7 @@ async function analyzeGroup({ dir, name, repos = null, match = null, system = nu
     return {
       name: e.base, path: e.rel, role: e.cls.role, confidence: e.cls.confidence, reasons: e.cls.reasons, fullstack: !!e.cls.fullstack,
       profile: e.declared ? 'declarado' : 'derivado', error: e.error,
-      verdict: r ? r.verdict : null, blocking: r ? r.summary.blocking : null, level: lvl(r), provenPct: r ? r.score.provenPct : null,
+      verdict: r ? r.verdict : null, blocking: r ? r.summary.blocking : null, grade: gradeOf(r), provenPct: r ? r.score.provenPct : null,
       automated: r ? r.score.automated : null,
       confirmed: rs ? rs.confirmed : null, potential: rs ? rs.potential : null,
       threats: r ? r.threatModel.counts : null,

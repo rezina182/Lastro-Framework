@@ -407,7 +407,7 @@ async function main(argv) {
     for (const w of warnings) console.error(`AVISO: ${w}`);
     const prev = items.length ? items[items.length - 1] : null;
     const d = HIST.diff(prev, snap);
-    console.log(`Agora: portão ${report.verdict}, nível ${snap.level}, provado ${snap.provenPct}%, falhando ${snap.failedPct}%, ${snap.summary.blocking} bloqueante(s). Histórico: ${items.length} registro(s).`);
+    console.log(`Agora: portão ${report.verdict}, nota ${String(snap.grade).replace('.', ',')} de 10, provado ${snap.provenPct}%, falhando ${snap.failedPct}%, ${snap.summary.blocking} bloqueante(s). Histórico: ${items.length} registro(s).`);
     if (prev) console.log(`Desde ${prev.generatedAt.slice(0, 10)}: ${d.improved.length} controle(s) melhoraram, ${d.worsened.length} pioraram, ${d.added.length} entraram, ${d.removed.length} saíram.${d.worsened.length ? ` Pioraram: ${d.worsened.map((x) => x.id).join(', ')}.` : ''}`);
     if (!flags.write) { console.log(`Rode com --write para gravar o registro em ${HIST.DIR}/ (só números, IDs e estados; nada de caminho nem mensagem).`); return 0; }
     console.log(`Registro gravado em ${HIST.writeSnapshot(root, snap)}.`);

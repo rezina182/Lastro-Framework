@@ -4,8 +4,11 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Alterado (só a nota de 0 a 10)
+- Nota `v4`: o nível de 0 a 4 foi removido de vez (relatório, portal, histórico, aplicação com vários repositórios e a mensagem do `lastro history`). O próximo passo fala da próxima faixa da nota. A meta de maturidade virou nota de 0 a 10 (`context.targetGrade`; padrões 6, 7 e 8 para risco baixo, moderado e alto). Perfis com `targetLevel` continuam valendo, convertidos para a nota. O histórico ainda lê registros antigos que têm só o nível.
+
 ### Alterado (nota v3 e o kit usando os próprios hooks)
-- Nota `v3`: controle manual com prova parcial da máquina vale metade do peso na cobertura e na postura da nota de 0 a 10. O peso provado e o nível de 0 a 4 continuam estritos. Novos campos `partialPct` e `partialControls`, também no histórico. Veja `docs/SCORE.md`.
+- Nota `v3`: controle manual com prova parcial da máquina vale metade do peso na cobertura e na postura da nota de 0 a 10. O peso provado continua estrito. Novos campos `partialPct` e `partialControls`, também no histórico. Veja `docs/SCORE.md`.
 - O repositório do kit passa a usar o próprio adaptador do Kiro (`.kiro/agents`, `skills`, `steering` e `hooks`). Push e PR feitos pelo agente passam pela autorização de quem mantém o repositório.
 
 ### Adicionado (automação dos controles manuais)

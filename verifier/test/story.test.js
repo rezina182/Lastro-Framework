@@ -13,7 +13,7 @@ const attest = (by, collectedAt, expiresAt) => ({ source: 'manual-attestation', 
 
 function report(controls, extra = {}) {
   const summary = { blocking: controls.flatMap((c) => c.findings).filter((f) => f.blocking).length, debt: 0, accepted: 0 };
-  const r = { controls, summary, target: { url: null }, catalogVersion: '1.0.0', context: { meetsTarget: false, targetLevel: 3 }, ...extra };
+  const r = { controls, summary, target: { url: null }, catalogVersion: '1.0.0', context: { meetsTarget: false, targetGrade: 7 }, ...extra };
   r.score = computeScore(r, { packTitles: { core: 'Base: higiene', web: 'Web: navegador' } });
   return r;
 }
@@ -37,7 +37,7 @@ test('história: já feito, atenção, o que fazer e o que decidir saem do relat
   assert.ok(st.todo.some((x) => /lastro fix/.test(x)), 'CORE-006 tem correção previsível');
   assert.ok(st.todo.some((x) => /WEB-002/.test(x)), 'alto sem prova vira tarefa de playbook');
   assert.ok(st.decide.some((x) => /aceitar o risco com dono/.test(x)));
-  assert.ok(st.decide.some((x) => /meta de maturidade/.test(x)));
+  assert.ok(st.decide.some((x) => /A meta para o risco desta aplicação é a nota 7,0/.test(x)));
 });
 
 test('história: compara com o registro anterior (melhorou, piorou, nota subiu) e ignora o registro igual ao atual', () => {

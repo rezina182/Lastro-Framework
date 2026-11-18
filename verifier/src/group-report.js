@@ -17,7 +17,7 @@ const ROLE_PT = {
 const CONF_PT = { alta: 'alta', media: 'média', baixa: 'baixa', declarado: 'declarada por você' };
 
 const confText = (c) => (c ? `${c.critical} crítico, ${c.high} alto, ${c.medium} médio, ${c.low} baixo` : '-');
-const levelText = (r) => (r.level === null ? '-' : `${r.level}`);
+const levelText = (r) => (r.grade === null || r.grade === undefined ? '-' : String(r.grade.toFixed(1)).replace('.', ','));
 const pct = (v) => (v === null || v === undefined ? '-' : `${String(v).replace('.', ',')}%`);
 
 const NOTE_DERIVED = 'Perfil derivado é rascunho: o kit leu o código e ligou as flags que ele mostra (rotas, upload, tempo real, dados pessoais pelos nomes dos campos...). Dados de crianças e adolescentes, dados sensíveis e usuários anônimos o código não mostra e ficam desligados: declare no `.lastro/profile.json` de cada repositório.';
@@ -41,7 +41,7 @@ function formatGroupMarkdown(g) {
   out.push(`- Perfis derivados pelo kit (rascunho): ${t.derivedProfiles}.`, '');
   out.push('## Repositórios identificados', '');
   out.push(NOTE_ROLES, '');
-  out.push('| Repositório | Papel | Confiança | Por quê | Perfil | Portão | Nível | Automáticos | Risco confirmado | Ameaças expostas |', '|---|---|---|---|---|---|---|---|---|---|');
+  out.push('| Repositório | Papel | Confiança | Por quê | Perfil | Portão | Nota | Automáticos | Risco confirmado | Ameaças expostas |', '|---|---|---|---|---|---|---|---|---|---|');
   for (const r of g.repos) {
     out.push(`| ${md(r.name)} | ${ROLE_PT[r.role] || r.role}${r.fullstack ? ' (full stack)' : ''} | ${CONF_PT[r.confidence] || r.confidence} | ${md((r.reasons || []).slice(0, 3).join('; ') || '-')} | ${r.profile} | ${r.error ? 'erro' : VERDICT_PT[r.verdict]} | ${levelText(r)} | ${r.automated && r.automated.passRatePct !== null ? pct(r.automated.passRatePct) : '-'} | ${md(confText(r.confirmed))} | ${r.threats ? r.threats.exposed : '-'} |`);
   }
@@ -89,7 +89,7 @@ function formatGroupHtml(g, { theme = null } = {}) {
 
   s.push('<section id="repos" aria-labelledby="t-repos"><h2 id="t-repos">Repositórios identificados</h2>');
   s.push(`<p>${h(NOTE_ROLES.replace(/`/g, ''))}</p>`);
-  s.push(table('Papel identificado e situação de cada repositório', ['Repositório', 'Papel', 'Confiança', 'Por quê', 'Perfil', 'Portão', 'Nível', 'Automáticos', 'Risco confirmado', 'Expostas'],
+  s.push(table('Papel identificado e situação de cada repositório', ['Repositório', 'Papel', 'Confiança', 'Por quê', 'Perfil', 'Portão', 'Nota', 'Automáticos', 'Risco confirmado', 'Expostas'],
     g.repos.map((r) => [`<strong>${h(r.name)}</strong>`, h(`${ROLE_PT[r.role] || r.role}${r.fullstack ? ' (full stack)' : ''}`), h(CONF_PT[r.confidence] || r.confidence), h((r.reasons || []).slice(0, 3).join('; ') || '-'), h(r.profile),
       h(r.error ? 'erro' : VERDICT_PT[r.verdict]), h(levelText(r)), h(r.automated && r.automated.passRatePct !== null ? pct(r.automated.passRatePct) : '-'), h(confText(r.confirmed)), r.threats ? String(num(r.threats.exposed)) : '-'])));
   s.push(`<div class="note"><p>${h(NOTE_DERIVED.replace(/`/g, ''))}</p></div></section>`);

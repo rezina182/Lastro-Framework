@@ -160,9 +160,8 @@ function indexPage({ report, history, current, tickets, now, theme }) {
   sections.push('<p>O detalhe de cada controle está em <a href="escopos.html">Implementado por escopo</a>; o caminho de prova de cada um e o trecho pronto para "não se aplica", no comando <code>lastro gaps</code>.</p>');
   sections.push('</section>');
 
-  sections.push('<details><summary><strong>Mais detalhes</strong>: maturidade, risco, a história completa, o que cabe ao dev e ao time de segurança</summary>');
+  sections.push('<details><summary><strong>Mais detalhes</strong>: automáticos, risco, a história completa, o que cabe ao dev e ao time de segurança</summary>');
   sections.push('<section id="detalhes" aria-labelledby="t-det"><h2 id="t-det">Números</h2><div class="cards">');
-  sections.push(card('Maturidade', `nível ${num(s.level)} de 4`, s.levelName));
   sections.push(card('Automáticos', s.automated.passRatePct === null ? 'n/d' : h(pctText(s.automated.passRatePct)), `${num(s.automated.verified)} passaram, ${num(s.automated.failed)} falharam, ${num(s.automated.notRun)} não rodaram`));
   sections.push('</div>');
   sections.push(table('Risco e ameaças', ['Item', 'Hoje'], [
@@ -216,8 +215,8 @@ function historyPage({ report, history, current, theme }) {
   if (!all.length || all[all.length - 1].generatedAt !== current.generatedAt) all.push({ ...current, _current: true });
   const sections = ['<section id="registros" aria-labelledby="t-reg"><h2 id="t-reg">Registros</h2>'];
   if (!history.length) sections.push('<p>Ainda não há histórico gravado. Rode <code>lastro history --write</code> a cada versão (ou no CI) para acompanhar a evolução.</p>');
-  sections.push(table('Execuções, da mais recente à mais antiga', ['Data', 'Portão', 'Nota', 'Nível', 'Provado', 'Falhando', 'Bloqueantes', 'Risco confirmado', 'Ameaças expostas'],
-    [...all].reverse().map((s) => [h(`${s.generatedAt.slice(0, 16).replace('T', ' ')}${s._current ? ' (agora, não gravado)' : ''}`), h(VERDICT_PT[s.verdict]), h(gradeText(s.grade)), String(num(s.level)), h(pctText(s.provenPct)), h(pctText(s.failedPct)), String(num(s.summary.blocking)), h(riskCell(s.risk.confirmed)), String(num(s.threats.exposed))])));
+  sections.push(table('Execuções, da mais recente à mais antiga', ['Data', 'Portão', 'Nota', 'Provado', 'Falhando', 'Bloqueantes', 'Risco confirmado', 'Ameaças expostas'],
+    [...all].reverse().map((s) => [h(`${s.generatedAt.slice(0, 16).replace('T', ' ')}${s._current ? ' (agora, não gravado)' : ''}`), h(VERDICT_PT[s.verdict]), h(gradeText(s.grade)), h(pctText(s.provenPct)), h(pctText(s.failedPct)), String(num(s.summary.blocking)), h(riskCell(s.risk.confirmed)), String(num(s.threats.exposed))])));
   sections.push('</section>');
   const prev = all.length > 1 ? all[all.length - 2] : null;
   const d = diff(prev, all[all.length - 1]);
