@@ -256,6 +256,66 @@ async function runAssists(ctx, profile, { active = false, disc = null, want = ()
   return out;
 }
 
+// --- Rotas de escrita sem autenticação vista (AUTH-044) -----------------------------------------------------
+// Usa a descoberta de rotas (Express, Flask/FastAPI, Next.js). Rota administrativa sem autenticação é alta; as demais
+// também, a não ser que haja montagem de roteador com autenticação que o kit não conseguiu ligar às rotas: aí a rota
+// pode estar protegida, e o achado vira médio (revisar), sem bloquear.
+const ADMIN_PATH = /(^|\/)(admin|administra\w*|gestao|manage|internal|interno|backoffice|sistema)(\/|$)/i;
+
+function unauthWriteRoutes(disc) {
+  const r = result();
+  const routes = disc && disc.routes;
+  if (!routes || !routes.total) return r;
+  r.tested += 1;
+  const unsure = routes.authMounts > 0;
+  const list = routes.unauthWrites || [];
+  const admin = list.filter((x) => ADMIN_PATH.test(x.path));
+  const rest = list.filter((x) => !ADMIN_PATH.test(x.path));
+  const fmt = (xs) => xs.slice(0, 8).map((x) => `${x.method} ${x.path} (${x.location})`).join('; ');
+  const tail = unsure ? ' Há montagem de roteador com autenticação que o kit não ligou a estas rotas: confira se ela as cobre.' : '';
+  if (admin.length) {
+    r.findings.push({ severity: unsure ? 'medium' : 'high', key: `unauth-admin:${admin.map((x) => `${x.method} ${x.path}`).join(',')}`, location: admin[0].location, message: `${admin.length} rota(s) administrativa(s) de escrita sem autenticação vista no código: ${fmt(admin)}${admin.length > 8 ? ' ...' : ''}. Qualquer pessoa que alcance a aplicação pode executá-las.${tail}` });
+  }
+  if (rest.length) {
+    r.findings.push({ severity: unsure ? 'medium' : 'high', key: `unauth-write:${rest.map((x) => `${x.method} ${x.path}`).join(',')}`, location: rest[0].location, message: `${rest.length} rota(s) de escrita sem autenticação vista no código: ${fmt(rest)}${rest.length > 8 ? ' ...' : ''}. Se alguma é pública de propósito, justifique com 'lastro-ignore unauth-write: motivo' na linha da rota.${tail}` });
+  }
+  if (!r.findings.length) r.notes.push(`${NOTE} nenhuma rota de escrita sem autenticação vista, entre as ${routes.total} rota(s) lidas no código.`);
+  return r;
+}
+
+// --- Corpo da requisição gravado direto no banco (AUTH-045) -------------------------------------------------
+// Prisma: data: body | data: await req.json() | data: { ...body }. Sequelize/Mongoose/TypeORM: Model.create(req.body),
+// .update(req.body), findByIdAndUpdate(id, req.body), Object.assign(x, req.body). Variável que passa por um esquema
+// (parse, safeParse, validate, pick) no mesmo arquivo não conta.
+const ORM_WRITE = /\.(create|createMany|update|updateMany|upsert|insert|save|findByIdAndUpdate|findOneAndUpdate|updateOne|replaceOne)\s*\(/;
+const RAW_BODY_DEF = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+\w+\.json\(\)|req(?:uest)?\.body)\s*;?\s*$/;
+const VALIDATED = (name) => new RegExp(`\\.(?:parse|safeParse|parseAsync|validate|validateSync|pick|strict)\\s*\\(\\s*(?:await\\s+)?${name}\\b|\\b${name}\\s*=\\s*\\w+\\.(?:parse|safeParse|parseAsync)\\s*\\(`);
+
+function massAssignment(ctx) {
+  const r = result();
+  for (const f of codeFiles(ctx)) {
+    const text = ctx.read(f) || '';
+    if (!ORM_WRITE.test(text)) continue;
+    r.tested += 1;
+    const lines = text.split(/\r?\n/);
+    const raw = new Set();
+    for (const line of lines) { const m = RAW_BODY_DEF.exec(line); if (m && !VALIDATED(m[1]).test(text)) raw.add(m[1]); }
+    const hits = [];
+    lines.forEach((line, i) => {
+      if (/lastro-ignore\s+mass-assignment/.test(line) || /^\s*(\/\/|\*|#)/.test(line)) return;
+      const names = [...raw].map((n) => n.replace(/\$/g, '\\$')).join('|');
+      const viaVar = names && new RegExp(`\\bdata\\s*:\\s*(?:\\{\\s*\\.\\.\\.\\s*)?(?:${names})\\b(?!\\s*\\.)`).test(line);
+      const direct = /\bdata\s*:\s*(?:\{\s*\.\.\.\s*)?(?:await\s+\w+\.json\(\)|req(?:uest)?\.body\b(?!\s*\.))/.test(line)
+        || (ORM_WRITE.test(line) && /\(\s*(?:[\w.]+\s*,\s*)?req\.body\s*[,)]/.test(line))
+        || /Object\.assign\s*\(\s*\w+\s*,\s*req\.body\s*\)/.test(line);
+      if (viaVar || direct) hits.push(i + 1);
+    });
+    if (hits.length) r.findings.push({ severity: 'high', key: `mass-assignment:${f}`, location: `${f}:${hits[0]}`, message: `Corpo da requisição gravado direto no banco, sem esquema nem lista de campos, em ${f} (linha(s) ${hits.slice(0, 5).join(', ')}): o cliente pode mudar qualquer campo do registro, inclusive dono, saldo ou papel. Valide com um esquema e grave só os campos permitidos.` });
+  }
+  if (r.tested && !r.findings.length) r.notes.push(`${NOTE} nenhuma gravação do corpo cru da requisição em ${r.tested} arquivo(s) com escrita no banco.`);
+  return r;
+}
+
 const COVERS = ['CORE-015', 'AG-001', 'AG-007'];
 
-module.exports = { runAssists, NOTE, COVERS, ciTestsWithDb, passwordHash, defaultPasswords, agentGuard, exposedPaths, contentTypes, defaultCreds, bruteForce, BRUTE_ATTEMPTS };
+module.exports = { runAssists, NOTE, COVERS, ciTestsWithDb, passwordHash, defaultPasswords, unauthWriteRoutes, massAssignment, agentGuard, exposedPaths, contentTypes, defaultCreds, bruteForce, BRUTE_ATTEMPTS };

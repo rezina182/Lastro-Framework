@@ -37,6 +37,8 @@
     "AUTH-041": { "kind": "security", "pillars": "AC", "cwe": [1392, 798] },
     "AUTH-042": { "kind": "security", "pillars": "C", "cwe": [916, 328] },
     "AUTH-043": { "kind": "security", "pillars": "AC", "cwe": [1392, 259] },
+    "AUTH-044": { "kind": "security", "pillars": "CIA", "cwe": [306, 862] },
+    "AUTH-045": { "kind": "security", "pillars": "I", "cwe": [915] },
     "AUTH-017": { "kind": "security", "pillars": "A", "cwe": [330, 307] },
     "AUTH-018": { "kind": "security", "pillars": "C", "cwe": [257], "reach": "internal" },
     "AUTH-019": { "kind": "security", "pillars": "A", "cwe": [287] },

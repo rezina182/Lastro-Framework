@@ -4,6 +4,14 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (terceira aplicação: App C, Next.js com Prisma)
+- A descoberta lê as rotas do Next.js pelo caminho do arquivo (App Router `app/**/route.ts` e `pages/api/**`), com grupos `(x)` e segmentos `[id]`, e o `middleware.ts` com o `matcher`. Antes, uma aplicação Next.js saía com 0 rotas, classificada como frontend. Repositório que serve páginas do framework e API passa a ser full stack.
+- Os modelos do Prisma (`schema.prisma`) entram como tabelas no desenho e no inventário de dados, com as categorias que os campos sugerem.
+- AUTH-044 (automático, leitura do código): rota de escrita sem autenticação visível. Rota administrativa e rota comum são altas; quando há montagem de roteador com autenticação que o kit não ligou às rotas, o achado vira médio. Rota pública de propósito se justifica com `lastro-ignore unauth-write: motivo`.
+- AUTH-045 (automático, leitura do código): o corpo da requisição gravado direto no banco (`data: body` no Prisma, `Model.create(req.body)`), sem esquema nem lista de campos. Corpo que passa por `parse`/`safeParse`/`validate` no mesmo arquivo não conta.
+- Caminhos públicos em português (`cadastro`, `esqueci`, `recuperar`, `redefinir-senha`, `entrar`, `sair`) contam como públicos por natureza.
+- Cinco lições do App C (L-C01 a L-C05). Catálogo com 162 controles, 48 lições e 41 verificações automáticas.
+
 ### Alterado (visão geral curta, README e página de apresentação)
 - A visão geral do portal ficou curta: os números grandes (nota com a meta, portão, controles que bloqueiam, peso provado e controles sem prova), as **decisões para agora** (até cinco cartões numerados, cada um com quem decide, o que fazer, por quê e o link para o detalhe), a nota por escopo e os links para as outras páginas. O conteúdo longo foi para a página nova `analise.html` (Análise completa). O portal tem sete páginas.
 - Links entre páginas do portal podem levar âncora (`analise.html#acao`), sempre para as páginas do próprio portal.

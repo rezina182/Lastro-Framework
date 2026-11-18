@@ -219,6 +219,41 @@
       "controls": ["RT-002"]
     },
     {
+      "id": "L-C01",
+      "source": "app-c",
+      "title": "Rotas de escrita e administrativas sem autenticação",
+      "summary": "No App C (Next.js), 19 das 112 rotas eram de escrita e não mostravam autenticação no código, entre elas 2 rotas administrativas que apagam e recalculam dados de todos os usuários, e rotas que alteram e apagam registros pelo id da URL. A única barreira era o middleware de origem. Lição: toda rota de escrita mostra no código como exige sessão e confere o dono do objeto; rota administrativa exige também o papel. O kit passou a apontar a rota de escrita sem autenticação vista (AUTH-044), com o arquivo e a linha.",
+      "controls": ["AUTH-044"]
+    },
+    {
+      "id": "L-C02",
+      "source": "app-c",
+      "title": "O corpo da requisição gravado direto no banco",
+      "summary": "No App C, rotas de alteração passavam o corpo da requisição inteiro para o update do ORM (data: body), sem esquema nem lista de campos, o que deixa o cliente mudar dono, saldo ou qualquer outro campo do registro. Lição: validar o corpo com um esquema e gravar só os campos permitidos; dono e papel vêm da sessão. O kit passou a apontar a gravação do corpo cru (AUTH-045).",
+      "controls": ["AUTH-045"]
+    },
+    {
+      "id": "L-C03",
+      "source": "app-c",
+      "title": "Rotas que vêm do caminho do arquivo e modelos do Prisma",
+      "summary": "No App C, a descoberta do kit encontrou 0 rotas e classificou a aplicação como frontend: no Next.js a rota é o caminho do arquivo (app/api/**/route.ts, pages/api/**), não uma chamada app.get('/x'), e o banco é descrito no schema.prisma, não em SQL. O modelo de ameaças saía quase vazio. Lição: a descoberta precisa entender as convenções de cada framework. O kit passou a ler as rotas do App Router e do pages/api, o matcher do middleware e os modelos do Prisma.",
+      "controls": ["AUTH-044", "CORE-012"]
+    },
+    {
+      "id": "L-C04",
+      "source": "app-c",
+      "title": "Arquivo de ambiente de contêiner versionado com token de terceiro",
+      "summary": "No App C, um arquivo de ambiente usado pelo Docker estava no repositório com o token de uma API externa. Arquivos .env com sufixo (.env.docker, .env.production) escapam de um .gitignore que só lista .env. Lição: ignorar .env* e manter só o .env.example; se o arquivo foi versionado, rotacionar o token, porque ele continua no histórico.",
+      "controls": ["CORE-001"]
+    },
+    {
+      "id": "L-C05",
+      "source": "app-c",
+      "title": "Bloqueio de acesso direto por cabeçalho fixo não é autenticação",
+      "summary": "No App C, o middleware liberava a requisição quando ela trazia um cabeçalho com valor fixo, para aceitar só o tráfego vindo do proxy. Qualquer pessoa que descobre o endereço de origem envia o mesmo cabeçalho e passa. Lição: proteção de origem exige segredo (cabeçalho com valor secreto e rotacionável, mTLS ou rede privada), e nunca substitui a autenticação das rotas.",
+      "controls": ["AUTH-044"]
+    },
+    {
       "id": "L-R01",
       "source": "research",
       "title": "Arquivos de instrução são vetor de ataque",

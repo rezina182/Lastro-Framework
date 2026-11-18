@@ -59,6 +59,16 @@ const checks = {
     if (!r.tested) return unverified('Nenhuma chamada a função de hash de senha no código: nada a conferir.');
     return asCheck(r, '');
   },
+  'repo.code.unauth-write-routes': (ctx) => {
+    const r = A.unauthWriteRoutes(discover(ctx));
+    if (!r.tested) return unverified('Nenhuma rota HTTP encontrada no código (Express, Flask, FastAPI, Next.js): confira como as rotas são declaradas.');
+    return asCheck(r, '');
+  },
+  'repo.code.mass-assignment': (ctx) => {
+    const r = A.massAssignment(ctx);
+    if (!r.tested) return unverified('Nenhuma gravação no banco por ORM encontrada no código: nada a conferir.');
+    return asCheck(r, '');
+  },
   'repo.code.password-hash': (ctx) => {
     const r = A.passwordHash(ctx);
     if (!r.tested) return unverified('Nenhuma biblioteca de hash de senha (bcrypt, Argon2, scrypt, passlib) encontrada no código: confira como as senhas são guardadas.');

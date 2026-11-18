@@ -59,3 +59,30 @@ test('superfície: chave do módulo agrupa /api/<recurso> e o primeiro segmento 
   assert.equal(moduleKey('/'), '/');
   assert.equal(moduleKey('/:slug'), '/*');
 });
+
+// Achado no App C (Next.js com App Router): as rotas vêm do caminho do arquivo e o middleware cobre os caminhos do
+// matcher. Sem isso a descoberta via "0 rotas", o perfil saía como frontend e o modelo de ameaças ficava vazio.
+test('superfície: rotas do Next.js (App Router e pages/api), middleware com matcher e modelos do Prisma', () => {
+  const root = makeProject({
+    'package.json': JSON.stringify({ name: 'n', version: '1.0.0', dependencies: { next: '15.0.0', react: '19.0.0', '@prisma/client': '6.0.0', bcryptjs: '2.4.3' } }),
+    'middleware.ts': "import { getToken } from 'next-auth/jwt';\nexport async function middleware(req) { const token = await getToken({ req }); }\nexport const config = { matcher: ['/api/contas/:path*', '/painel/:path*'] };\n",
+    'app/api/contas/[id]/route.ts': "export async function GET(req) { return Response.json({}); }\nexport async function DELETE(req) { return new Response(null); }\n",
+    'app/api/relatorios/route.ts': 'export async function GET() { return Response.json([]); }\n',
+    'app/api/usuarios/route.ts': "import { auth } from '@/lib/auth';\nexport async function POST(req) { const s = await auth(); }\n",
+    'app/(site)/api/health/route.ts': "export const GET = () => Response.json({ status: 'ok' });\n",
+    'pages/api/legado.ts': 'export default function handler(req, res) { res.json({}); }\n',
+    'prisma/schema.prisma': 'model Usuario {\n  id    String @id\n  email String @unique\n  senhaHash String\n}\n\nmodel Lancamento {\n  id String @id\n  valor Decimal\n  pix String?\n}\n',
+  });
+  try {
+    const d = discover(ctxFor(root));
+    assert.equal(d.routes.total, 6);
+    assert.equal(d.routes.byAuth.global, 2, 'GET e DELETE de /api/contas/:id, cobertos pelo matcher do middleware');
+    assert.equal(d.routes.byAuth.visivel, 1, 'POST /api/usuarios chama auth() no próprio arquivo');
+    assert.equal(d.routes.byAuth['publica-esperada'], 1, '/api/health, sem o grupo (site) no caminho');
+    const sem = d.routes.examples.map((e) => `${e.method} ${e.path}`).sort();
+    assert.deepEqual(sem, ['ALL /api/legado', 'GET /api/relatorios']);
+    const t = Object.fromEntries(d.tables.map((x) => [x.name, x.categories]));
+    assert.deepEqual(t.usuario.sort(), ['contato', 'credencial']);
+    assert.deepEqual(t.lancamento, ['financeiro']);
+  } finally { cleanup(root); }
+});

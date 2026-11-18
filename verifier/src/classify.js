@@ -77,8 +77,11 @@ function classifyRepo(ctx, disc, name) {
     role = codeFiles > 0 ? 'backend' : 'infra';
     reasons.push('nenhum sinal claro: papel assumido, confirme');
   }
-  const servesUi = routes > 0 && (html || files.some((f) => /(^|\/)public\/[^/]+\.html$/.test(f)));
+  // Next.js, Nuxt e afins servem as páginas (app/**/page.tsx, pages/*.vue) e a API do mesmo repositório.
+  const frameworkPages = files.some((f) => /^(?:src\/)?(?:app\/(?:.*\/)?page|pages\/(?!api\/)[^/]+)\.(?:tsx|jsx|js|ts|vue)$/.test(f));
+  const servesUi = routes > 0 && (html || frameworkPages || files.some((f) => /(^|\/)public\/[^/]+\.html$/.test(f)));
   if (servesUi && !fullstack && score.backend >= score.frontend) {
+    role = 'backend';
     fullstack = true;
     reasons.push('serve páginas HTML junto com a API (full stack)');
   }

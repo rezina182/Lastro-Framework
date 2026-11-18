@@ -10,8 +10,8 @@ test('o catálogo carrega e passa na validação cruzada', () => {
   const cat = loadCatalog();
   const errors = validateCatalog(cat, new Set(registry.keys()));
   assert.deepEqual(errors, []);
-  assert.equal(cat.controls.length, 160);
-  assert.equal(cat.lessons.length, 43);
+  assert.equal(cat.controls.length, 162);
+  assert.equal(cat.lessons.length, 48);
 });
 
 test('todo controle manual tem howToVerify e todo automatizado tem check existente', () => {

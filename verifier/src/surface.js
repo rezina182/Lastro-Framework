@@ -123,6 +123,16 @@ function discoverTables(ctx, categories) {
       tables.set(name, t);
     }
   }
+  // Modelos do Prisma (schema.prisma): cada "model X { ... }" vira uma tabela, com as categorias que os campos sugerem.
+  for (const f of ctx.files.filter((x) => /\.prisma$/i.test(x)).slice(0, 20)) {
+    const text = ctx.read(f) || '';
+    for (const m of text.matchAll(/^\s*model\s+([A-Za-z_]\w*)\s*\{([\s\S]*?)^\s*\}/gm)) {
+      const name = m[1].toLowerCase();
+      if (tables.has(name)) continue;
+      const cats = categories.filter((c) => new RegExp(c.re.source, 'i').test(m[2])).map((c) => c.id);
+      tables.set(name, { name, categories: new Set(cats), file: f });
+    }
+  }
   return [...tables.values()].slice(0, MAX_TABLES).map((t) => ({ name: t.name, categories: [...t.categories], file: t.file }));
 }
 

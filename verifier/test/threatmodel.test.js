@@ -194,7 +194,10 @@ test('motor: o relatório traz o rascunho, com ameaças de id estável, estado d
     assert.ok(t.assets.some((a) => a.source === 'descoberto' && /sensíveis/.test(a.name)), 'indício de dado sensível vira ativo descoberto');
     const auth = t.threats.filter((x) => x.surface === 'auth');
     assert.ok(auth.length > 0);
-    assert.ok(auth.every((x) => x.state === 'unproven'), 'controles manuais sem atestação: sem prova');
+    // Controles manuais sem atestação: sem prova. A exceção é a rota de escrita sem autenticação vista do projeto de
+    // teste, que o AUTH-044 (automático) acusa: a ameaça fica exposta.
+    assert.ok(auth.every((x) => x.state === 'unproven' || (x.state === 'exposed' && x.controls.includes('AUTH-044'))), 'controles manuais sem atestação: sem prova');
+    assert.ok(auth.some((x) => x.state === 'unproven'));
     assert.ok(!JSON.stringify(r).includes('S3cr3tValue'));
   } finally { cleanup(root); }
 });

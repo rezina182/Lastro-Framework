@@ -244,3 +244,51 @@ test('WEB-022: testa também as rotas de métrica e diagnóstico que o próprio 
     assert.deepEqual(r.findings.map((f) => f.key), ['exposed:/api/metrics/internal']);
   } finally { await srv.close(); cleanup(root); }
 });
+
+// Achados no App C (Next.js): rota administrativa de escrita sem autenticação e o corpo da requisição gravado direto
+// no ORM. Os casos bons garantem que rota protegida, rota pública justificada e corpo validado por esquema não acusam.
+const { discover } = require('../src/discover');
+
+test('AUTH-044: rota de escrita sem autenticação vista (administrativa e comum), justificada e protegida', () => {
+  withCtx({
+    'package.json': JSON.stringify({ name: 'n', version: '1.0.0', dependencies: { next: '15.0.0' } }),
+    'app/api/admin/limpar/route.ts': 'export async function POST() { await prisma.x.deleteMany() }\n',
+    'app/api/itens/[id]/route.ts': 'export async function DELETE(req) { await prisma.item.delete({ where: { id } }) }\n',
+    'app/api/contas/route.ts': "import { getSession } from '@/lib/sessao';\nexport async function POST(req) { const s = await getSession(); }\n",
+    'app/api/webhooks/pagamento/route.ts': 'export async function POST(req) { return new Response() }\n',
+    'app/api/contato/route.ts': '// lastro-ignore unauth-write: formulário público de contato, com limite por IP\nexport async function POST(req) { return new Response() }\n',
+    'app/api/itens/route.ts': 'export async function GET() { return Response.json([]) }\n',
+  }, (ctx) => {
+    const r = A.unauthWriteRoutes(discover(ctx));
+    assert.equal(r.findings.length, 2);
+    const [admin, rest] = r.findings;
+    assert.equal(admin.severity, 'high');
+    assert.match(admin.message, /^1 rota\(s\) administrativa\(s\) de escrita sem autenticação vista no código: POST \/api\/admin\/limpar \(app\/api\/admin\/limpar\/route\.ts:1\)/);
+    assert.match(rest.message, /^1 rota\(s\) de escrita sem autenticação vista no código: DELETE \/api\/itens\/:id/);
+    assert.doesNotMatch(JSON.stringify(r.findings), /contas|webhooks|contato|GET/);
+  });
+  // Montagem com autenticação que o kit não ligou às rotas: pode estar protegida, então médio, sem bloquear.
+  withCtx({
+    'src/app.js': "const r = criarRotas();\napp.use('/api', exigirSessao, r);\n",
+    'src/rotas.js': "router.post('/pedidos', criar);\n",
+  }, (ctx) => {
+    const r = A.unauthWriteRoutes(discover(ctx));
+    assert.deepEqual(r.findings.map((f) => f.severity), ['medium']);
+    assert.match(r.findings[0].message, /montagem de roteador com autenticação/);
+  });
+  withCtx({ 'src/a.js': 'const x = 1;\n' }, (ctx) => assert.equal(A.unauthWriteRoutes(discover(ctx)).tested, 0));
+});
+
+test('AUTH-045: corpo cru gravado no ORM acusa; corpo validado por esquema e campos escolhidos não', () => {
+  withCtx({
+    'app/api/a/route.ts': 'export async function PUT(request) {\n  const body = await request.json()\n  return prisma.fonte.update({ where: { id }, data: body })\n}\n',
+    'app/api/b/route.ts': 'export async function POST(request) {\n  const body = Esquema.parse(await request.json())\n  return prisma.fonte.create({ data: body })\n}\n',
+    'app/api/c/route.ts': 'export async function POST(request) {\n  const body = await request.json()\n  const dados = Esquema.parse(body)\n  return prisma.fonte.create({ data: { nome: dados.nome } })\n}\n',
+    'src/rotas.js': "router.post('/x', async (req, res) => { await Pedido.create(req.body); });\nrouter.put('/y', async (req, res) => { await Pedido.update({ nome: req.body.nome }, { where: { id } }); });\n",
+    'src/d.js': "const body = await request.json()\nconst ok = schema.safeParse(body)\nawait prisma.x.update({ where: { id }, data: body })\n",
+  }, (ctx) => {
+    const r = A.massAssignment(ctx);
+    assert.deepEqual(r.findings.map((f) => f.location).sort(), ['app/api/a/route.ts:3', 'src/rotas.js:1']);
+    assert.match(r.findings[0].message, /Corpo da requisição gravado direto no banco/);
+  });
+});

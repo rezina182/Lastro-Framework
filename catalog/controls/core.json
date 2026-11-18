@@ -18,7 +18,7 @@
         { "std": "ASVS", "id": "V13.3.1", "covers": "partial", "note": "só arquivos de ambiente e chaves no repositório; ver CORE-022" },
         { "std": "SSDF", "id": "PW.9.1", "note": "o exemplo sobre segredos embutidos aparece no rascunho da v1.2" }
       ],
-      "origin": ["L-A05", "L-R04"]
+      "origin": ["L-A05", "L-R04", "L-C04"]
     },
     {
       "id": "CORE-002",
@@ -213,7 +213,7 @@
         { "std": "OpenSSF", "id": "Finding-and-Fixing-Vulnerabilities-Using-AI" },
         { "std": "AWS", "id": "agentic-ai-security/2.1", "note": "threat modeling no desenho" }
       ],
-      "origin": ["L-R09"]
+      "origin": ["L-R09", "L-C03"]
     },
     {
       "id": "CORE-013",

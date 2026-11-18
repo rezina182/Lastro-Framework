@@ -23,7 +23,7 @@ const JS_ROUTE = /\b([A-Za-z_$][\w$]*)\.(get|post|put|patch|delete|all)\s*\(\s*(
 const JS_GLOBAL_USE = /\b(?:app|server|api|router)\.use\s*\(\s*([^)]*)\)/;
 const PY_ROUTE = /^\s*@\s*\w+\.(?:route|get|post|put|patch|delete)\s*\(\s*(['"])(\/[^'"]*)\1(.*)$/;
 const AUTH_HINT = /(auth|login|session|sess[aã]o|autentic|autoriz|exigir|permiss|logado|token|jwt|passport|protect|guard|role|admin|verify|credential)/i;
-const PUBLIC_PATH = /(^\/$|login|logout|signin|signup|register|health|status|ping|public|webhook|callback|manifest|robots|favicon|\.well-known|static|assets|nps|reset|forgot|recover|verify-email|sw\.js)/i;
+const PUBLIC_PATH = /(^\/$|login|logout|signin|signup|register|health|status|ping|public|webhook|callback|manifest|robots|favicon|\.well-known|static|assets|nps|reset|forgot|recover|verify-email|sw\.js|cadastr|esqueci|recuperar|redefinir-senha|entrar|\/sair\b)/i;
 
 const STORE_DEPS = {
   pg: 'PostgreSQL', mysql: 'MySQL', mysql2: 'MySQL', sqlite3: 'SQLite', 'better-sqlite3': 'SQLite', mongoose: 'MongoDB', mongodb: 'MongoDB',
@@ -216,7 +216,9 @@ function discoverRoutes(ctx, files) {
       }
       let auth;
       // "/" dentro de um roteador montado com autenticação é a raiz do módulo (/api/pedidos), não a home pública.
-      if (PUBLIC_PATH.test(route) && !(route === '/' && mounted.has(f))) auth = 'publica-esperada';
+      // Rota pública de propósito, justificada com "lastro-ignore unauth-write: motivo" na linha ou na anterior.
+      if (IGNORE_UNAUTH.test(`${lines[i - 1] || ''}\n${line}`)) auth = 'publica-esperada';
+      else if (PUBLIC_PATH.test(route) && !(route === '/' && mounted.has(f))) auth = 'publica-esperada';
       else if (AUTH_HINT.test(rest)) auth = 'visivel';
       else if (!isPy && i + 1 > globalAuthLine) auth = 'global';
       else if (mounted.has(f)) auth = 'montagem';
@@ -224,7 +226,66 @@ function discoverRoutes(ctx, files) {
       routes.push({ method, path: route.slice(0, 120), file: f, line: i + 1, auth });
     });
   }
+  for (const r of nextRoutes(ctx, files)) if (routes.length < MAX_ROUTES) routes.push(r);
   return routes;
+}
+
+// Next.js: a rota vem do caminho do arquivo, não de app.get('/x'). App Router: app/**/route.ts com "export function GET";
+// Pages Router: pages/api/**. O middleware.ts da raiz (ou de src/) vale para os caminhos do "matcher".
+const IGNORE_UNAUTH = /lastro-ignore\s+unauth-write\s*:\s*\S/;
+const NEXT_APP_ROUTE = /^(?:src\/)?app\/(.*\/)?route\.(?:ts|js|mjs)$/;
+const NEXT_PAGES_API = /^(?:src\/)?pages\/(api\/.*)\.(?:ts|js|mjs)$/;
+const NEXT_METHOD = /^\s*export\s+(?:async\s+)?(?:function\s+|const\s+)(GET|POST|PUT|PATCH|DELETE)\b/;
+
+/** "/app/(painel)/usuarios/[id]" vira "/usuarios/:id"; grupos entre parênteses e pastas privadas (_x) saem. */
+function nextPath(dir) {
+  const parts = dir.split('/').filter(Boolean).filter((p) => !/^\(.*\)$/.test(p) && !p.startsWith('@'));
+  const segs = parts.map((p) => (/^\[\[?\.\.\./.test(p) ? '*' : /^\[(.+)\]$/.test(p) ? `:${p.slice(1, -1)}` : p));
+  return `/${segs.join('/')}`.replace(/\/index$/, '') || '/';
+}
+
+/** O middleware do Next.js: se tem pista de autenticação, a quais caminhos ele se aplica (matcher). */
+function nextMiddleware(ctx) {
+  const f = ctx.files.find((x) => /^(?:src\/)?middleware\.(?:ts|js|mjs)$/.test(x));
+  if (!f) return null;
+  const text = ctx.read(f) || '';
+  if (!AUTH_HINT.test(text)) return null;
+  const at = text.search(/matcher\s*:/);
+  const list = at < 0 ? [] : [...text.slice(at, at + 1500).split(/\]/)[0].matchAll(/['"`]([^'"`]+)['"`]/g)].map((m) => m[1]);
+  // Sem matcher: vale para tudo. "/((?!api|_next).*)": vale para tudo, menos os prefixos excluídos.
+  const tests = list.map((m) => {
+    const neg = /^\/\(\(\?!([^)]*)\)/.exec(m);
+    if (neg) { const ex = neg[1].split('|').map((x) => x.replace(/\\/g, '').replace(/\..*$/, '')).filter(Boolean); return (p) => !ex.some((e) => p.slice(1).startsWith(e)); }
+    const prefix = m.split(/[:(*]/)[0].replace(/\/$/, '');
+    return (p) => p === prefix || p.startsWith(`${prefix}/`) || prefix === '';
+  });
+  return { file: f, covers: (p) => !tests.length || tests.some((t) => t(p)) };
+}
+
+function nextRoutes(ctx, files) {
+  const out = [];
+  const mw = nextMiddleware(ctx);
+  for (const f of files) {
+    const app = NEXT_APP_ROUTE.exec(f);
+    const pages = !app && NEXT_PAGES_API.exec(f);
+    if (!app && !pages) continue;
+    const route = app ? nextPath((app[1] || '').replace(/\/$/, '')) : nextPath(pages[1]);
+    const text = ctx.read(f) || '';
+    const lines = text.split(/\r?\n/);
+    // Pista de autenticação no próprio arquivo (sessão, token, guarda): vale para os métodos dele.
+    const fileAuth = AUTH_HINT.test(lines.filter((l) => !/^\s*(import|\/\/|\*)/.test(l)).join('\n'));
+    const auth = PUBLIC_PATH.test(route) ? 'publica-esperada' : fileAuth ? 'visivel' : mw && mw.covers(route) ? 'global' : 'nao-vista';
+    let found = 0;
+    lines.forEach((line, i) => {
+      const m = NEXT_METHOD.exec(line);
+      if (!m) return;
+      found += 1;
+      const ignored = IGNORE_UNAUTH.test(`${lines[i - 1] || ''}\n${line}`);
+      out.push({ method: m[1], path: route.slice(0, 120), file: f, line: i + 1, auth: ignored ? 'publica-esperada' : auth });
+    });
+    if (!found && pages) out.push({ method: 'ALL', path: route.slice(0, 120), file: f, line: 1, auth });
+  }
+  return out;
 }
 
 /** Montagens de roteador com autenticação, como app.use('/api', requireAuth, router). O kit não liga a montagem aos arquivos de rotas. */
@@ -316,6 +377,8 @@ function discover(ctx) {
       byAuth,
       authMounts: countAuthMounts(ctx, files),
       examples: withoutAuth.slice(0, MAX_EXAMPLES).map((r) => ({ method: r.method, path: r.path, location: `${r.file}:${r.line}` })),
+      // Rotas de escrita sem autenticação vista (AUTH-044), todas, até 60.
+      unauthWrites: withoutAuth.filter((r) => ['POST', 'PUT', 'PATCH', 'DELETE', 'ALL'].includes(r.method)).slice(0, 60).map((r) => ({ method: r.method, path: r.path, location: `${r.file}:${r.line}` })),
       uploadRoutes: routes.filter((r) => /(upload|import|attach|arquivo|file|media|foto|imagem|avatar)/i.test(r.path) && r.method !== 'GET').slice(0, 6).map((r) => `${r.method} ${r.path}`),
       // GET da própria aplicação com cara de métrica, diagnóstico ou documentação, sem parâmetro (a sonda WEB-022 testa).
       diag: [...new Set(routes.filter((r) => r.method === 'GET' && /(metric|debug|diagn|swagger|openapi|api-?docs|actuator|stats|internal|interno|monitor)/i.test(r.path) && !/[:{*]/.test(r.path)).map((r) => r.path))].slice(0, 10),

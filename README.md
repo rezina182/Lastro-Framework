@@ -28,9 +28,9 @@ O LASTRO parte de uma regra: **o que obriga fica fora do modelo**. A IA é orien
 
 | | |
 |---|---|
-| Controles no catálogo | 160, em 8 escopos (base, web, autenticação, dados pessoais, tempo real, upload, ativos de mídia, agente de código) |
-| Verificações automáticas | 39 |
-| Lições de origem | 43, de aplicações reais e de pesquisa: cada controle diz de onde veio |
+| Controles no catálogo | 162, em 8 escopos (base, web, autenticação, dados pessoais, tempo real, upload, ativos de mídia, agente de código) |
+| Verificações automáticas | 41 |
+| Lições de origem | 48, de três aplicações reais e de pesquisa: cada controle diz de onde veio |
 | Requisitos do ASVS 5.0 | os 345 estão mapeados; os 253 até o nível 2 têm controle no catálogo |
 | Falhas plantadas detectadas no banco de testes | 33 de 37, sem nenhum falso positivo nas aplicações limpas |
 | Dependências para instalar | 0 (só Node 22 ou mais novo) |

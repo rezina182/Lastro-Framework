@@ -20,10 +20,10 @@ const PACK_PREFIX = {
 const CHECK_TYPES = ['automated', 'manual'];
 const TICKET_STATUS = ['open', 'in_progress', 'done', 'accepted'];
 const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
-const LESSON_SOURCES = { A: 'app-a', B: 'app-b', R: 'research' };
+const LESSON_SOURCES = { A: 'app-a', B: 'app-b', C: 'app-c', R: 'research' };
 
 const ID_CONTROL = /^(CORE|WEB|AUTH|PII|RT|UP|AST|AG)-\d{3}$/;
-const ID_LESSON = /^L-[ABR]\d{2}$/;
+const ID_LESSON = /^L-[ABCR]\d{2}$/;
 const ID_RISK = /^RISK-\d{4}$/;
 const ID_TICKET = /^T-\d{4}$/;
 const ID_CHECK = /^(repo|http)\.[a-z0-9][a-z0-9.-]*$/;
