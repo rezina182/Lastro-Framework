@@ -29,7 +29,18 @@ function validateAuthProbes(a) {
   const errs = [];
   const w = 'profile.authProbes';
   if (!isObj(a)) return [`${w}: deve ser objeto`];
-  keys(a, ['login', 'accounts', 'protected'], ['logout', 'objects', 'csrf'], w, errs);
+  keys(a, ['login', 'accounts', 'protected'], ['logout', 'objects', 'csrf', 'csrfToken'], w, errs);
+
+  // Token anti-CSRF por sessão: o login devolve no JSON (field) e as escritas legítimas o mandam num cabeçalho (header).
+  if (a.csrfToken !== undefined) {
+    if (!isObj(a.csrfToken)) errs.push(`${w}.csrfToken: deve ser objeto`);
+    else {
+      keys(a.csrfToken, ['field', 'header'], [], `${w}.csrfToken`, errs);
+      if ('field' in a.csrfToken && !FIELD_NAME.test(String(a.csrfToken.field))) errs.push(`${w}.csrfToken.field: nome de campo inválido`);
+      if ('header' in a.csrfToken && !/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(String(a.csrfToken.header))) errs.push(`${w}.csrfToken.header: nome de cabeçalho inválido`);
+      if (/^(cookie|host|origin|content-length|authorization)$/i.test(String(a.csrfToken.header))) errs.push(`${w}.csrfToken.header: escolha o cabeçalho do token, não um cabeçalho reservado`);
+    }
+  }
 
   if (isObj(a.login)) {
     keys(a.login, ['path'], ['format', 'userField', 'passwordField'], `${w}.login`, errs);
@@ -90,7 +101,9 @@ function validateAuthProbes(a) {
         if (c.format !== undefined) oneOf(c.format, FORMATS, `${cw}.format`, errs);
         if (c.body !== undefined) {
           if (!isObj(c.body) || Object.keys(c.body).length > 20) errs.push(`${cw}.body: objeto com até 20 campos`);
-          else for (const [k, v] of Object.entries(c.body)) if (!['string', 'number', 'boolean'].includes(typeof v) || String(v).length > 200) errs.push(`${cw}.body.${k}: use texto, número ou booleano (máx. 200 caracteres)`);
+          else if ((c.format || 'json') === 'form') {
+            for (const [k, v] of Object.entries(c.body)) if (!['string', 'number', 'boolean'].includes(typeof v) || String(v).length > 200) errs.push(`${cw}.body.${k}: em formulário, use texto, número ou booleano (máx. 200 caracteres)`);
+          } else if (JSON.stringify(c.body).length > 4000) errs.push(`${cw}.body: JSON de até 4000 caracteres`);
         }
       });
     }

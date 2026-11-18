@@ -36,9 +36,10 @@ export LASTRO_B_USER=conta-teste-b   LASTRO_B_PASS='...'
 }
 ```
 
+- `csrfToken` (opcional): quando a aplicação usa token anti-CSRF por sessão, diga em que campo do JSON do login ele vem e em que cabeçalho as escritas o mandam, por exemplo `{ "field": "csrfToken", "header": "X-CSRF-Token" }`. A requisição legítima e o logout levam o token. A forjada, não, porque outro site não consegue lê-lo. Sem declarar o token, a sonda de CSRF fica inconclusiva numa aplicação que o exige.
 - `protected`: uma rota que exige sessão (200 logado, 401, 403 ou redirecionamento sem login).
 - `objects`: rotas de **objetos privados**. `{id}` é trocado pelo identificador de cada conta. `ids.a` é um objeto da conta A, e `ids.b` é um objeto da conta B.
-- `csrf`: rotas que mudam estado, com um `body` que o servidor aceita. A sonda muda dados de verdade no staging.
+- `csrf`: rotas que mudam estado, com um `body` que o servidor aceita. Em JSON, o corpo pode ter listas e objetos (até 4000 caracteres). Em formulário, só valores simples. A sonda muda dados de verdade no staging.
 - `logout` e `csrf` são opcionais. Sem rotas declaradas, o controle correspondente não é testado.
 
 3. Rode, só em staging ou local:
@@ -68,6 +69,19 @@ lastro check --url https://staging.exemplo --auth --confirm-non-production
 - A resposta 2xx com texto curto de negação (por exemplo, `{"error":"Forbidden"}`) é tratada como negada. Uma API que devolve 200 com outro formato de erro pode gerar falso positivo: ajuste a rota ou use `lastro-ignore` no código.
 - O CSRF avalia o servidor. Se o cookie tem `SameSite=Strict`, o navegador já não envia o cookie em requisição entre sites. A sonda ainda cobra a recusa no servidor, que é a defesa que não depende do navegador.
 - Só login por usuário e senha em formulário ou JSON. Login federado (OIDC, SAML) não é suportado.
+
+## Testado numa aplicação real (App B, 2026-11-17)
+
+Num clone do App B, com o app local e banco descartável, duas contas de professor de teste e um quiz de cada:
+
+| Controle | Antes (só sondas sem login) | Com `--auth` |
+|---|---|---|
+| AUTH-003 | sem prova (o cookie só aparece no login) | **verificado**: `__Host-` com `HttpOnly`, `Secure` e `SameSite=Strict` |
+| AUTH-027 | sem prova | passou em 3 testes (conta A e B não leem o quiz uma da outra; anônimo recebe 401) |
+| WEB-013 | sem prova | passou: a escrita de origem estranha e sem token foi recusada |
+| AUTH-023 | sem prova | passou: o cookie antigo deixou de valer depois do logout |
+
+O teste real achou duas falhas do kit, corrigidas antes da medição: a sonda de CSRF não sabia mandar o token anti-CSRF (ficaria inconclusiva numa aplicação bem protegida), e um logout recusado por falta do token virava falso positivo de "sessão não encerrada". Hoje, logout recusado é inconclusivo.
 
 ## Medido no banco de falhas
 

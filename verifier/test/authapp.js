@@ -12,7 +12,10 @@ const ACCOUNTS = { a: { user: 'alice', password: 'pa' }, b: { user: 'bob', passw
 
 function app(opt = {}) {
   const sessions = new Map();
+  const tokens = new Map();
   let counter = 0;
+  // opt.token: como muitas aplicações reais, exige o cabeçalho X-CSRF-Token (devolvido no login) em toda escrita.
+  const tokenOk = (req, sid) => !opt.token || (sid && req.headers['x-csrf-token'] === tokens.get(sid));
   return serve((req, res) => {
     let raw = '';
     req.on('data', (c) => { raw += c; });
@@ -28,8 +31,9 @@ function app(opt = {}) {
         counter += 1;
         const t = `t${counter}x`;
         sessions.set(t, j.username);
+        tokens.set(t, `csrf${counter}`);
         res.setHeader('Set-Cookie', `sid=${t}; Path=/; HttpOnly`);
-        return send(200, { ok: true });
+        return send(200, opt.token ? { ok: true, csrfToken: `csrf${counter}` } : { ok: true });
       }
       if (url === '/api/me') return opt.openProtected || user ? send(200, { user }) : send(401, { error: 'login' });
       const m = /^\/api\/orders\/(\d+)$/.exec(url);
@@ -41,10 +45,11 @@ function app(opt = {}) {
       if (url === '/api/profile' && req.method === 'POST') {
         if (!user) return send(401, { error: 'login' });
         const same = req.headers['sec-fetch-site'] === 'same-origin' && req.headers.origin === `http://${req.headers.host}`;
-        if (!opt.csrf && !same) return send(403, { error: 'origem' });
+        if (!opt.csrf && (!same || !tokenOk(req, sid))) return send(403, { error: 'origem' });
         return send(200, { ok: true });
       }
       if (url === '/logout' && req.method === 'POST') {
+        if (!tokenOk(req, sid)) return send(403, { error: 'token' });
         if (!opt.logoutBug) sessions.delete(sid);
         res.setHeader('Set-Cookie', 'sid=; Path=/; Max-Age=0');
         return send(200, { ok: true });

@@ -96,3 +96,30 @@ test('authprobe: as contas vêm do ambiente e só os NOMES que faltam são apont
   assert.doesNotMatch(JSON.stringify(r.missing), /segredo-a/);
   assert.deepEqual(readAccounts(CFG, { T_A_USER: 'a', T_A_PASS: 'x', T_B_USER: 'b', T_B_PASS: 'y' }).missing, []);
 });
+
+test('authprobe: aplicação com token anti-CSRF no cabeçalho passa quando o perfil declara o token', async () => {
+  const cfg = { ...CFG, csrfToken: { field: 'csrfToken', header: 'X-CSRF-Token' } };
+  const r = await probe({ token: true }, cfg);
+  assert.equal(r.inconclusive, null);
+  for (const id of ['WEB-013', 'AUTH-023']) {
+    assert.deepEqual(r.results[id].findings, [], id);
+    assert.match(r.results[id].notes[0], /passou em/, id);
+  }
+  // Com token e o servidor aceitando origem estranha sem token, o CSRF é achado.
+  const bad = await probe({ token: true, csrf: true }, cfg);
+  assert.deepEqual(keysOf(bad, 'WEB-013'), ['csrf:POST:/api/profile']);
+});
+
+test('authprobe: sem declarar o token, a escrita legítima recusada fica inconclusiva e o logout recusado não vira falso positivo', async () => {
+  const r = await probe({ token: true });
+  assert.deepEqual(r.results['WEB-013'].findings, []);
+  assert.match(r.results['WEB-013'].notes.join(' '), /declare "csrfToken"/);
+  // O logout foi recusado (403), então a sessão continuar valendo é o esperado: nada de "logout-replay".
+  assert.deepEqual(r.results['AUTH-023'].findings, []);
+  assert.match(r.results['AUTH-023'].notes.join(' '), /inconclusiva no logout: \/logout recusou o pedido \(HTTP 403\)/);
+});
+
+test('authprobe: login que não devolve o token declarado é inconclusivo', async () => {
+  const r = await probe({}, { ...CFG, csrfToken: { field: 'csrfToken', header: 'X-CSRF-Token' } });
+  assert.match(r.inconclusive, /não devolveu o token anti-CSRF no campo "csrfToken"/);
+});

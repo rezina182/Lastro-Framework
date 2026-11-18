@@ -48,9 +48,21 @@ async function login(client, cfg, account, label, legit) {
   if (!res.ok) return { ok: false, reason: `login da conta ${label} sem resposta (${res.error})` };
   if (res.status >= 400) return { ok: false, reason: `login da conta ${label} recusado (HTTP ${res.status})` };
   if (jar.size() === 0) return { ok: false, reason: `o login da conta ${label} não devolveu cookie de sessão` };
+  let token = null;
+  if (cfg.csrfToken) {
+    try { token = JSON.parse(res.body)[cfg.csrfToken.field]; } catch (e) { token = null; }
+    if (typeof token !== 'string' || token.length === 0 || token.length > 512) {
+      return { ok: false, reason: `o login da conta ${label} não devolveu o token anti-CSRF no campo "${cfg.csrfToken.field}"` };
+    }
+  }
   const me = await client.send('GET', cfg.protected, { jar });
   if (!is2xx(me)) return { ok: false, reason: `a conta ${label} entrou, mas ${cfg.protected} não aceitou a sessão (HTTP ${me.status || 0})` };
-  return { ok: true, jar };
+  return { ok: true, jar, token };
 }
 
-module.exports = { makeClient, login, encodeBody, contentType, is2xx, granted, looksDenied };
+/** Cabeçalho do token anti-CSRF da conta, para requisições legítimas. Vazio se o perfil não declara token. */
+function tokenHeader(cfg, token) {
+  return cfg.csrfToken && token ? { [cfg.csrfToken.header.toLowerCase()]: token } : {};
+}
+
+module.exports = { makeClient, login, tokenHeader, encodeBody, contentType, is2xx, granted, looksDenied };

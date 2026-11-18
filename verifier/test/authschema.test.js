@@ -48,13 +48,27 @@ test('authProbes: contas iguais, objetos iguais e caminhos inseguros são recusa
   for (const re of [/usuários diferentes/, /objeto da conta a e o da conta b/, /use \{id\}/, /login\.path/, /protected/, /csrf\[0\]\.method/]) assert.match(errs, re);
 });
 
+test('authProbes: csrfToken com campo e cabeçalho válidos; cabeçalho reservado é recusado', () => {
+  assert.deepEqual(validateAuthProbes({ ...valid(), csrfToken: { field: 'csrfToken', header: 'X-CSRF-Token' } }), []);
+  assert.match(validateAuthProbes({ ...valid(), csrfToken: { field: 'csrfToken', header: 'Cookie' } }).join('\n'), /reservado/);
+  assert.match(validateAuthProbes({ ...valid(), csrfToken: { field: 'x y', header: 'X-T' } }).join('\n'), /csrfToken\.field/);
+  assert.match(validateAuthProbes({ ...valid(), csrfToken: { header: 'X-T' } }).join('\n'), /ausente "field"/);
+});
+
 test('authProbes: campos obrigatórios, desconhecidos e tipos errados', () => {
   assert.match(validateAuthProbes({}).join('\n'), /campo obrigatório ausente "login"/);
   assert.match(validateAuthProbes('x').join('\n'), /deve ser objeto/);
   const a = valid();
   a.extra = 1;
   a.objects = Array.from({ length: 21 }, () => ({ path: '/x/{id}', ids: { a: '1', b: '2' } }));
+  a.csrf[0].format = 'form';
   a.csrf[0].body = { cookie: { dentro: 1 } };
   const errs = validateAuthProbes(a).join('\n');
-  for (const re of [/campo desconhecido "extra"/, /lista de até 20/, /body\.cookie/]) assert.match(errs, re);
+  for (const re of [/campo desconhecido "extra"/, /lista de até 20/, /body\.cookie: em formulário/]) assert.match(errs, re);
+  // Em JSON, corpo estruturado (listas, objetos) é aceito, com limite de tamanho.
+  const j = valid();
+  j.csrf[0].body = { titulo: 'x', perguntas: [{ tipo: 'vf', enunciado: 'a?', correta: 0 }] };
+  assert.deepEqual(validateAuthProbes(j), []);
+  j.csrf[0].body = { grande: 'x'.repeat(5000) };
+  assert.match(validateAuthProbes(j).join('\n'), /até 4000 caracteres/);
 });

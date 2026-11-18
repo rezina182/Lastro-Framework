@@ -4,6 +4,11 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Corrigido (teste real com sondas autenticadas no App B)
+- Sondas autenticadas aceitam `csrfToken` no perfil (campo do JSON do login e cabeçalho das escritas). A requisição legítima e o logout mandam o token, e a forjada não. Antes, a sonda de CSRF ficava inconclusiva numa aplicação com token.
+- Logout recusado (por exemplo, por falta de token) agora é inconclusivo. Antes, ele virava um falso positivo de "sessão não encerrada".
+- `body` das rotas de CSRF aceita JSON estruturado (listas e objetos, até 4000 caracteres). Em formulário, continuam só valores simples.
+
 ### Adicionado (histórico e portal)
 - `lastro history [--write]`: compara a execução de agora com o último registro e, com `--write`, grava em `.lastro/history/` um registro só com números, IDs e estados de controle (nada de caminho, mensagem, URL ou segredo). Nunca sobrescreve; registro inválido é ignorado com aviso.
 - `lastro site --out PASTA`: portal estático com quatro páginas (visão geral, relatório atual, playbook e histórico), sem script nem servidor, com CSP restritiva, links em lista fechada e `--theme`/`--redact`. A visão geral separa o que fazer agora (dev) das decisões e prazos (segurança: atestações que vencem, riscos aceitos, dívida, ameaças sem decisão, tickets). O histórico mostra os controles que pioraram e melhoraram. Só grava em pasta nova, vazia ou que já seja portal. Veja `docs/PORTAL.md`.

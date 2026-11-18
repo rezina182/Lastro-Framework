@@ -11,7 +11,7 @@
 //    dependendo de atestação, com a nota do que foi provado. Desconhecido não é aprovado;
 //  - qualquer dúvida (login recusado, rota protegida aberta, requisição legítima recusada) vira "inconclusivo".
 
-const { makeClient, login, encodeBody, contentType, is2xx, granted } = require('./authclient');
+const { makeClient, login, tokenHeader, encodeBody, contentType, is2xx, granted } = require('./authclient');
 
 const EVIL_ORIGIN = 'https://lastro-probe.invalid';
 const NOTE = 'Sonda autenticada:';
@@ -54,12 +54,13 @@ async function probeCsrf(client, cfg, jars, legit, out) {
     const format = c.format || 'json';
     const base = { 'content-type': contentType(format) };
     const body = encodeBody(format, c.body || {});
-    // Primeiro a requisição legítima: sem ela, uma recusa da requisição forjada não prova nada.
-    const ok = await client.send(c.method, c.path, { jar: jars.a, headers: { ...base, ...legit }, body });
+    // Primeiro a requisição legítima (com o token, se o perfil declara um): sem ela, recusar a forjada não prova nada.
+    const ok = await client.send(c.method, c.path, { jar: jars.a, headers: { ...base, ...legit, ...tokenHeader(cfg, jars.tokens.a) }, body });
     if (!granted(ok)) {
-      out.notes.push(`${NOTE} inconclusiva em ${c.method} ${c.path}: a requisição legítima não foi aceita (HTTP ${ok.status || 0}). Ajuste "body" no perfil.`);
+      out.notes.push(`${NOTE} inconclusiva em ${c.method} ${c.path}: a requisição legítima não foi aceita (HTTP ${ok.status || 0}). Ajuste "body" no perfil${cfg.csrfToken ? '' : ' ou declare "csrfToken" se a aplicação usa token anti-CSRF'}.`);
       continue;
     }
+    // A forjada imita outro site: origem estranha e sem o token (outro site não consegue lê-lo).
     const forged = await client.send(c.method, c.path, { jar: jars.a, headers: { ...base, origin: EVIL_ORIGIN, 'sec-fetch-site': 'cross-site' }, body });
     out.tested += 1;
     if (granted(forged)) out.findings.push({ severity: 'high', key: `csrf:${c.method}:${c.path}`, location: c.path, message: `${c.method} ${c.path} aceitou, com a sessão da conta a, uma requisição de origem estranha e sem token anti-CSRF (HTTP ${forged.status}). O navegador só envia o cookie conforme o SameSite, mas o servidor deve recusar por conta própria.` });
@@ -74,9 +75,16 @@ async function probeLogout(client, cfg, jars, legit, out) {
     out.notes.push(`${NOTE} inconclusiva no logout: a sessão da conta a já não era aceita em ${cfg.protected} (HTTP ${before.status || 0}).`);
     return;
   }
-  const lo = await client.send(cfg.logout.method || 'POST', cfg.logout.path, { jar: jars.a, headers: legit });
+  const method = cfg.logout.method || 'POST';
+  const extra = method === 'GET' ? {} : { 'content-type': 'application/json' };
+  const lo = await client.send(method, cfg.logout.path, { jar: jars.a, headers: { ...legit, ...extra, ...tokenHeader(cfg, jars.tokens.a) }, body: method === 'GET' ? undefined : '{}' });
   if (!lo.ok) {
     out.notes.push(`${NOTE} inconclusiva no logout: ${cfg.logout.path} sem resposta (${lo.error}).`);
+    return;
+  }
+  // Logout recusado (token, método, origem): a sessão seguir válida é o esperado, não um achado.
+  if (!is2xx(lo) && !(lo.status >= 300 && lo.status < 400)) {
+    out.notes.push(`${NOTE} inconclusiva no logout: ${cfg.logout.path} recusou o pedido (HTTP ${lo.status})${cfg.csrfToken ? '' : '; se a aplicação exige token anti-CSRF, declare "csrfToken" no perfil'}.`);
     return;
   }
   // Replay do cookie antigo: se ainda vale, o logout só apagou o cookie no navegador.
@@ -102,7 +110,7 @@ async function runAuthProbes(ctx, cfg, accounts) {
   if (!a.ok) return inconclusive(a.reason);
   const b = await login(client, cfg, accounts.b, 'b', legit);
   if (!b.ok) return inconclusive(b.reason);
-  const jars = { a: a.jar, b: b.jar };
+  const jars = { a: a.jar, b: b.jar, tokens: { a: a.token, b: b.token } };
 
   const results = emptyResults();
   await probeObjects(client, cfg, jars, legit, results['AUTH-027']);
