@@ -114,7 +114,7 @@
         { "std": "ASVS", "id": "V16.5.1", "covers": "partial", "note": "a sonda provoca poucos erros; não alcança falhas internas" },
         { "std": "ASVS", "id": "V13.4.2", "covers": "partial", "note": "detecta sinais de depuração nas respostas, não confere a configuração de todos os componentes" }
       ],
-      "origin": ["L-R12"]
+      "origin": ["L-R12", "L-A15"]
     },
     {
       "id": "WEB-008",
@@ -225,7 +225,7 @@
         { "std": "ASVS", "id": "V3.5.2", "covers": "full" },
         { "std": "ASVS", "id": "V3.5.3", "covers": "full" }
       ],
-      "origin": ["L-R12"]
+      "origin": ["L-R12", "L-A14"]
     },
     {
       "id": "WEB-014",
@@ -282,7 +282,7 @@
         { "std": "ASVS", "id": "V13.4.3", "covers": "full" },
         { "std": "ASVS", "id": "V13.4.5", "covers": "full" }
       ],
-      "origin": ["L-R12"]
+      "origin": ["L-R12", "L-A13"]
     },
     {
       "id": "WEB-017",
@@ -391,9 +391,9 @@
       "remediation": "Tire de produção ou proteja com autenticação a documentação interna, restrinja métricas e diagnóstico à rede interna e desligue a listagem de diretórios.",
       "refs": [
         { "std": "ASVS", "id": "V13.4.3", "covers": "partial", "note": "só as pastas públicas comuns" },
-        { "std": "ASVS", "id": "V13.4.5", "covers": "partial", "note": "só os caminhos comuns; os próprios da aplicação estão em WEB-016" }
+        { "std": "ASVS", "id": "V13.4.5", "covers": "partial", "note": "os caminhos comuns e as rotas de diagnóstico que a descoberta acha no código; as demais rotas próprias estão em WEB-016" }
       ],
-      "origin": ["L-R12"]
+      "origin": ["L-R12", "L-A13"]
     },
     {
       "id": "WEB-023",

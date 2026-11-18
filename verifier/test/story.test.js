@@ -107,6 +107,9 @@ test('história: sem prova só porque as sondas HTTP não rodaram desta vez não
   assert.ok(st.attention.some((x) => x === 'Pioraram desde o registro anterior: CORE-006 (verificado para falhando).'), 'falhar continua sendo piora');
   const igual = buildStory(r, { history: [{ ...before, http: false }], current, now: NOW });
   assert.ok(igual.attention.some((x) => /Pioraram desde o registro anterior: CORE-006 \(verificado para falhando\), WEB-003/.test(x)), 'execuções do mesmo tipo: piora é piora');
+  // Rodada com --active seguida de uma só com --auth (o limitador de login pede rodadas separadas): o que só a ativa mede não piorou.
+  const rodadas = buildStory(r, { history: [{ ...before, http: true, active: true, auth: false }], current: { ...current, http: true, active: false, auth: true }, now: NOW });
+  assert.ok(rodadas.attention.some((x) => /^1 controle\(s\) ficaram sem prova só porque esta execução não rodou as sondas ativas e a anterior rodou \(WEB-003\)/.test(x)));
 });
 
 test('história: o que fazer com um bloqueante usa o motivo do achado, não só o texto genérico do catálogo', () => {

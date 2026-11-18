@@ -4,6 +4,12 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Alterado (portal no formato de relatório de maturidade e base de conhecimento do App A)
+- Página inicial do portal reorganizada como um relatório de maturidade: barra de filtros (escopos, tipo de execução, data, catálogo), quatro indicadores (nota, portão, peso provado e maior gap), sumário executivo em prosa, barras de nota por escopo e por fase do ciclo, evolução, até 12 controles que exigem ação em ordem de prioridade, cartões "por que importam" (risco para o negócio, o que o kit encontrou, pilares afetados e como corrigir) e as visões do dev e do time de segurança lado a lado. A seção recolhida "Mais detalhes" saiu.
+- Visual novo em todas as páginas e no relatório: faixa do topo com a navegação, títulos com sublinhado de destaque, cartões com sombra, tabelas zebradas. Cores padrão neutras; a identidade visual entra pelo `--theme`, com variáveis novas (`--brand`, `--highlight`, `--ok-fill`, `--warn-fill`, `--bad-fill`, `--info-fill`).
+- Seis lições novas do App A (L-A12 a L-A17), ligadas a AUTH-003, AUTH-011, AUTH-016, AUTH-040, AUTH-041, AUTH-043, WEB-007, WEB-013, WEB-016 e WEB-022. Catálogo com 43 lições.
+- `CONTRIBUTING.md` descreve o ciclo de enriquecer a base de conhecimento a cada aplicação nova.
+
 ### Adicionado (pedaços automáticos e perfil derivado)
 - Cinco controles automáticos novos, separados dos manuais: WEB-022 (caminhos comuns de documentação, métricas e listagem), WEB-023 (Content-Type e charset), AUTH-040 (login limita tentativas erradas), AUTH-041 (nenhuma credencial padrão comum entra) e AUTH-042 (hash de senha com algoritmo e custo adequados). Cada um segue um requisito do ASVS (cobertura `partial`) e, verificado, vale o peso inteiro na nota. Os manuais de origem (WEB-016, WEB-018, AUTH-016, AUTH-011, AUTH-002) ficam com a parte humana, e a prova assistida deles saiu para a mesma falha não contar duas vezes. Catálogo com 160 controles e 39 verificações automáticas.
 - `lastro init` deriva o perfil do código (mesma classificação do `lastro app`), diz o motivo de cada flag ligada e pergunta o que o código não mostra (dados de menores, usuários anônimos, exposição à internet). `--blank` mantém o modelo antigo, tudo desligado. Achado no primeiro teste em outra aplicação (App A): o perfil em branco deixava 78 controles de fora.

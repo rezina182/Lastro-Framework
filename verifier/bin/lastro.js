@@ -445,7 +445,7 @@ async function main(argv) {
     const coverage = asvsLib.coverage(cat.controls, cat.asvsMap, { level: 2, states });
     const playbook = buildPlaybook(report, cat, {});
     const { tickets } = loadTickets(root);
-    const pages = buildSite({ report, history, current, playbook, tickets, coverage, theme });
+    const pages = buildSite({ report, history, current, playbook, tickets, coverage, theme, catalog: cat });
     let target;
     try { target = writeSite(outDir, pages); } catch (e) { console.error(e.message); return 3; }
     console.log(`Portal gravado em ${target} (${Object.keys(pages).length} páginas, sem script e sem servidor). Abra index.html no navegador.`);

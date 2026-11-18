@@ -47,6 +47,9 @@ function snapshot(report) {
     risk: { confirmed: tally(report.risk.summary.confirmed), potential: tally(report.risk.summary.potential) },
     threats: { total: n(tm.threats), exposed: n(tm.exposed), mitigated: n(tm.mitigated), pending: n(tm.pending) },
     http: !!report.target.url,
+    // Que sondas rodaram: comparar uma execução com --active com outra só com --auth mistura medidas diferentes.
+    active: !!(report.target.url && report.target.active),
+    auth: !!(report.target.url && report.target.authProbes),
     controls,
   };
 }
@@ -62,6 +65,7 @@ function validateSnapshot(s) {
   if (s.grade === undefined && s.level === undefined) errs.push('grade: obrigatório (nota de 0 a 10)');
   if (s.grade !== undefined && !(Number.isFinite(s.grade) && s.grade >= 0 && s.grade <= 10)) errs.push('grade: 0 a 10');
   if (s.level !== undefined && !(Number.isInteger(s.level) && s.level >= 0 && s.level <= 4)) errs.push('level (registro antigo): 0 a 4');
+  for (const k of ['http', 'active', 'auth']) if (s[k] !== undefined && typeof s[k] !== 'boolean') errs.push(`${k}: verdadeiro ou falso`);
   if (s.partialPct !== undefined && !(Number.isFinite(s.partialPct) && s.partialPct >= 0 && s.partialPct <= 100)) errs.push('partialPct: 0 a 100');
   for (const k of ['provenPct', 'machinePct', 'attestedPct', 'failedPct']) if (!Number.isFinite(s[k]) || s[k] < 0 || s[k] > 100) errs.push(`${k}: 0 a 100`);
   if (s.automatedPassRatePct !== null && !(Number.isFinite(s.automatedPassRatePct) && s.automatedPassRatePct >= 0 && s.automatedPassRatePct <= 100)) errs.push('automatedPassRatePct: 0 a 100 ou null');

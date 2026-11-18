@@ -79,6 +79,10 @@ test('portal: páginas sem script, com CSP, links só para as próprias páginas
     for (const re of [/Para quem desenvolve/, /Para o time de segurança/, /\[CORE-007\]|CORE-007/, /<svg role="img"/, /Atestações que vencem/, /ponto\(s\) desde o último registro/]) assert.match(idx, re);
     assert.match(pages['historico.html'], /<td>piorou<\/td><td>CORE-007<\/td><td>verificado<\/td><td>falhando<\/td>/);
     for (const re of [/Nota geral/, /id="em-resumo"/, /Já foi feito/, /Precisa de atenção/, /O que fazer agora/, /O que alguém precisa decidir/, /Pioraram desde o registro anterior: CORE-007/]) assert.match(idx, re);
+    // Formato de relatório de maturidade: indicadores, sumário executivo, rankings, lista de ação e "por que importam".
+    for (const re of [/Maior gap/, /Sumário executivo/, /Foram avaliados <strong>\d+ controles<\/strong>/, /Nota por escopo/, /Maturidade por fase do ciclo/, /Controles que exigem ação/, /por que importam/, /Risco para o negócio/, /class="filters"/, /class="topbar"/]) assert.match(idx, re);
+    assert.match(idx, /<article class="why-card w-bad"><h3>CORE-007 ·/);
+    assert.match(idx, /class="rank-track" role="img" aria-label="[^"]+"><span class="f-(ok|info|warn|bad)" style="width:\d+%"><\/span>/);
     for (const re of [/Resumo por escopo/, /Como foi provado/, /Próximo passo/, /href="#esc-core"/]) assert.match(pages['escopos.html'], re);
     for (const re of [/Registro de decisões/, /Decisões pendentes/]) assert.match(pages['decisoes.html'], re);
   } finally { cleanup(root); }

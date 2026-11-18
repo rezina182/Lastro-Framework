@@ -79,6 +79,48 @@
       "controls": ["CORE-015"]
     },
     {
+      "id": "L-A12",
+      "source": "app-a",
+      "title": "Contas criadas com uma senha fixa escrita no código",
+      "summary": "No teste dinâmico do App A, o cadastro de usuários pelo administrador, o reset de senha e a carga inicial usavam a mesma senha padrão, escrita no código-fonte e repetida em cinco pontos. Quem lê o repositório conhece a senha de toda conta criada assim e ainda não trocada. Lição: senha inicial aleatória por conta, entregue por canal separado, com troca obrigatória no primeiro acesso e validade curta. O kit procura o literal no código (AUTH-043) sem nunca mostrar o valor, e tenta as credenciais padrão comuns no login (AUTH-041).",
+      "controls": ["AUTH-043", "AUTH-011", "AUTH-041"]
+    },
+    {
+      "id": "L-A13",
+      "source": "app-a",
+      "title": "Rota de diagnóstico própria da aplicação, fora das listas conhecidas",
+      "summary": "O App A expõe métricas internas numa rota com nome próprio, que nenhuma lista fixa de caminhos sensíveis (actuator, debug, server-status) encontraria. Lição: descobrir as rotas de diagnóstico no próprio código (nomes como metrics, internal, debug, status, health detalhado) e sondar cada uma sem sessão. O que expõe estado interno exige autenticação ou fica só na rede interna. O kit faz isso no WEB-022 com as rotas que a descoberta acha.",
+      "controls": ["WEB-022", "WEB-016"]
+    },
+    {
+      "id": "L-A14",
+      "source": "app-a",
+      "title": "CSRF: a gravidade depende do SameSite do cookie de sessão",
+      "summary": "A sonda autenticada achou rotas do App A que mudam estado sem token anti-CSRF, mas o cookie de sessão tinha SameSite=Strict, que já impede o envio entre sites nos navegadores atuais. Tratar como alto gerava ruído; ignorar perdia a defesa em profundidade. Lição: sem SameSite o achado é alto; com Strict ou Lax é médio, e o token continua recomendado (subdomínios irmãos, navegadores antigos, GET que muda estado). Cookie com SameSite explícito e prefixo __Host- é a base.",
+      "controls": ["WEB-013", "AUTH-003"]
+    },
+    {
+      "id": "L-A15",
+      "source": "app-a",
+      "title": "JSON malformado devolvia a pilha de erro do servidor",
+      "summary": "No App A, um corpo JSON inválido caía no tratador padrão do framework, que respondia com o stack trace e caminhos de arquivos do servidor. Os testes funcionais nunca mandam JSON quebrado, então ninguém via. Lição: tratador de erro próprio também para erros de parsing do corpo, com resposta genérica ao cliente e o detalhe só no log; e uma sonda que manda corpo malformado de propósito (WEB-007).",
+      "controls": ["WEB-007"]
+    },
+    {
+      "id": "L-A16",
+      "source": "app-a",
+      "title": "Login desligado fora de produção deixa a sonda sem o que testar",
+      "summary": "No clone do App A, o login vinha desligado por uma configuração no banco, e as sondas de força bruta, credenciais padrão e sessão não tinham o que testar. Resultado inconclusivo não é aprovação. Lição: o ambiente de teste dinâmico precisa do login ligado e de duas contas de teste próprias, criadas com o mesmo hash da aplicação; quando o login não responde, o kit deixa o controle sem prova, sem dar crédito.",
+      "controls": ["AUTH-040", "AUTH-041", "AUTH-016"]
+    },
+    {
+      "id": "L-A17",
+      "source": "app-a",
+      "title": "O limitador de login interfere entre as sondas",
+      "summary": "O App A limita o login a 10 tentativas em 15 minutos. Na mesma execução, as tentativas de credenciais padrão gastaram parte desse limite, a contagem da força bruta saiu errada e as sondas autenticadas receberam 429. Lição: a força bruta soma as tentativas que outras sondas já fizeram e não conta duas vezes quando o limitador já cortou; as sondas ativas e as autenticadas rodam em rodadas separadas, com reinício ou espera da janela e intervalo entre requisições. Um 429 no login é o limitador funcionando, não falha de outro controle.",
+      "controls": ["AUTH-040", "AUTH-016"]
+    },
+    {
       "id": "L-B01",
       "source": "app-b",
       "title": "Limite de requisições com chave que o atacante controla",

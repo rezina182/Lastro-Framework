@@ -120,7 +120,12 @@ function explainGaps(g) {
   if (g.automatedNotRun.length) out.push(`${g.automatedNotRun.length} controle(s) automáticos não rodaram (${g.automatedNotRun.slice(0, 6).map((x) => x.id).join(', ')}${g.automatedNotRun.length > 6 ? '...' : ''}): precisam do endereço de um ambiente local ou de staging (--url).`);
   const f = g.failing;
   const nf = f.blocking.length + f.testOnly.length + f.review.length;
-  if (nf) out.push(`${nf} controle(s) falhando: ${f.blocking.length} bloqueiam o portão (${f.blocking.join(', ') || '-'}), ${f.review.length} pedem revisão sem bloquear (${f.review.join(', ') || '-'}) e ${f.testOnly.length} só aparecem em arquivos de teste (${f.testOnly.join(', ') || '-'}).`);
+  // Só as partes que têm controle entram na frase (nada de "0 ... (-)").
+  const parts = [
+    [f.blocking, 'bloqueiam o portão'], [f.review, 'pedem revisão sem bloquear'], [f.testOnly, 'só aparecem em arquivos de teste'],
+  ].filter(([l]) => l.length).map(([l, t]) => `${l.length} ${t} (${l.join(', ')})`);
+  const joined = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}` : parts[0];
+  if (nf) out.push(`${nf} controle(s) falhando: ${joined}.`);
   return out;
 }
 

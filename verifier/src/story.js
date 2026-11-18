@@ -92,6 +92,13 @@ function scopes(report, { now = new Date() } = {}) {
   });
 }
 
+/** Sondas que a execução anterior rodou e esta não (registros antigos sem active/auth contam como não rodadas). */
+function probesLost(before, current) {
+  if (!before || !current) return [];
+  if (before.http && !current.http) return ['as sondas HTTP'];
+  return [['active', 'as sondas ativas'], ['auth', 'as sondas autenticadas']].filter(([k]) => before[k] && !current[k]).map(([, t]) => t);
+}
+
 const cap = (arr) => (arr.length > MAX_ITEMS ? [...arr.slice(0, MAX_ITEMS), `e mais ${arr.length - MAX_ITEMS}.`] : arr);
 
 /**
@@ -122,11 +129,12 @@ function buildStory(report, { history = [], current = null, now = new Date() } =
 
   const attention = [];
   // Se a execução anterior rodou as sondas HTTP e esta não, o que virou "sem prova" não piorou: só não foi medido agora.
-  const lostHttp = !!(before && current && before.http && !current.http);
-  const notMeasured = lostHttp ? d.worsened.filter((x) => x.to === 'unverified') : [];
+  // O mesmo vale para as sondas ativas (--active) e as autenticadas (--auth), que costumam rodar em rodadas separadas.
+  const lost = probesLost(before, current);
+  const notMeasured = lost.length ? d.worsened.filter((x) => x.to === 'unverified') : [];
   const worsened = d.worsened.filter((x) => !notMeasured.includes(x));
   if (worsened.length) attention.push(`Pioraram desde o registro anterior: ${worsened.map((x) => `${x.id} (${STATE_PT[x.from]} para ${STATE_PT[x.to]})`).join(', ')}.`);
-  if (notMeasured.length) attention.push(`${notMeasured.length} controle(s) ficaram sem prova só porque esta execução não rodou as sondas HTTP e a anterior rodou (${notMeasured.slice(0, 6).map((x) => x.id).join(', ')}${notMeasured.length > 6 ? '...' : ''}). Não é piora da aplicação: compare execuções do mesmo tipo.`);
+  if (notMeasured.length) attention.push(`${notMeasured.length} controle(s) ficaram sem prova só porque esta execução não rodou ${lost.join(' nem ')} e a anterior rodou (${notMeasured.slice(0, 6).map((x) => x.id).join(', ')}${notMeasured.length > 6 ? '...' : ''}). Não é piora da aplicação: compare execuções do mesmo tipo.`);
   const failingNonBlocking = ctl.filter((c) => c.state === 'failed' && !c.findings.some((f) => f.blocking)).sort(bySev);
   if (failingNonBlocking.length) attention.push(`Falhando sem bloquear o portão (gravidade menor, baseline ou risco aceito): ${failingNonBlocking.map((c) => c.id).join(', ')}.`);
   for (const c of attested) {
@@ -189,4 +197,4 @@ function decisions(report, { now = new Date() } = {}) {
   return out;
 }
 
-module.exports = { buildStory, scopes, decisions, proofOf, nextOf, EXPIRING_DAYS };
+module.exports = { buildStory, scopes, decisions, proofOf, nextOf, probesLost, EXPIRING_DAYS };

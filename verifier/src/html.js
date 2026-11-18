@@ -42,49 +42,97 @@ const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const clamp = (n) => Math.min(100, Math.max(0, num(n)));
 const pctText = (n) => `${String(num(n)).replace('.', ',')}%`;
 
+// Visual de relatório informativo: faixa da marca no topo, barra de filtros, cartões de indicador, títulos de seção
+// com sublinhado de destaque, barras de ranking e tabelas zebradas. As cores de texto passam no contraste AA; as de
+// preenchimento (barras) ficam em variáveis separadas. As cores padrão são neutras: a identidade de uma empresa
+// (--brand, --highlight, --accent e as demais) entra por um arquivo de tema (--theme), fora do kit.
 const BASE_CSS = `
-:root{--bg:#f4f5f8;--surface:#ffffff;--surface-2:#eceef3;--text:#1c2230;--muted:#566074;--border:#d5d9e2;
---accent:#1d4ed8;--ok:#047857;--warn:#b45309;--bad:#b91c1c;--info:#0369a1;--radius:12px;
+:root{--bg:#f5f6fa;--surface:#ffffff;--surface-2:#fafbfd;--surface-3:#eef1f7;--text:#1f2430;--muted:#5a6275;--border:#e2e5ed;--border-2:#d3d8e2;
+--brand:#1d4ed8;--brand-ink:#ffffff;--highlight:#f59e0b;--accent:#1d4ed8;
+--ok:#0a7a3a;--warn:#9a5600;--bad:#c62828;--info:#1d5fd1;
+--ok-fill:#16a34a;--warn-fill:#f59e0b;--bad-fill:#ef4444;--info-fill:#3b82f6;--none-fill:#b5b8c0;
+--radius:12px;--shadow:0 1px 2px rgba(31,36,48,.06),0 4px 14px rgba(31,36,48,.06);
 --font:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--surface:#161a23;--surface-2:#1f2430;--text:#e7eaf0;--muted:#a4adbd;
---border:#2b3242;--accent:#93b4ff;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--info:#38bdf8}}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--surface:#161a23;--surface-2:#1a1f2a;--surface-3:#232a38;--text:#e7eaf0;--muted:#a4adbd;
+--border:#2b3242;--border-2:#363e50;--brand:#1e3a8a;--accent:#93b4ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--info:#7fb0ff;--shadow:none}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--font)}
 .skip{position:absolute;left:-999px;top:0;background:var(--surface);color:var(--text);padding:8px 12px}
 .skip:focus{left:8px;top:8px;z-index:9}
-.hero{padding:32px 24px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
-.wrap{max-width:1100px;margin:0 auto}
-.eyebrow{margin:0 0 4px;color:var(--muted);font-size:.85rem;letter-spacing:.08em;text-transform:uppercase}
-h1{margin:0 0 8px;font-size:1.9rem;line-height:1.2;overflow-wrap:anywhere}
+.wrap{max-width:1120px;margin:0 auto}
+.topbar{background:var(--brand);color:var(--brand-ink);padding:10px 24px}
+.topbar .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
+.brand{font-weight:800;letter-spacing:.12em;margin-right:8px}
+.topbar nav{display:flex;flex-wrap:wrap;gap:4px}
+.topbar a,.topbar strong{color:var(--brand-ink);text-decoration:none;padding:4px 10px;border-radius:999px;font-size:.88rem}
+.topbar a:hover,.topbar a:focus{background:rgba(255,255,255,.14)}
+.topbar strong{background:rgba(255,255,255,.2)}
+.hero{padding:28px 24px 0;background:var(--surface);border-bottom:1px solid var(--border-2)}
+.eyebrow{margin:0 0 4px;color:var(--accent);font-size:.8rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+h1{margin:0 0 6px;font-size:1.85rem;line-height:1.2;overflow-wrap:anywhere}
 .meta{margin:0;color:var(--muted);font-size:.92rem}
-nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-nav.toc a{color:var(--accent);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:4px 12px;font-size:.88rem}
-nav.toc a:hover,nav.toc a:focus{background:var(--surface-2)}
+.filters{display:flex;flex-wrap:wrap;gap:6px 28px;margin:16px 0 0;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
+.filters div{font-size:.88rem}
+.filters dt{display:inline;color:var(--muted);margin-right:6px}
+.filters dd{display:inline;margin:0;font-weight:600}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 14px}
+nav.toc a{color:var(--accent);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:3px 12px;font-size:.85rem;background:var(--surface)}
+nav.toc a:hover,nav.toc a:focus{background:var(--surface-3)}
 main{padding:8px 24px 48px}
-section{margin-top:32px}
-h2{margin:0 0 12px;font-size:1.25rem}
+section{margin-top:36px}
+h2{margin:0 0 14px;padding-bottom:8px;font-size:1.2rem;border-bottom:2px solid var(--highlight)}
 h3{margin:20px 0 8px;font-size:1.02rem}
+h4{margin:16px 0 6px;font-size:.95rem}
 p{margin:0 0 10px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
-.card-label{margin:0;color:var(--muted);font-size:.82rem}
-.card-value{margin:4px 0 0;font-size:1.55rem;font-weight:700;line-height:1.2}
-.card-note{margin:4px 0 0;color:var(--muted);font-size:.82rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:12px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.card-label{margin:0;color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.card-value{margin:6px 0 0;font-size:1.9rem;font-weight:800;line-height:1.15;color:var(--brand)}
+.card-note{margin:6px 0 0;color:var(--muted);font-size:.84rem}
+@media (prefers-color-scheme:dark){.card-value{color:var(--accent)}}
+.kpi{border-top:4px solid var(--brand)}
+.kpi.k-ok{border-top-color:var(--ok-fill)}.kpi.k-warn{border-top-color:var(--warn-fill)}.kpi.k-bad{border-top-color:var(--bad-fill)}.kpi.k-info{border-top-color:var(--info-fill)}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
+.lead{font-size:1.02rem;line-height:1.7}
+.lead strong{color:var(--brand)}
+@media (prefers-color-scheme:dark){.lead strong{color:var(--accent)}}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:36px}
+.card-value small{font-size:.95rem;font-weight:600;color:var(--muted)}
+.cols>section{margin-top:0}
+.rank{list-style:none;margin:0;padding:0}
+.rank li{display:grid;grid-template-columns:minmax(120px,1.3fr) 2fr 3.2rem;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--border)}
+.rank li:first-child{border-top:0}
+.rank-name{font-weight:600;overflow-wrap:anywhere}
+.rank-name small{display:block;color:var(--muted);font-weight:400;font-size:.8rem}
+.rank-track{height:10px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.rank-track span{display:block;height:100%;border-radius:999px}
+.rank-val{text-align:right;font-weight:700;white-space:nowrap}
+.f-ok{background:var(--ok-fill)}.f-warn{background:var(--warn-fill)}.f-bad{background:var(--bad-fill)}.f-info{background:var(--info-fill)}
+.why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.why-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.why-card.w-bad{border-left-color:var(--bad-fill)}.why-card.w-warn{border-left-color:var(--warn-fill)}
+.why-card h3{margin:0 0 8px;font-size:1rem}
+.why-card .label{display:block;margin:12px 0 2px;color:var(--brand);font-size:.74rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+@media (prefers-color-scheme:dark){.why-card .label{color:var(--accent)}}
+.why-card p{margin:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.tags li{margin:0;background:var(--surface-3);color:var(--text);border-radius:999px;padding:1px 10px;font-size:.78rem;font-weight:600}
 .badge{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:1px 10px;font-size:.8rem;font-weight:600;white-space:nowrap}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.info{color:var(--info)}
 .sev-critical,.sev-high{color:var(--bad)}.sev-medium{color:var(--warn)}.sev-low{color:var(--muted)}
 .bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border)}
 .bar span{display:block;height:100%}
-.seg-ok{background:var(--ok)}.seg-info{background:var(--info)}.seg-bad{background:var(--bad)}.seg-none{background:var(--border)}.seg-warn{background:var(--warn)}
+.seg-ok{background:var(--ok-fill)}.seg-info{background:var(--info-fill)}.seg-bad{background:var(--bad-fill)}.seg-none{background:var(--none-fill)}.seg-warn{background:var(--warn-fill)}
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0 0;padding:0;list-style:none;color:var(--muted);font-size:.86rem}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:baseline}
 .note{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:12px 16px;margin:12px 0}
-.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse;font-size:.92rem}
 caption{text-align:left;color:var(--muted);padding:10px 12px;font-size:.86rem}
 th,td{padding:8px 12px;text-align:left;vertical-align:top;border-top:1px solid var(--border)}
-thead th{border-top:0;background:var(--surface-2);font-weight:600;white-space:nowrap}
+thead th{border-top:0;background:var(--surface-3);color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+tbody tr:nth-child(even){background:var(--surface-2)}
 td.num,th.num{text-align:right;white-space:nowrap}
 td .bar{min-width:140px}
 code{font:.86em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface-2);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
@@ -133,7 +181,9 @@ details li{margin:6px 0;overflow-wrap:anywhere}
 .why{color:var(--muted);font-size:.84rem;margin:4px 0 0}
 a{color:var(--accent)}
 footer{padding:24px;color:var(--muted);font-size:.85rem;text-align:center}
-@media print{body{background:#fff;color:#000}.skip,nav.toc{display:none}details{border-color:#999}}
+footer .wrap{border-top:1px solid var(--border-2);padding-top:16px}
+footer strong{color:var(--text)}
+@media print{body{background:#fff;color:#000}.skip,nav.toc,.topbar nav{display:none}.card,.panel,.why-card,.table-wrap{box-shadow:none}details{border-color:#999}section{break-inside:avoid-page}}
 `;
 
 /** Valida o arquivo de tema: só CSS inofensivo, sem recursos externos nem nada que quebre o documento. */
@@ -624,7 +674,7 @@ function formatHtml(r, { coverage = null, theme = null } = {}) {
   out.push('<li>Atestação é autodeclaração com prazo. Quem escreveu o código não deve ser o único a atestar controles de nível alto.</li>');
   out.push('</ul></section>');
   if (r.legend) out.push(...legendHtml(r));
-  out.push('</div></main>', '<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</footer>', '</body>', '</html>');
+  out.push('</div></main>', '<footer><div class="wrap"><strong>LASTRO</strong> · relatório gerado automaticamente a partir das verificações do kit e das decisões registradas em .lastro/.<br>Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</div></footer>', '</body>', '</html>');
   return `${out.join('\n')}\n`;
 }
 
@@ -668,7 +718,8 @@ function archComponentsHtml(a) {
 }
 
 /** Documento HTML completo com o mesmo estilo dos relatórios (sem script, CSP restritiva, tema opcional). */
-function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null, siteNav = null }) {
+// `filters`: pares [rótulo, valor] em texto puro, mostrados na barra abaixo do título (escopo, data, tipo de execução).
+function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null, siteNav = null, filters = [] }) {
   const out = ['<!doctype html>', '<html lang="pt-BR">', '<head>', '<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">'];
   out.push(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">`);
   out.push(`<title>${h(title)}</title>`, `<style>${BASE_CSS}${theme ? `\n/* tema */\n${theme}` : ''}</style>`, '</head>', '<body>');
@@ -677,9 +728,10 @@ function htmlShell({ title, eyebrow, meta = [], nav = [], sections, theme = null
   out.push('<header class="hero"><div class="wrap">');
   out.push(`<p class="eyebrow">${h(eyebrow)}</p>`, `<h1>${h(title)}</h1>`);
   for (const m of meta) out.push(`<p class="meta">${h(m)}</p>`);
-  out.push('<nav class="toc" aria-label="Seções do relatório">', ...nav.map(([id, text]) => `<a href="#${h(id)}">${h(text)}</a>`), '</nav>', '</div></header>');
+  if (filters.length) out.push(`<dl class="filters">${filters.map(([k, v]) => `<div><dt>${h(k)}:</dt><dd>${h(v)}</dd></div>`).join('')}</dl>`); // lastro-ignore xss-sinks: rótulos e valores escapados com h()
+  out.push('<nav class="toc" aria-label="Seções desta página">', ...nav.map(([id, text]) => `<a href="#${h(id)}">${h(text)}</a>`), '</nav>', '</div></header>');
   out.push('<main id="principal"><div class="wrap">', ...sections, '</div></main>');
-  out.push('<footer>Gerado pelo LASTRO. Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</footer>', '</body>', '</html>');
+  out.push('<footer><div class="wrap"><strong>LASTRO</strong> · relatório de maturidade gerado automaticamente a partir das verificações do kit e das decisões registradas em .lastro/.<br>Este arquivo é autocontido: não carrega scripts, fontes nem imagens externas. Os links levam só a fontes oficiais (CWE, CVE, GHSA, ASVS e LGPD).</div></footer>', '</body>', '</html>');
   return `${out.join('\n')}\n`;
 }
 

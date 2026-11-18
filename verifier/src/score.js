@@ -39,7 +39,7 @@ const bandOf = (g) => (g === null || g === undefined ? null : BANDS.find((b) => 
 const gradeText = (g) => (Number.isFinite(g) ? g.toFixed(1).replace('.', ',') : 'n/d');
 
 // Crédito da prova parcial (a máquina testou parte do controle manual e passou): metade do peso, na cobertura e na
-// postura. O "peso provado" e o nível de 0 a 4 continuam só com o que foi provado por inteiro.
+// postura. O "peso provado" continua só com o que foi provado por inteiro.
 const PARTIAL_CREDIT = 0.5;
 
 function computeGrades(report, sum, provenPct) {

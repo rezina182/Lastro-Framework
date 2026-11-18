@@ -11,7 +11,7 @@ lastro site --out ../portal --theme meu-tema.css --redact "Empresa X,Produto Y"
 
 ## O histórico
 
-Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com: data, versões do kit e do catálogo, portão de CI, nível de maturidade, nota de 0 a 10 (campo `grade`, opcional para registros antigos), percentuais (provado, máquina, atestado, falhando), taxa dos automáticos, contagem de risco confirmado e potencial, ameaças e o **estado de cada controle**.
+Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com: data, versões do kit e do catálogo, portão de CI, nota de 0 a 10 (campo `grade`, opcional para registros antigos), percentuais (provado, máquina, atestado, falhando), taxa dos automáticos, contagem de risco confirmado e potencial, ameaças, que sondas rodaram (`http`, `active`, `auth`) e o **estado de cada controle**.
 
 - **Só números, IDs e estados.** Nada de caminho de arquivo, mensagem de achado, URL ou segredo. Por isso o histórico pode ser versionado e publicado como artefato do CI.
 - **Nunca sobrescreve.** Dois registros no mesmo segundo ganham sufixo.
@@ -22,12 +22,31 @@ Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com
 
 | Página | Para quem | O que mostra |
 |---|---|---|
-| `index.html` | dev e segurança | Feita para ler em um minuto. **Agora:** uma frase-resumo e três números (nota de 0 a 10, portão e peso provado, com a diferença desde o último registro). **Por que a nota está assim:** a conta das lacunas (o mesmo do `lastro gaps`) e os três próximos passos. **Mais detalhes** (recolhido): maturidade, automáticos, risco e ameaças, a história completa em quatro listas ([descritas abaixo](#a-história-dos-resultados)). **Para quem desenvolve:** o que bloqueia, como corrigir e o próximo passo. **Para segurança:** atestações que vencem em 30 dias, vencidas, riscos aceitos, dívida no baseline, ameaças sem decisão e tickets abertos por prioridade. **Evolução:** gráfico de provado e falhando |
-| `escopos.html` | dev, segurança e liderança | **O que já está implementado, por escopo** (base, web, autenticação, dados etc.): a nota de cada escopo e, para cada controle, a situação (implementado, falhando, falta provar), **como foi provado** (leitura do repositório, sonda HTTP, ou atestação com quem, quando e até quando) e o próximo passo |
+| `index.html` | dev, segurança e liderança | Relatório de maturidade, de cima para baixo (veja [a página inicial](#a-página-inicial)) |
+| `escopos.html` | dev, segurança e liderança | **O que já está implementado, por escopo** (base, web, autenticação, dados etc.): barras com a nota de cada escopo e, para cada escopo, quatro indicadores (nota, peso provado, falhando, falta provar) e cada controle com a situação (implementado, falhando, falta provar), **como foi provado** (leitura do repositório, sonda HTTP, ou atestação com quem, quando e até quando) e o próximo passo |
 | `decisoes.html` | segurança e liderança | **Registro de decisões:** atestações, riscos aceitos, a revisão do modelo de ameaças e a decisão de cada ameaça, com quem e até quando (avisa o que vence em 30 dias). **Decisões pendentes:** o que alguém ainda precisa decidir |
 | `relatorio.html` | todos | O relatório completo de hoje (o mesmo do `lastro report`), que também abre com "Em resumo" |
 | `playbook.html` | quem testa e atesta | Os roteiros dos controles manuais sem prova |
 | `historico.html` | segurança e liderança | Todos os registros e o que mudou desde o anterior: controles que pioraram, melhoraram, entraram e saíram |
+
+Todas as páginas têm a mesma moldura: a faixa do topo com a navegação, o título e a **barra de filtros** (escopos aplicáveis, tipo de execução, data e hora em UTC, versão do catálogo).
+
+### A página inicial
+
+Segue o formato de um relatório de maturidade em segurança:
+
+| Seção | O que mostra |
+|---|---|
+| **Indicadores** | Quatro cartões: nota geral de 0 a 10 (faixa, meta, postura e cobertura), portão de CI, peso provado e o **maior gap** (o escopo com a menor nota). A diferença desde o último registro aparece em cada cartão; se a execução anterior foi de outro tipo (com e sem sondas HTTP), um aviso diz que a comparação mistura medidas diferentes |
+| **Sumário executivo** | Um parágrafo com os números que importam: quantos controles e escopos, a nota, quanto tem prova (máquina, atestação, prova parcial), a meta, o que bloqueia, os três pontos mais frágeis e o escopo com o melhor e o pior resultado. Abaixo, **por que a nota está assim** (o mesmo do `lastro gaps`) |
+| **Nota por escopo** e **Maturidade por fase do ciclo** | Barras lado a lado, de 0 a 10, coloridas pela faixa (verde a partir de 8, azul a partir de 6, âmbar a partir de 4, vermelho abaixo) |
+| **Evolução** | Gráfico de provado e falhando ao longo do histórico |
+| **Controles que exigem ação** | Até 12 controles em ordem de prioridade: bloqueantes, depois falhando, depois altos e críticos sem prova; com escopo, gravidade, situação e a primeira frase do próximo passo |
+| **Controles prioritários: por que importam** | Até seis cartões com o **risco para o negócio** (o porquê do catálogo), **o que o kit encontrou** (o achado ou a situação da prova), o **impacto potencial** (os pilares afetados: confidencialidade, integridade, disponibilidade...) e **como corrigir** |
+| **Em resumo** | A história em quatro listas ([descritas abaixo](#a-história-dos-resultados)) |
+| **Para quem desenvolve** e **para o time de segurança** | Lado a lado. Dev: o que bloqueia, como corrigir e o próximo passo. Segurança: atestações que vencem em 30 dias e vencidas, riscos aceitos, dívida no baseline, risco confirmado e potencial, modelo de ameaças, verificações automáticas e tickets abertos por prioridade |
+
+As cores padrão são neutras. A identidade visual de uma empresa entra por um arquivo de tema (`--theme`), fora do kit, que redefine as variáveis de cor (`--brand` para a faixa do topo, `--highlight` para o sublinhado dos títulos, `--accent` para links e números, `--ok-fill`, `--warn-fill`, `--bad-fill` e `--info-fill` para as barras).
 
 Regras de segurança do portal:
 
@@ -50,7 +69,7 @@ O relatório (HTML e Markdown) e o portal abrem com a mesma narrativa, montada s
 
 Cada lista mostra até oito itens e diz quantos ficaram de fora.
 
-Comparar execuções de tipos diferentes engana. Se a anterior rodou as sondas HTTP (`--url`) e esta não, o que virou "sem prova" não piorou, só não foi medido agora. Esses controles aparecem num aviso próprio, e não em "Pioraram", e o card de diferença avisa a troca. Para acompanhar a evolução, grave o histórico sempre com o mesmo tipo de execução (por exemplo, o job agendado com `--url` em staging). Em "O que fazer agora", cada bloqueante traz o motivo concreto do achado (por exemplo, "o modelo de ameaças é um rascunho"); o texto genérico do catálogo só entra quando o achado não diz nada. A narrativa não cria prova nem muda estado: se um controle não tem evidência, ele aparece como "falta provar", mesmo que o código pareça certo.
+Comparar execuções de tipos diferentes engana. Se a anterior rodou as sondas HTTP (`--url`), as ativas (`--active`) ou as autenticadas (`--auth`) e esta não, o que virou "sem prova" não piorou, só não foi medido agora. Esses controles aparecem num aviso próprio, e não em "Pioraram", e os indicadores avisam a troca. Para acompanhar a evolução, grave o histórico sempre com o mesmo tipo de execução (por exemplo, o job agendado com `--url` em staging). Em "O que fazer agora", cada bloqueante traz o motivo concreto do achado (por exemplo, "o modelo de ameaças é um rascunho"); o texto genérico do catálogo só entra quando o achado não diz nada. A narrativa não cria prova nem muda estado: se um controle não tem evidência, ele aparece como "falta provar", mesmo que o código pareça certo.
 
 ## No CI
 
