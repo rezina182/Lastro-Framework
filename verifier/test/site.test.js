@@ -70,12 +70,19 @@ test('portal: páginas sem script, com CSP, links só para as próprias páginas
       // "javascript:alert(1)" como texto de teste, e esse texto sai escapado: não é link.
       assert.doesNotMatch(html, /<script|<[^>]*\son[a-z]+\s*=|<[^>]*\b(?:href|src)\s*=\s*["']?\s*javascript:/i, name);
       assert.match(html, /Content-Security-Policy" content="default-src 'none'/, name);
-      const bad = badHrefs(html).filter((u) => !PAGE_NAMES.has(u));
+      // Entre páginas, só as do portal, com ou sem âncora (analise.html#acao).
+      const bad = badHrefs(html).filter((u) => !(PAGE_NAMES.has(u.split('#')[0]) && /^[a-z]+\.html(#[a-z0-9-]+)?$/.test(u)));
       assert.deepEqual(bad, [], `${name}: link fora da lista`);
       assert.ok(!html.includes('<b>x</b>'), `${name}: nome do perfil escapado`);
       for (const other of PAGE_NAMES) if (other !== name) assert.ok(html.includes(`href="${other}"`), `${name}: navega para ${other}`);
     }
-    const idx = pages['index.html'];
+    // Visão geral: os números grandes, as decisões para agora (com quem decide e o link) e os links para o detalhe.
+    const ov = pages['index.html'];
+    for (const re of [/Os números/, /Nota geral/, /Portão de CI/, /Bloqueiam/, /Sem prova/, /ponto\(s\) desde o último registro/, /Decisões para agora/, /Onde ver os detalhes/, /class="filters"/]) assert.match(ov, re);
+    assert.match(ov, /<li class="decide d-bad"><p class="decide-who">Quem desenvolve<\/p><h3>Corrigir \d+ controle\(s\) que bloqueiam o portão<\/h3>/);
+    assert.match(ov, /<a href="analise\.html#acao">Ver o que corrigir →<\/a>/);
+    assert.doesNotMatch(ov, /por que importam<\/h2>|id="em-resumo"/, 'o detalhe fica na análise completa');
+    const idx = pages['analise.html'];
     for (const re of [/Para quem desenvolve/, /Para o time de segurança/, /\[CORE-007\]|CORE-007/, /<svg role="img"/, /Atestações que vencem/, /ponto\(s\) desde o último registro/]) assert.match(idx, re);
     assert.match(pages['historico.html'], /<td>piorou<\/td><td>CORE-007<\/td><td>verificado<\/td><td>falhando<\/td>/);
     for (const re of [/Nota geral/, /id="em-resumo"/, /Já foi feito/, /Precisa de atenção/, /O que fazer agora/, /O que alguém precisa decidir/, /Pioraram desde o registro anterior: CORE-007/]) assert.match(idx, re);

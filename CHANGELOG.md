@@ -4,6 +4,12 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Alterado (visão geral curta, README e página de apresentação)
+- A visão geral do portal ficou curta: os números grandes (nota com a meta, portão, controles que bloqueiam, peso provado e controles sem prova), as **decisões para agora** (até cinco cartões numerados, cada um com quem decide, o que fazer, por quê e o link para o detalhe), a nota por escopo e os links para as outras páginas. O conteúdo longo foi para a página nova `analise.html` (Análise completa). O portal tem sete páginas.
+- Links entre páginas do portal podem levar âncora (`analise.html#acao`), sempre para as páginas do próprio portal.
+- README reescrito para explicar o LASTRO de forma simples: por que existe, o que faz em cinco passos, os números, como começar, as peças para a IA (1 agente, 5 skills, 7 steering, 3 hooks) e como ativar.
+- Página de apresentação `docs/index.html`, autocontida (sem script, CSP restritiva), pronta para o GitHub Pages. Um teste confere os números dela e do README contra o catálogo e o adaptador.
+
 ### Alterado (portal no formato de relatório de maturidade e base de conhecimento do App A)
 - Página inicial do portal reorganizada como um relatório de maturidade: barra de filtros (escopos, tipo de execução, data, catálogo), quatro indicadores (nota, portão, peso provado e maior gap), sumário executivo em prosa, barras de nota por escopo e por fase do ciclo, evolução, até 12 controles que exigem ação em ordem de prioridade, cartões "por que importam" (risco para o negócio, o que o kit encontrou, pilares afetados e como corrigir) e as visões do dev e do time de segurança lado a lado. A seção recolhida "Mais detalhes" saiu.
 - Visual novo em todas as páginas e no relatório: faixa do topo com a navegação, títulos com sublinhado de destaque, cartões com sombra, tabelas zebradas. Paleta padrão do LASTRO roxa com destaque âmbar; outra aparência entra pelo `--theme`, com variáveis novas (`--brand`, `--highlight`, `--ok-fill`, `--warn-fill`, `--bad-fill`, `--info-fill`).

@@ -5,7 +5,7 @@ O relatório mostra uma foto. O histórico guarda as fotos ao longo do tempo, e 
 ```bash
 lastro history                 # compara agora com o último registro, sem gravar
 lastro history --write         # grava o registro em .lastro/history/
-lastro site --out ../portal    # gera o portal (seis páginas, veja a tabela abaixo)
+lastro site --out ../portal    # gera o portal (sete páginas, veja a tabela abaixo)
 lastro site --out ../portal --theme meu-tema.css --redact "Empresa X,Produto Y"
 ```
 
@@ -22,7 +22,8 @@ Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com
 
 | Página | Para quem | O que mostra |
 |---|---|---|
-| `index.html` | dev, segurança e liderança | Relatório de maturidade, de cima para baixo (veja [a página inicial](#a-página-inicial)) |
+| `index.html` | todos, para começar | **Visão geral, para ler em um minuto.** Os números grandes (nota de 0 a 10 com a meta, portão de CI, controles que bloqueiam, peso provado e controles sem prova), as **decisões para agora** (cada uma com quem decide, o que fazer, por quê e o link para o detalhe), a nota por escopo e os links para as outras páginas |
+| `analise.html` | dev, segurança e liderança | **Análise completa**, no formato de relatório de maturidade (veja [a análise completa](#a-análise-completa)) |
 | `escopos.html` | dev, segurança e liderança | **O que já está implementado, por escopo** (base, web, autenticação, dados etc.): barras com a nota de cada escopo e, para cada escopo, quatro indicadores (nota, peso provado, falhando, falta provar) e cada controle com a situação (implementado, falhando, falta provar), **como foi provado** (leitura do repositório, sonda HTTP, ou atestação com quem, quando e até quando) e o próximo passo |
 | `decisoes.html` | segurança e liderança | **Registro de decisões:** atestações, riscos aceitos, a revisão do modelo de ameaças e a decisão de cada ameaça, com quem e até quando (avisa o que vence em 30 dias). **Decisões pendentes:** o que alguém ainda precisa decidir |
 | `relatorio.html` | todos | O relatório completo de hoje (o mesmo do `lastro report`), que também abre com "Em resumo" |
@@ -31,7 +32,11 @@ Cada `lastro history --write` grava um arquivo pequeno em `.lastro/history/` com
 
 Todas as páginas têm a mesma moldura: a faixa do topo com a navegação, o título e a **barra de filtros** (escopos aplicáveis, tipo de execução, data e hora em UTC, versão do catálogo).
 
-### A página inicial
+### As decisões para agora (visão geral)
+
+Até cinco cartões numerados, na ordem: corrigir o que bloqueia o portão (quem desenvolve); provar os controles altos e críticos sem prova (quem testa); confirmar o que provavelmente não se aplica (segurança); revisar o modelo de ameaças ou decidir as ameaças pendentes (segurança); confirmar a meta e o prazo (liderança). Cada cartão leva à página com o detalhe. Os cartões só organizam o que o relatório já tem: quem decide continua sendo uma pessoa.
+
+### A análise completa
 
 Segue o formato de um relatório de maturidade em segurança:
 
@@ -51,9 +56,9 @@ A paleta padrão do LASTRO é roxa com destaque âmbar, sobre fundo lavanda clar
 Regras de segurança do portal:
 
 - **Sem script, sem servidor, sem recurso externo.** Cada página tem CSP `default-src 'none'`. O gráfico é SVG estático.
-- **Links em lista fechada.** Entre páginas, só para as seis páginas do próprio portal. Para fora, só para as fontes oficiais que os relatórios já usam (CWE, CVE, GHSA, ASVS e LGPD).
+- **Links em lista fechada.** Entre páginas, só para as sete páginas do próprio portal (com ou sem âncora, como `analise.html#acao`). Para fora, só para as fontes oficiais que os relatórios já usam (CWE, CVE, GHSA, ASVS e LGPD).
 - **Tudo que vem do projeto é escapado.** Os testes conferem com um nome de perfil que contém HTML.
-- **Não apaga nada que não seja dele.** O comando só grava numa pasta nova, vazia ou que já seja um portal (tem o marcador `.lastro-site`) e só com os nomes das seis páginas.
+- **Não apaga nada que não seja dele.** O comando só grava numa pasta nova, vazia ou que já seja um portal (tem o marcador `.lastro-site`) e só com os nomes das sete páginas.
 - **Para compartilhar:** `--redact` troca os termos por `[omitido]` em todas as páginas, inclusive no histórico.
 
 ## A história dos resultados

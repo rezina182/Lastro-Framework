@@ -229,6 +229,8 @@ No clone do App B, 120 dos 142 controles aplicáveis estavam sem prova, e 110 de
 
 **Portal no formato de relatório de maturidade:** a página inicial passou a seguir o formato de um relatório de maturidade em segurança (indicadores, sumário executivo, nota por escopo e por fase, evolução, controles que exigem ação, cartões "por que importam" com risco, impacto e correção, e as visões do dev e do time de segurança lado a lado). A paleta padrão passou a ser a do LASTRO (roxo e âmbar); outra aparência entra por `--theme`. Veja [PORTAL.md](PORTAL.md).
 
+**Visão geral para decidir:** a primeira página do portal passou a mostrar só os números grandes e as decisões para agora (quem decide, o quê, por quê e o link); o detalhe foi para a "Análise completa". O README foi reescrito e ganhou uma página de apresentação, `docs/index.html`, que conta o que o LASTRO é e como ativar o agente, as skills, o steering e os hooks.
+
 **Próximo, em ordem (lista original):** sondas novas para o que o mapa marca como "sonda" e "duas contas" (força bruta no login, AUTH-016; atribuição em massa, AUTH-028 e CORE-056; renovação do token de sessão no login, AUTH-022; cache de rota autenticada, WEB-010; listagem e documentação expostas, WEB-016; redirecionamento aberto, WEB-015); verificações de código para o que o mapa marca como "código" (CORE-015 banco no CI, CORE-017 SBOM, AUTH-002 algoritmo e custo do hash), que podem virar automáticas de verdade; um agente que percorre o mapa, roda o que dá e prepara a atestação para a pessoa confirmar.
 
 ### 5.6 Vários repositórios, segunda etapa

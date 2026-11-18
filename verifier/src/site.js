@@ -12,12 +12,13 @@ const { diff } = require('./history');
 const { gradeText } = require('./score');
 const ST = require('./story');
 const R = require('./risk');
+const PM = require('./proofmap');
 const { loadCatalog } = require('./catalog');
 
 const { h, num, table, htmlShell, pctText, sevBadge } = ui;
 
 const PAGES = [
-  ['index.html', 'Visão geral'], ['escopos.html', 'Implementado por escopo'], ['decisoes.html', 'Decisões'],
+  ['index.html', 'Visão geral'], ['analise.html', 'Análise completa'], ['escopos.html', 'Implementado por escopo'], ['decisoes.html', 'Decisões'],
   ['relatorio.html', 'Relatório atual'], ['playbook.html', 'Playbook'], ['historico.html', 'Histórico'],
 ];
 const PAGE_NAMES = new Set(PAGES.map(([f]) => f));
@@ -256,7 +257,128 @@ function whyCards(report, catalog, now) {
   return `<div class="why-grid">${cards.join('')}</div>`; // lastro-ignore xss-sinks: cartões montados acima com h()
 }
 
-function indexPage({ report, history, current, tickets, now, theme, catalog }) {
+const bySevId = (a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || a.id.localeCompare(b.id);
+const idList = (list, n = 3) => `${list.slice(0, n).map((c) => c.id).join(', ')}${list.length > n ? ` e mais ${list.length - n}` : ''}`;
+
+/**
+ * As decisões para agora, em ordem: cada uma com quem decide, o que fazer, por quê e o link para o detalhe.
+ * Só organiza o que o relatório já tem; não decide nada.
+ */
+function decisionsNow(report) {
+  const s = report.score;
+  const ctl = report.controls.filter((c) => c.state !== 'not_applicable').map((c) => ({ ...c, findings: c.findings || [], notes: c.notes || [] }));
+  const out = [];
+  const blockers = ctl.filter(blockingOf).sort(bySevId);
+  if (blockers.length) {
+    out.push({
+      tone: 'bad', who: 'Quem desenvolve', title: `Corrigir ${blockers.length} controle(s) que bloqueiam o portão`,
+      why: `${idList(blockers)}. Enquanto existirem, a nota fica limitada a ${s.grades ? s.grades.cap : 6}. O que não der para corrigir agora vira risco aceito, com dono e validade.`,
+      href: 'analise.html#acao', link: 'Ver o que corrigir',
+    });
+  }
+  const openHigh = ctl.filter((c) => c.state === 'unverified' && (c.severity === 'critical' || c.severity === 'high') && !c.controlRiskAccepted).sort(bySevId);
+  if (openHigh.length) {
+    out.push({
+      tone: 'warn', who: 'Quem testa (QA ou segurança)', title: `Provar ${openHigh.length} controle(s) alto(s) ou crítico(s) sem prova`,
+      why: `Começando por ${idList(openHigh)}. O playbook traz o passo a passo e a atestação pronta para registrar.`,
+      href: 'playbook.html', link: 'Abrir o playbook',
+    });
+  }
+  const gaps = PM.analyzeGaps({ ...report, controls: ctl });
+  if (gaps.likelyNA.length) {
+    out.push({
+      tone: 'info', who: 'Segurança', title: `Confirmar ${gaps.likelyNA.length} controle(s) que provavelmente não se aplicam`,
+      why: `${idList(gaps.likelyNA, 4)}. Registrar "não se aplica", com a justificativa, tira o controle da conta (o trecho pronto sai em lastro gaps).`,
+      href: 'escopos.html', link: 'Ver por escopo',
+    });
+  }
+  const tm = report.threatModel;
+  if (tm && (!tm.reviewed || tm.counts.pending)) {
+    out.push({
+      tone: 'info', who: 'Segurança', title: tm.reviewed ? `Decidir ${tm.counts.pending} ameaça(s) pendente(s)` : 'Revisar o modelo de ameaças',
+      why: tm.persisted ? `${tm.counts.pending} ameaça(s) sem decisão. Cada uma é mitigar, aceitar com prazo ou não se aplica; a revisão registrada libera o CORE-012.` : 'Gravar o rascunho (lastro threat-model --write), decidir cada ameaça e registrar quem revisou.',
+      href: 'decisoes.html', link: 'Ver as decisões',
+    });
+  }
+  const ctx = report.context || {};
+  if (Number.isFinite(ctx.targetGrade) && !ctx.meetsTarget) {
+    out.push({
+      tone: 'info', who: 'Liderança', title: `Confirmar a meta: nota ${gradeText(ctx.targetGrade)} (hoje ${gradeText(s.grade)})`,
+      why: blockers.length
+        ? 'A meta vem do risco desta aplicação. As decisões acima são o caminho até ela: confirme a meta e defina o prazo.'
+        : `${s.nextStep} Confirme a meta e defina o prazo.`,
+      href: 'analise.html#sumario', link: 'Ver a análise completa',
+    });
+  }
+  return out;
+}
+
+/** Visão geral: os números grandes, as decisões para agora e os links para o detalhe. Feita para ler em um minuto. */
+function overviewPage({ report, history, current, now, theme }) {
+  const s = report.score;
+  const prev = history.length ? history[history.length - 1] : null;
+  const delta = (a, b) => (b === null || b === undefined ? '' : ` (${a - b >= 0 ? '+' : ''}${String(Math.round((a - b) * 10) / 10).replace('.', ',')} ponto(s) desde o último registro)`);
+  const ctl = report.controls.filter((c) => c.state !== 'not_applicable');
+  const blockers = ctl.filter(blockingOf);
+  const failing = ctl.filter((c) => c.state === 'failed');
+  const unproven = ctl.filter((c) => c.state === 'unverified');
+  const partial = unproven.filter((c) => c.partial);
+  const target = report.context && Number.isFinite(report.context.targetGrade) ? ` · meta ${gradeText(report.context.targetGrade)}` : '';
+  const sections = [];
+
+  sections.push('<section id="numeros" aria-labelledby="t-num"><h2 id="t-num">Os números</h2><div class="cards big">');
+  sections.push(kpi('Nota geral', `${h(gradeText(s.grade))}<small> /10</small>`, `${s.gradeBand || '-'}${target}`, toneOf(s.grade)));
+  sections.push(kpi('Portão de CI', h(VERDICT_PT[report.verdict]), report.verdict === 'pass' ? 'nada novo bloqueia' : `${num(report.summary.blocking)} achado(s) bloqueante(s)`, report.verdict === 'pass' ? 'ok' : report.verdict === 'fail' ? 'bad' : 'warn'));
+  sections.push(kpi('Bloqueiam', String(num(blockers.length)), `controle(s); ${num(failing.length)} falhando no total`, blockers.length ? 'bad' : 'ok'));
+  sections.push(kpi('Peso provado', h(pctText(s.provenPct)), `máquina ${pctText(s.machinePct)}, atestado ${pctText(s.attestedPct)}${prev && prev.generatedAt !== current.generatedAt ? delta(s.provenPct, prev.provenPct) : ''}`, 'info'));
+  sections.push(kpi('Sem prova', String(num(unproven.length)), `de ${num(ctl.length)} controle(s)${partial.length ? `; ${num(partial.length)} com prova parcial` : ''}`, unproven.length ? 'warn' : 'ok'));
+  sections.push('</div>');
+  const lost = prev && prev.generatedAt !== current.generatedAt ? ST.probesLost(prev, current) : [];
+  if (lost.length) sections.push(`<p class="note">A execução anterior rodou ${h(lost.join(' e '))} e esta não: compare execuções do mesmo tipo.</p>`);
+  sections.push('<p class="empty">A nota mede quanto já foi <strong>provado</strong>, não quão segura a aplicação é. Controle sem prova conta zero.</p></section>');
+
+  const list = decisionsNow(report);
+  sections.push('<section id="decisoes-agora" aria-labelledby="t-dec-agora"><h2 id="t-dec-agora">Decisões para agora</h2>');
+  if (list.length) {
+    sections.push('<ol class="decide-grid">', ...list.map((d) => `<li class="decide d-${d.tone}"><p class="decide-who">${h(d.who)}</p><h3>${h(d.title)}</h3><p>${h(d.why)}</p><p class="decide-link"><a href="${h(d.href)}">${h(d.link)} →</a></p></li>`), '</ol>'); // lastro-ignore xss-sinks: tone vem de lista fixa; textos e links escapados com h() (os links são páginas do portal)
+  } else sections.push('<p class="empty">Nenhuma decisão pendente: tudo que se aplica tem prova e nada bloqueia o portão.</p>');
+  sections.push('</section>');
+
+  const scopes = ST.scopes(report, { now }).sort((a, b) => num(b.grade) - num(a.grade) || a.pack.localeCompare(b.pack));
+  sections.push('<div class="cols" id="onde">');
+  sections.push('<section aria-labelledby="t-esc"><h2 id="t-esc">Nota por escopo</h2><div class="panel">', rankList(scopes.map((x) => ({
+    name: shortTitle(x.title), nameHtml: `<a href="escopos.html#esc-${h(x.pack)}">${h(shortTitle(x.title))}</a>`, value: x.grade, text: gradeText(x.grade),
+    sub: `${x.failing.length} falhando · ${x.missing.length} sem prova`,
+  })), 'Nota de cada escopo, de 0 a 10'), '</div></section>');
+  const links = [
+    ['analise.html', 'Análise completa', 'Sumário executivo, por que a nota está assim, controles que exigem ação e por que importam, e o que cabe ao dev e à segurança.'],
+    ['escopos.html', 'Implementado por escopo', 'Cada controle com a situação, como foi provado e o próximo passo.'],
+    ['decisoes.html', 'Decisões', 'Atestações, riscos aceitos e decisões de ameaça, com quem e até quando.'],
+    ['playbook.html', 'Playbook', 'O roteiro de cada teste manual e a atestação pronta.'],
+    ['relatorio.html', 'Relatório atual', 'O relatório técnico completo: risco, achados, ASVS e legenda.'],
+    ['historico.html', 'Histórico', 'A evolução e o que mudou desde o registro anterior.'],
+  ];
+  sections.push('<section aria-labelledby="t-onde"><h2 id="t-onde">Onde ver os detalhes</h2><ul class="link-list">', ...links.map(([f, t, d]) => `<li><a href="${h(f)}"><strong>${h(t)}</strong></a><span>${h(d)}</span></li>`), '</ul></section>'); // lastro-ignore xss-sinks: lista fixa do próprio gerador, escapada com h()
+  sections.push('</div>');
+
+  return htmlShell({
+    title: report.profile.name, eyebrow: 'Portal LASTRO · Visão geral',
+    meta: [story1(report)],
+    filters: filtersOf(report),
+    nav: [['numeros', 'Os números'], ['decisoes-agora', 'Decisões para agora'], ['onde', 'Escopos e detalhes']],
+    sections, theme, siteNav: siteNav('index.html'),
+  });
+}
+
+/** Uma frase para o topo: nota, faixa e o que mais pesa. */
+function story1(report) {
+  const s = report.score;
+  const b = report.controls.filter((c) => c.state !== 'not_applicable' && blockingOf(c)).length;
+  return `Nota ${gradeText(s.grade)} de 10 (${s.gradeBand || '-'}). ${b ? `${b} controle(s) bloqueiam o portão.` : 'Nada bloqueia o portão.'} ${pctText(s.provenPct)} do peso tem prova.`;
+}
+
+/** A análise completa: tudo o que explica a nota, no formato de relatório de maturidade. */
+function analysisPage({ report, history, current, tickets, now, theme, catalog }) {
   const s = report.score;
   const prev = history.length ? history[history.length - 1] : null;
   // Comparar uma execução estática com uma que rodou as sondas HTTP mistura medidas diferentes: uma nota avisa.
@@ -349,11 +471,11 @@ function indexPage({ report, history, current, tickets, now, theme, catalog }) {
   sections.push('</section></div>');
 
   return htmlShell({
-    title: report.profile.name, eyebrow: 'Portal LASTRO · Relatório de maturidade em segurança',
+    title: `Análise completa: ${report.profile.name}`, eyebrow: 'Portal LASTRO · Relatório de maturidade em segurança',
     meta: [`${history.length} registro(s) no histórico | ${num(s.applicableControls)} controle(s) aplicável(is)`],
     filters: filtersOf(report),
     nav: [['indicadores', 'Indicadores'], ['sumario', 'Sumário executivo'], ['ranking', 'Escopos e fases'], ['evolucao', 'Evolução'], ['acao', 'Exigem ação'], ['por-que-importam', 'Por que importam'], ['em-resumo', 'Em resumo'], ['papeis', 'Dev e segurança']],
-    sections, theme, siteNav: siteNav('index.html'),
+    sections, theme, siteNav: siteNav('analise.html'),
   });
 }
 
@@ -386,7 +508,8 @@ function historyPage({ report, history, current, theme }) {
 /** Monta as páginas. Devolve { 'index.html': ..., ... }. */
 function buildSite({ report, history, current, playbook, tickets = [], coverage = null, now = new Date(), theme = null, catalog = null }) {
   return {
-    'index.html': indexPage({ report, history, current, tickets, now, theme, catalog: catalogOf(catalog) }),
+    'index.html': overviewPage({ report, history, current, now, theme }),
+    'analise.html': analysisPage({ report, history, current, tickets, now, theme, catalog: catalogOf(catalog) }),
     'escopos.html': scopesPage({ report, now, theme }),
     'decisoes.html': decisionsPage({ report, now, theme }),
     'relatorio.html': withNav(formatHtml(report, { coverage, theme }), 'relatorio.html'),

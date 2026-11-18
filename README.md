@@ -1,138 +1,134 @@
 # LASTRO
 
-**L**ifecycle, **A**I, **S**ecurity, **T**hreat models, **R**ules, **O**perations.
+**Segurança com prova para quem desenvolve com IA.**
 
-Um framework neutro de ciclo de vida seguro para desenvolvimento assistido por IA. Ele junta três coisas:
+O LASTRO é um kit que acompanha a aplicação do primeiro requisito até a produção e responde, com evidência, a uma pergunta simples: **o que já está provado que é seguro, o que falha e o que ninguém conferiu?**
 
-1. Um **catálogo de controles** (160 na v0.1, com 43 lições de origem) com origem rastreável em lições reais e em padrões como OWASP ASVS, NIST SSDF e guias da OpenSSF.
-2. Um **verificador sem dependências** (Node) que checa o repositório e, opcionalmente, a aplicação em execução, e dá um veredito.
-3. Um **processo**: modelo de ameaças, adoção em aplicações existentes (análise de lacunas, backlog P0 a P3) e registro de risco aceito com dono e validade.
+Ele não pede que você confie no código gerado pela IA, nem no próprio LASTRO. Tudo que ele afirma vem de uma prova: uma verificação da máquina que roda a cada execução, ou o teste de uma pessoa, registrado com nome e prazo de validade. O que não tem prova aparece como "sem prova", nunca como aprovado.
 
-Status: v0.1.0, pré-lançamento. Documentação em português do Brasil por enquanto.
+> Status: v0.1.0, pré-lançamento. Documentação em português do Brasil. A página de apresentação está em [docs/index.html](docs/index.html).
 
-## Ideia central
+## Por que existe
 
-O que obriga fica fora do modelo. Instruções em texto orientam o agente, mas quem garante é verificação determinística: hooks, CI e prova.
+Com IA, o código sai mais rápido do que a revisão consegue acompanhar. O agente escreve a rota, o login e a consulta ao banco, e os erros de sempre voltam: TLS desligado, SQL montado com texto, senha fixa no código, cookie sem proteção, ação do CI que qualquer um pode trocar. Instrução em texto ("não faça isso") ajuda, mas não garante nada.
 
-Por isso o verificador segue regras simples:
+O LASTRO parte de uma regra: **o que obriga fica fora do modelo**. A IA é orientada por regras e skills, e quem garante é verificação determinística: hooks no editor, o portão no CI e a prova registrada.
 
-- **Desconhecido não é aprovado.** Sem prova, o controle fica `unverified`.
-- **Falha fechado.** Erro dentro de uma verificação nunca vira "passou".
-- **Autodeclaração não verifica controle automático.** Controles manuais exigem atestação com responsável e validade de até 366 dias.
-- **O portão bloqueia só achados novos de severidade alta ou crítica.** A dívida antiga fica no baseline e vira ticket.
-- **Risco aceito exige dono, aprovador, justificativa e validade.** Vencido, volta a ser achado.
+## O que ele faz
 
-## Estado e planos
+| Passo | O que acontece | Comando |
+|---|---|---|
+| 1. Entende a aplicação | Lê o código e monta o perfil: tem login? upload? dado pessoal? tempo real? Cada resposta decide quais controles valem | `lastro init` |
+| 2. Mede | Roda as verificações no repositório e, se você quiser, na aplicação rodando em local ou staging | `lastro check` |
+| 3. Explica | Dá uma nota de 0 a 10, diz por que ela está assim e qual é o próximo passo | `lastro gaps` |
+| 4. Mostra | Gera um portal estático com os números, as decisões para agora e o detalhe de cada controle | `lastro site` |
+| 5. Corrige e prova | Prepara a correção previsível numa branch, transforma testes manuais em roteiro e registra quem testou | `lastro fix`, `lastro playbook` |
 
-O que o kit faz hoje, onde ele é e onde ainda não é efetivo (com base em aplicações reais), como usar no dia a dia e os próximos passos: [docs/ESTADO-E-PLANOS.md](docs/ESTADO-E-PLANOS.md).
+## Em números
 
-## Efetividade medida
+| | |
+|---|---|
+| Controles no catálogo | 160, em 8 escopos (base, web, autenticação, dados pessoais, tempo real, upload, ativos de mídia, agente de código) |
+| Verificações automáticas | 39 |
+| Lições de origem | 43, de aplicações reais e de pesquisa: cada controle diz de onde veio |
+| Requisitos do ASVS 5.0 | os 345 estão mapeados; os 253 até o nível 2 têm controle no catálogo |
+| Falhas plantadas detectadas no banco de testes | 33 de 37, sem nenhum falso positivo nas aplicações limpas |
+| Dependências para instalar | 0 (só Node 22 ou mais novo) |
+| Peças para a IA | 1 agente, 5 skills, 7 arquivos de steering e 3 hooks |
 
-`lastro bench` roda o kit contra um banco de falhas plantadas, com gêmeas limpas, e mostra quantas ele detecta, quantas viram pergunta e quantas perde. Hoje ele detecta 29 de 29 falhas de código, configuração e HTTP. Nas falhas de lógica, ele detecta as 4 que testa em execução com as sondas autenticadas e transforma em pergunta as 4 que só existem no código. Veja [docs/BENCH.md](docs/BENCH.md).
+## Começar em cinco minutos
 
-## Sondas autenticadas
-
-`lastro check --url STAGING --auth --confirm-non-production` entra com duas contas de teste e prova acesso por objeto entre contas, CSRF e logout, e analisa o cookie do login. Só em staging ou local. Veja [docs/SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md).
-
-## Por que a nota está assim
-
-`lastro gaps` explica as lacunas: quantos controles manuais estão sem atestação e por qual caminho cada um pode ser provado (sonda do kit, duas contas de teste, código, plataforma ou pessoa), os indícios que o código já mostra e os que provavelmente não se aplicam, com o trecho pronto para registrar "não se aplica" com justificativa. Veja [docs/SCORE.md](docs/SCORE.md).
-
-## Histórico e portal
-
-`lastro history --write` grava a evolução em `.lastro/history/` (só números e estados). `lastro site --out ../portal` gera um portal estático, sem script nem servidor, no formato de um relatório de maturidade: indicadores, sumário executivo, nota por escopo e por fase do ciclo, os controles que exigem ação e por que importam, a história dos resultados (já feito, precisa de atenção, o que fazer agora, o que decidir), o que já está implementado em cada escopo, o registro de decisões, o relatório, o playbook e o histórico. Veja [docs/PORTAL.md](docs/PORTAL.md).
-
-## Modo corrigir
-
-`lastro fix` mostra o que tem correção previsível. `lastro fix --write --allow-network --run-tests --pr-body ../pr.md` aplica numa branch nova, roda os testes e prepara a descrição do PR para o tech lead revisar. O kit nunca faz push, nunca abre PR e nunca mexe na branch atual. Veja [docs/CORRIGIR.md](docs/CORRIGIR.md).
-
-## Playbook dos testes manuais
-
-`lastro playbook --out playbook.html` gera o roteiro passo a passo de cada controle manual que ainda não tem prova: o que preparar, os passos, o que conferir, a evidência, o que fazer se falhar e o trecho pronto da atestação. Veja [docs/PLAYBOOK.md](docs/PLAYBOOK.md).
-
-## Aplicação com vários repositórios
-
-`lastro app --name "App X" --root PASTA --out relatorio.html` identifica sozinho o papel de cada repositório da aplicação (frontend, backend, worker, infraestrutura...), verifica todos (só leitura) e gera um relatório único com a arquitetura e os riscos. Veja [docs/APLICACAO.md](docs/APLICACAO.md).
-
-## Legenda
-
-Os relatórios trazem uma legenda no final (o que é `CORE`, `AUTH`, estados, classes de risco, pilares, STRIDE e siglas), e cada CWE, CVE e GHSA leva à fonte oficial. A mesma legenda está em [docs/GLOSSARIO.md](docs/GLOSSARIO.md).
-
-## Uso com o Kiro e por assunto
-
-`lastro scope auth` mostra só os controles de um assunto. `lastro adapter kiro --write` instala no projeto o agente `lastro`, as skills por tarefa, o steering e os hooks. O agente conduz a aplicação nova (requisitos antes do código) e a existente (medir, corrigir, provar, preparar o PR), e quem publica é sempre você. Veja [docs/KIRO.md](docs/KIRO.md).
-
-## Maturidade
-
-Todo relatório traz uma nota de 0 a 10 (com faixas de Inicial a Exemplar) e a divisão entre o que foi provado por máquina, o que é autodeclarado, o que falha e o que está sem prova. A pontuação mede evidência, não segurança: veja [docs/SCORE.md](docs/SCORE.md).
-
-## Risco
-
-O relatório abre com a análise de risco: separa **risco de segurança**, **boa prática** e **qualidade**, e para o risco de segurança mostra probabilidade x impacto, classe, pilares da segurança da informação, CWE, requisitos do ASVS e o que toca privacidade e LGPD. O que ninguém provou aparece como "potencial" e nunca passa de "Alto". Veja [docs/RISCO.md](docs/RISCO.md).
-
-## Modelo de ameaças
-
-`lastro threat-model` gera um rascunho (STRIDE por superfície) a partir do perfil, do catálogo e da leitura do código, com pistas como rotas sem autenticação vista e indícios de dado sensível, e desenha o fluxo de dados com as fronteiras de confiança e os controles exigidos em cada fluxo. A pessoa decide cada ameaça e registra a revisão; só então o CORE-012 passa. Veja [docs/THREAT-MODEL-ASSISTIDO.md](docs/THREAT-MODEL-ASSISTIDO.md).
-
-## Uso rápido
-
-Requer Node 22 ou superior. Nenhuma dependência para instalar.
+Requer Node 22 ou mais novo. Nada para instalar.
 
 ```bash
 # dentro do projeto que você quer verificar
-node /caminho/para/lastro/verifier/bin/lastro.js init
-# o perfil sai derivado do código (rascunho): revise as flags e responda às perguntas que o init mostra
-
-node /caminho/para/lastro/verifier/bin/lastro.js check
-node /caminho/para/lastro/verifier/bin/lastro.js check --url https://sua-app.exemplo   # inclui verificações HTTP passivas
-node /caminho/para/lastro/verifier/bin/lastro.js backlog --write                        # gera tickets P0 a P3
-node /caminho/para/lastro/verifier/bin/lastro.js threat-model --write                    # rascunho do modelo de ameaças em .lastro/threat-model.json
-node /caminho/para/lastro/verifier/bin/lastro.js asvs --level 2 --state                 # cobertura do ASVS 5.0 por capítulo
-node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.md              # relatório legível, com a nota de 0 a 10
-node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html            # o mesmo em HTML autocontido (sem scripts nem recursos externos)
-node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html --theme meu-tema.css   # com a sua identidade visual
-npm audit --json > audit.json   # você roda: envia a lista de pacotes ao registro do npm
-node /caminho/para/lastro/verifier/bin/lastro.js report --out relatorio.html --audit-file audit.json   # inclui dependências vulneráveis (GHSA, CWE, CVSS)
+node /caminho/para/lastro/verifier/bin/lastro.js init     # perfil derivado do código; revise e responda às perguntas
+node /caminho/para/lastro/verifier/bin/lastro.js check    # o veredito e a nota de 0 a 10
+node /caminho/para/lastro/verifier/bin/lastro.js gaps     # por que a nota está assim e como provar cada controle
+node /caminho/para/lastro/verifier/bin/lastro.js site --out ../portal   # o portal, para abrir no navegador
 ```
 
-Códigos de saída: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração.
+Códigos de saída do `check`: `0` aprovado, `1` falha, `2` incompleto, `3` erro de uso ou configuração. No CI, o portão bloqueia só achado **novo** de gravidade alta ou crítica; a dívida antiga vira ticket.
 
-### Verificações que tocam a aplicação
+## Com IA: agente, skills, steering e hooks
 
-O kit separa três tipos de verificação, do mais seguro ao mais arriscado:
+O LASTRO funciona com qualquer ferramenta. Para o [Kiro](https://kiro.dev), o adaptador instala tudo de uma vez:
 
-| Tipo | O que faz | Quando roda |
-|------|-----------|-------------|
-| Estática | Lê o código e os arquivos do projeto | Sempre. Não toca na aplicação. |
-| Passiva | Requisições GET comuns (cerca de 30), como um navegador | Só com `--url`. Intervalo mínimo de 150 ms e teto de 120 requisições. |
-| Ativa | TRACE, OPTIONS com Origin falsa, JSON malformado | Só com `--active --confirm-non-production`. |
+```bash
+node /caminho/para/lastro/verifier/bin/lastro.js adapter kiro            # mostra o que seria criado
+node /caminho/para/lastro/verifier/bin/lastro.js adapter kiro --write    # cria em .kiro/ (nunca sobrescreve)
+```
 
-Regras de segurança do verificador:
-- Prefira **staging ou homologação** para qualquer verificação HTTP. Antes de cada uma, o CLI imprime um aviso.
-- As sondas ativas **nunca rodam sem confirmação** e são recusadas contra a URL de `urls.production` do perfil.
-- Nada disso é automático: o CI do próprio kit só roda verificações estáticas.
-- Passado o teto de requisições, as sondas viram "não verificado". O verificador não tenta mais, e nunca conta como aprovado.
+Depois, escolha o agente **lastro** no seletor de agentes do chat.
+
+| Peça | Quantas | Para que serve |
+|---|---|---|
+| Agente `lastro` | 1 | Pergunta se a aplicação é nova ou existente. Na nova, entrega requisitos, ameaças e testes **antes** do código. Na existente, mede, corrige, prova e prepara o PR. Não pode fazer commit, push nem abrir PR |
+| Skills | 5 | `lastro-requisitos` (antes de uma funcionalidade nova), `lastro-triagem` (ler o resultado e montar o plano), `lastro-corrigir` (correção numa branch), `lastro-testes` (teste manual vira teste automático), `lastro-pr` (descrição do PR para o revisor) |
+| Steering | 7 | As regras que valem sempre (rodar o `check` antes de terminar, nunca atestar nem aceitar risco sozinho, não desligar TLS) e as de cada assunto, carregadas quando o arquivo aberto é de autenticação, dados, web, upload ou tempo real, mais a condução da revisão de ameaças |
+| Hooks | 3 | `lastro-protect` pede confirmação antes de mexer nas decisões em `.lastro/`; `lastro-publish` **bloqueia** push, PR e publicação vindos do agente; `lastro-stop` roda o `check` quando o agente termina e pede para tratar achado novo grave |
+
+O agente prepara; quem decide e publica é você. Detalhes em [docs/KIRO.md](docs/KIRO.md).
+
+## O portal
+
+`lastro site --out ../portal` gera sete páginas HTML, sem script e sem servidor:
+
+- **Visão geral:** os números grandes (nota, portão, o que bloqueia, quanto está provado, quanto falta) e as **decisões para agora**, cada uma com quem decide e o link para o detalhe.
+- **Análise completa:** sumário executivo, nota por escopo e por fase, evolução, os controles que exigem ação e por que importam.
+- **Implementado por escopo, Decisões, Playbook, Relatório e Histórico.**
+
+Para compartilhar fora do time, `--redact "Empresa,Produto"` troca os nomes por `[omitido]`. Veja [docs/PORTAL.md](docs/PORTAL.md).
+
+## Como ele aprende
+
+Cada aplicação que passa pelo LASTRO deixa lições. O que a aplicação errou, o que o kit errou e o que o ambiente impediu de testar viram lições no catálogo, ligadas aos controles que elas justificam, e, quando dá, viram verificação automática com teste. Foi assim que nasceram, por exemplo, a verificação de senha fixa nas contas criadas e a calibragem do CSRF pelo `SameSite` do cookie. O ciclo está em [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Regras que não mudam
+
+- **Sem prova não é aprovado.** Controle sem evidência fica "sem prova" e conta zero na nota.
+- **Erro vira "sem prova", nunca "passou".**
+- **Teste manual exige atestação** com responsável e validade de até 366 dias. Vencida, volta a ser "sem prova".
+- **Risco aceito exige dono, aprovador, justificativa e validade.**
+- **Decisão é de uma pessoa.** O agente propõe a atestação, o risco aceito ou a decisão de ameaça; uma pessoa confirma.
+- **Sondas na aplicação só em local ou staging.** As ativas e as autenticadas pedem confirmação explícita (`--confirm-non-production`), e as duas são recusadas contra a URL de produção do perfil.
+
+## Tudo que o kit faz
+
+| Assunto | Comando | Documento |
+|---|---|---|
+| Nota de 0 a 10 e por que ela está assim | `lastro check`, `lastro gaps` | [SCORE.md](docs/SCORE.md) |
+| Sondas HTTP passivas, ativas e autenticadas (duas contas de teste) | `lastro check --url ... [--active] [--auth]` | [SONDAS-AUTENTICADAS.md](docs/SONDAS-AUTENTICADAS.md) |
+| Análise de risco (probabilidade x impacto, pilares, CWE, LGPD) | `lastro report` | [RISCO.md](docs/RISCO.md) |
+| Modelo de ameaças assistido (STRIDE e fluxo de dados) | `lastro threat-model` | [THREAT-MODEL-ASSISTIDO.md](docs/THREAT-MODEL-ASSISTIDO.md) |
+| Roteiro dos testes manuais | `lastro playbook` | [PLAYBOOK.md](docs/PLAYBOOK.md) |
+| Correção previsível numa branch | `lastro fix` | [CORRIGIR.md](docs/CORRIGIR.md) |
+| Portal e histórico | `lastro site`, `lastro history` | [PORTAL.md](docs/PORTAL.md) |
+| Aplicação com vários repositórios | `lastro app` | [APLICACAO.md](docs/APLICACAO.md) |
+| Cobertura do ASVS 5.0 | `lastro asvs` | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Controles de um assunto | `lastro scope auth` | [KIRO.md](docs/KIRO.md) |
+| Tickets P0 a P3 e dívida conhecida | `lastro backlog`, `lastro baseline` | [ADOPTION.md](docs/ADOPTION.md) |
+| Medir o próprio kit | `lastro bench` | [BENCH.md](docs/BENCH.md) |
+
+O estado atual, o que os testes em aplicações reais mostraram e os próximos passos estão em [docs/ESTADO-E-PLANOS.md](docs/ESTADO-E-PLANOS.md). Siglas e estados estão no [glossário](docs/GLOSSARIO.md).
+
+## Limites
+
+- As verificações de código são varreduras por padrão de texto. Elas acham o comum e não substituem revisão nem análise estática completa.
+- A v0.1 lê workflows do GitHub Actions. Outros CIs ficam "sem prova" até alguém atestar.
+- A maior parte do catálogo ainda é teste manual: o kit entrega o roteiro, a prova parcial da máquina quando consegue e o registro com validade.
+- Alinhado ao ASVS, ao NIST SSDF e aos guias da OpenSSF não é o mesmo que em conformidade com eles. O LASTRO não certifica nada. A nota mede evidência, não segurança.
 
 ## O que está no repositório
 
 | Pasta | Conteúdo |
-|-------|----------|
-| `catalog/` | Pacotes, lições e controles em JSON |
-| `fixtures/planted/` | Banco de falhas plantadas do `lastro bench` (código vulnerável de propósito, nunca use como modelo) |
-| `verifier/` | Verificador, CLI e testes |
-| `docs/` | Princípios, adoção, perfil, modelo de ameaças, registro de pesquisa, roadmap |
-| `.kiro/steering/` | Regras do próprio projeto para o Kiro |
-| `.lastro/` | Perfil e estado do LASTRO aplicado a si mesmo |
-
-Mais detalhes em [ARCHITECTURE.md](ARCHITECTURE.md), [docs/PRINCIPLES.md](docs/PRINCIPLES.md) e [docs/ADOPTION.md](docs/ADOPTION.md).
-
-## Limites conhecidos
-
-- As verificações de código são varreduras por padrão de texto (heurísticas). Elas encontram o comum e não substituem revisão nem análise estática completa.
-- A v0.1 lê workflows do GitHub Actions. Outros CIs ficam como `unverified` até haver atestação.
-- Referências a padrões citam apenas IDs e links. Conferência automática dos IDs contra as fontes oficiais está no [roadmap](docs/ROADMAP.md).
-- Cobertura do ASVS (até L2, 253 requisitos): todos (253, 100%) têm controle, 237 (94%) estão classificados como cobertos por inteiro e 16 como parciais. Os 17 capítulos estão classificados até L2; os 92 requisitos exclusivos do L3 ainda não são meta do kit. Quase tudo que é "inteiro" é controle manual: o kit entrega o roteiro de teste e o registro com validade, não uma sonda automática. A classificação foi feita pelo autor do kit e passou por uma revisão independente por agente (que achou exageros, corrigidos); falta ainda revisão humana. `lastro asvs` mostra o número atual por capítulo; ele mede o progresso do kit, não a conformidade de uma aplicação.
-- Alinhado a padrões não é o mesmo que em conformidade com eles. O LASTRO não certifica nada.
+|---|---|
+| `catalog/` | Escopos, lições, controles e os mapas de risco e do ASVS, em JSON |
+| `verifier/` | O verificador, a linha de comando e os testes |
+| `adapters/kiro/` | Agente, skills, steering e hooks que o `lastro adapter kiro` instala |
+| `fixtures/planted/` | Falhas plantadas do `lastro bench` (código vulnerável de propósito; nunca use como modelo) |
+| `docs/` | Documentação e a página de apresentação (`docs/index.html`) |
+| `.lastro/` | O LASTRO aplicado a ele mesmo |
 
 ## Testes
 

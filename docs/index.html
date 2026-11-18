@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="description" content="LASTRO: segurança com prova para quem desenvolve com IA. Catálogo de controles, verificador sem dependências, agente, skills, steering e hooks.">
+<title>LASTRO: segurança com prova para quem desenvolve com IA</title>
+<!-- Página de apresentação do LASTRO. Autocontida: sem script, sem fonte nem imagem externa. Os números são
+     conferidos contra o catálogo e o adaptador pelos testes (verifier/test/landing.test.js). -->
+<style>
+:root{--bg:#f7f5fb;--surface:#fff;--surface-3:#f1edf8;--text:#2f3136;--muted:#64627f;--border:#eaeeef;--brand:#5219a1;--brand-2:#3a1275;--ink:#fff;--highlight:#ffad01;--ok:#01c949;--bad:#ef4444;--info:#3b82f6;
+--radius:14px;--shadow:0 1px 2px rgba(47,49,54,.06),0 6px 20px rgba(82,25,161,.09);--font:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121019;--surface:#1b1824;--surface-3:#2a2438;--text:#ebe8f2;--muted:#b0aac4;--border:#332d44;--brand:#5a2bb0;--brand-2:#2a0f5a;--shadow:none}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 var(--font)}
+a{color:var(--brand)}
+@media (prefers-color-scheme:dark){a{color:#c4a6ff}}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.skip{position:absolute;left:-999px}.skip:focus{left:8px;top:8px;background:#fff;padding:8px;z-index:9}
+header.top{background:var(--brand);color:var(--ink)}
+header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding-top:12px;padding-bottom:12px}
+.logo{font-weight:800;letter-spacing:.14em}
+header.top nav{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+header.top nav a{color:var(--ink);text-decoration:none;padding:4px 10px;border-radius:999px;font-size:.9rem}
+header.top nav a:hover,header.top nav a:focus{background:rgba(255,255,255,.16)}
+.hero{background:linear-gradient(160deg,var(--brand) 0%,var(--brand-2) 100%);color:var(--ink);padding:64px 0 72px}
+.hero h1{font-size:clamp(2rem,4.6vw,3.3rem);line-height:1.12;margin:0 0 16px;max-width:820px}
+.hero h1 em{font-style:normal;color:var(--highlight)}
+.hero p{font-size:1.15rem;max-width:760px;margin:0 0 26px;opacity:.95}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-block;padding:12px 20px;border-radius:999px;font-weight:700;text-decoration:none}
+.btn.primary{background:var(--highlight);color:#2f3136}
+.btn.ghost{border:2px solid rgba(255,255,255,.7);color:var(--ink)}
+.numbers{margin-top:-40px}
+.num-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.num{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--brand);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.num b{display:block;font-size:2.1rem;line-height:1.1;color:var(--brand)}
+@media (prefers-color-scheme:dark){.num b{color:#c4a6ff}}
+.num span{color:var(--muted);font-size:.9rem}
+section{padding:56px 0 8px}
+h2{font-size:1.7rem;margin:0 0 8px;padding-bottom:10px;border-bottom:3px solid var(--highlight);display:inline-block}
+.lead{font-size:1.1rem;color:var(--muted);max-width:820px;margin:8px 0 24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 8px;font-size:1.08rem}
+.card p{margin:0;color:var(--muted);font-size:.96rem}
+.step{position:relative;padding-top:54px}
+.step i{position:absolute;top:18px;left:20px;width:30px;height:30px;border-radius:999px;background:var(--brand);color:var(--ink);font-style:normal;font-weight:800;display:flex;align-items:center;justify-content:center}
+.step code{display:inline-block;margin-top:10px}
+.ai .card{border-top:4px solid var(--highlight)}
+.ai .count{font-size:2rem;font-weight:800;color:var(--brand);line-height:1}
+@media (prefers-color-scheme:dark){.ai .count{color:#c4a6ff}}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+ul.check{list-style:none;padding:0;margin:0}
+ul.check li{padding:6px 0 6px 28px;position:relative}
+ul.check li::before{content:"✓";position:absolute;left:0;top:6px;color:var(--ok);font-weight:800}
+pre{background:#1d1a26;color:#ece8f7;border-radius:12px;padding:16px 18px;overflow-x:auto;font:.9rem/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:12px 0}
+pre .c{color:#a99fc6}
+code{font:.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface-3);padding:1px 6px;border-radius:6px}
+.mock{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.mock-bar{background:var(--brand);color:var(--ink);padding:8px 14px;font-size:.8rem;font-weight:700;letter-spacing:.1em}
+.mock-body{padding:16px;display:grid;gap:12px}
+.mock-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mock-kpis div{border:1px solid var(--border);border-top:3px solid var(--brand);border-radius:8px;padding:8px}
+.mock-kpis div:nth-child(2){border-top-color:var(--bad)}.mock-kpis div:nth-child(3){border-top-color:var(--info)}.mock-kpis div:nth-child(4){border-top-color:var(--highlight)}
+.mock-kpis b{display:block;font-size:1.3rem;color:var(--brand)}
+@media (prefers-color-scheme:dark){.mock-kpis b{color:#c4a6ff}}
+.mock-kpis small{color:var(--muted);font-size:.72rem}
+.mock-dec{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mock-dec div{border:1px solid var(--border);border-radius:8px;padding:8px;font-size:.78rem;color:var(--muted)}
+.mock-dec strong{display:block;color:var(--text);font-size:.82rem}
+.rules li{margin:8px 0}
+.lessons .card{border-left:4px solid var(--brand)}
+.tag{display:inline-block;background:var(--surface-3);border-radius:999px;padding:1px 10px;font-size:.78rem;font-weight:700;color:var(--brand);margin-bottom:8px}
+@media (prefers-color-scheme:dark){.tag{color:#c4a6ff}}
+.docs a{font-weight:700;text-decoration:none}
+footer{margin-top:56px;padding:28px 0;border-top:1px solid var(--border);color:var(--muted);font-size:.9rem}
+@media (max-width:640px){.mock-kpis{grid-template-columns:repeat(2,1fr)}.mock-dec{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+<header class="top"><div class="wrap">
+<span class="logo">LASTRO</span>
+<nav aria-label="Seções">
+<a href="#por-que">Por que</a><a href="#como">Como funciona</a><a href="#ia">Com IA</a><a href="#portal">Portal</a><a href="#aprende">Como aprende</a><a href="#comecar">Começar</a>
+</nav>
+</div></header>
+
+<main id="conteudo">
+<div class="hero"><div class="wrap">
+<h1>Segurança com <em>prova</em> para quem desenvolve com IA.</h1>
+<p>O LASTRO acompanha a aplicação do primeiro requisito até a produção e responde, com evidência: o que já está provado, o que falha e o que ninguém conferiu. Sem prova, nada é aprovado.</p>
+<div class="cta">
+<a class="btn primary" href="#comecar">Começar em cinco minutos</a>
+<a class="btn ghost" href="https://github.com/rezina182/Lastro-Framework" rel="noopener noreferrer">Ver no GitHub</a>
+</div>
+</div></div>
+
+<div class="wrap numbers" aria-label="O LASTRO em números">
+<div class="num-grid">
+<div class="num"><b data-n="controls">160</b><span>controles em 8 escopos</span></div>
+<div class="num"><b data-n="checks">39</b><span>verificações automáticas</span></div>
+<div class="num"><b data-n="lessons">43</b><span>lições de aplicações reais e de pesquisa</span></div>
+<div class="num"><b>345</b><span>requisitos do ASVS 5.0 mapeados</span></div>
+<div class="num"><b>33 de 37</b><span>falhas plantadas detectadas, sem falso positivo</span></div>
+<div class="num"><b>0</b><span>dependências para instalar</span></div>
+</div>
+</div>
+
+<section id="por-que"><div class="wrap">
+<h2>Por que o LASTRO existe</h2>
+<p class="lead">Com IA, o código sai mais rápido do que a revisão acompanha. E os erros de sempre voltam: TLS desligado, SQL montado com texto, senha fixa no código, cookie sem proteção, ação do CI que qualquer um pode trocar.</p>
+<div class="two">
+<div class="card"><h3>Instrução em texto não garante</h3><p>"Não faça isso" no prompt ajuda, mas o modelo pode esquecer, entender errado ou ser enganado por um arquivo malicioso. Regra que só existe dentro do modelo não é controle.</p></div>
+<div class="card"><h3>O que obriga fica fora do modelo</h3><p>A IA é orientada por regras e skills. Quem garante é verificação determinística: hooks no editor, o portão no CI e a prova registrada, com nome e prazo de validade.</p></div>
+</div>
+</div></section>
+
+<section id="como"><div class="wrap">
+<h2>Como funciona</h2>
+<p class="lead">Cinco passos, sempre os mesmos, para uma aplicação nova ou para uma que já existe.</p>
+<div class="grid">
+<div class="card step"><i>1</i><h3>Entende a aplicação</h3><p>Lê o código e monta o perfil: tem login, upload, dado pessoal, tempo real? Cada resposta decide quais controles valem.</p><code>lastro init</code></div>
+<div class="card step"><i>2</i><h3>Mede</h3><p>Verifica o repositório e, se você quiser, a aplicação rodando em local ou staging, inclusive com duas contas de teste.</p><code>lastro check</code></div>
+<div class="card step"><i>3</i><h3>Explica</h3><p>Nota de 0 a 10, por que ela está assim e o próximo passo. Controle sem prova conta zero.</p><code>lastro gaps</code></div>
+<div class="card step"><i>4</i><h3>Mostra</h3><p>Um portal estático com os números, as decisões para agora e o detalhe de cada controle.</p><code>lastro site</code></div>
+<div class="card step"><i>5</i><h3>Corrige e prova</h3><p>Correção previsível numa branch nova, roteiro de cada teste manual e o registro de quem testou e até quando vale.</p><code>lastro fix</code></div>
+</div>
+</div></section>
+
+<section id="ia" class="ai"><div class="wrap">
+<h2>A IA trabalhando junto, com trava</h2>
+<p class="lead">O adaptador do Kiro instala um time pronto no projeto. O agente prepara; quem decide e publica é você.</p>
+<div class="grid">
+<div class="card"><p class="count" data-n="agents">1</p><h3>Agente lastro</h3><p>Pergunta se a aplicação é nova ou existente. Na nova, entrega requisitos, ameaças e testes antes do código. Na existente, mede, corrige, prova e prepara o PR. Não pode fazer commit, push nem abrir PR.</p></div>
+<div class="card"><p class="count" data-n="skills">5</p><h3>Skills por tarefa</h3><p><code>lastro-requisitos</code>, <code>lastro-triagem</code>, <code>lastro-corrigir</code>, <code>lastro-testes</code> e <code>lastro-pr</code>. O Kiro carrega cada uma quando o pedido combina, ou com <code>/nome</code>.</p></div>
+<div class="card"><p class="count" data-n="steering">7</p><h3>Steering</h3><p>As regras de sempre (rodar o check antes de terminar, nunca atestar nem aceitar risco sozinho) e as de cada assunto: autenticação, dados, web, upload, tempo real e revisão de ameaças.</p></div>
+<div class="card"><p class="count" data-n="hooks">3</p><h3>Hooks</h3><p><code>lastro-protect</code> pede confirmação antes de mexer nas decisões; <code>lastro-publish</code> bloqueia push e PR vindos do agente; <code>lastro-stop</code> roda o check quando o agente termina.</p></div>
+</div>
+<div class="two" style="margin-top:16px">
+<div class="card"><h3>Como ativar</h3>
+<pre><span class="c"># na pasta do seu projeto</span>
+node /caminho/lastro/verifier/bin/lastro.js adapter kiro          <span class="c"># mostra o que seria criado</span>
+node /caminho/lastro/verifier/bin/lastro.js adapter kiro --write  <span class="c"># cria em .kiro/</span></pre>
+<p>Depois, escolha o agente <strong>lastro</strong> no seletor de agentes do chat. Nada é sobrescrito: arquivo que já existe fica como está.</p></div>
+<div class="card"><h3>O ciclo com IA (AI-DLC)</h3>
+<ul class="check">
+<li><strong>Aplicação nova:</strong> requisitos, decisões de arquitetura, ameaças e testes de cada funcionalidade antes da primeira linha.</li>
+<li><strong>Aplicação existente:</strong> medir, triar, corrigir numa branch, transformar teste manual em teste automático e preparar o PR.</li>
+<li><strong>Sempre:</strong> o check roda ao fim de cada tarefa, e decisão de risco é de uma pessoa.</li>
+</ul></div>
+</div>
+</div></section>
+
+<section id="portal"><div class="wrap">
+<h2>O portal: por onde começar</h2>
+<p class="lead">Sete páginas HTML, sem script e sem servidor. A primeira se lê em um minuto: os números grandes e as decisões para agora, cada uma com quem decide e o link para o detalhe.</p>
+<div class="two">
+<div class="mock" role="img" aria-label="Exemplo da visão geral do portal: nota, portão, peso provado, controles sem prova e três decisões numeradas">
+<div class="mock-bar">LASTRO · VISÃO GERAL</div>
+<div class="mock-body">
+<div class="mock-kpis"><div><b>6,8</b><small>nota de 0 a 10</small></div><div><b>falha</b><small>portão de CI</small></div><div><b>41%</b><small>peso provado</small></div><div><b>37</b><small>sem prova</small></div></div>
+<div class="mock-dec"><div><strong>1. Corrigir 2 bloqueantes</strong>quem desenvolve</div><div><strong>2. Provar 9 controles altos</strong>quem testa</div><div><strong>3. Revisar ameaças</strong>segurança</div></div>
+</div></div>
+<div class="card"><h3>O que tem em cada página</h3>
+<ul class="check">
+<li><strong>Visão geral:</strong> números e decisões para agora.</li>
+<li><strong>Análise completa:</strong> sumário executivo, nota por escopo e por fase, evolução, o que exige ação e por que importa.</li>
+<li><strong>Implementado por escopo:</strong> cada controle, como foi provado e o próximo passo.</li>
+<li><strong>Decisões, Playbook, Relatório e Histórico.</strong></li>
+</ul>
+<p style="margin-top:10px">Para compartilhar, <code>--redact</code> troca os nomes reais por <code>[omitido]</code>.</p></div>
+</div>
+</div></section>
+
+<section id="aprende" class="lessons"><div class="wrap">
+<h2>Como ele aprende</h2>
+<p class="lead">Cada aplicação que passa pelo LASTRO deixa lições: o que a aplicação errou, o que o kit errou e o que o ambiente impediu de testar. Cada lição vira controle, verificação automática ou correção com teste.</p>
+<div class="grid">
+<div class="card"><span class="tag">App A</span><h3>Senha fixa nas contas criadas</h3><p>O cadastro pelo administrador usava uma senha padrão escrita no código. Virou a verificação AUTH-043, que acha o literal sem nunca mostrar o valor.</p></div>
+<div class="card"><span class="tag">App A</span><h3>CSRF calibrado pelo cookie</h3><p>Com cookie de sessão SameSite=Strict, a falta de token é defesa em profundidade, não falha alta. O kit passou a medir a gravidade pelo cookie.</p></div>
+<div class="card"><span class="tag">App B</span><h3>Limite com chave do atacante</h3><p>O limitador de requisições usava como chave um valor que o cliente controla. Virou os controles WEB-011 e WEB-017.</p></div>
+<div class="card"><span class="tag">Pesquisa</span><h3>Arquivos de instrução são vetor de ataque</h3><p>Instruções do agente mudam o que ele faz. Por isso pedem dono de revisão no CODEOWNERS e hooks fora do modelo.</p></div>
+</div>
+</div></section>
+
+<section id="regras"><div class="wrap">
+<h2>Regras que não mudam</h2>
+<div class="two">
+<ul class="check rules">
+<li>Sem prova não é aprovado: controle sem evidência conta zero.</li>
+<li>Erro dentro de uma verificação vira "sem prova", nunca "passou".</li>
+<li>Teste manual exige atestação com responsável e validade de até 366 dias.</li>
+</ul>
+<ul class="check rules">
+<li>Risco aceito exige dono, aprovador, justificativa e validade.</li>
+<li>Decisão é de uma pessoa: o agente propõe, alguém confirma.</li>
+<li>Sondas na aplicação só em local ou staging, com confirmação explícita.</li>
+</ul>
+</div>
+</div></section>
+
+<section id="comecar"><div class="wrap">
+<h2>Comece agora</h2>
+<p class="lead">Requer Node 22 ou mais novo. Nada para instalar.</p>
+<pre><span class="c"># dentro do projeto que você quer verificar</span>
+node /caminho/lastro/verifier/bin/lastro.js init      <span class="c"># perfil derivado do código</span>
+node /caminho/lastro/verifier/bin/lastro.js check     <span class="c"># veredito e nota de 0 a 10</span>
+node /caminho/lastro/verifier/bin/lastro.js gaps      <span class="c"># por que a nota está assim</span>
+node /caminho/lastro/verifier/bin/lastro.js site --out ../portal   <span class="c"># o portal, para abrir no navegador</span></pre>
+<div class="grid docs" style="margin-top:20px">
+<div class="card"><a href="https://github.com/rezina182/Lastro-Framework/blob/main/README.md" rel="noopener noreferrer">README</a><p>Visão geral e todos os comandos.</p></div>
+<div class="card"><a href="https://github.com/rezina182/Lastro-Framework/blob/main/docs/KIRO.md" rel="noopener noreferrer">Uso com o Kiro</a><p>Agente, skills, steering e hooks em detalhe.</p></div>
+<div class="card"><a href="https://github.com/rezina182/Lastro-Framework/blob/main/docs/PORTAL.md" rel="noopener noreferrer">Portal e histórico</a><p>As sete páginas e como publicar no CI.</p></div>
+<div class="card"><a href="https://github.com/rezina182/Lastro-Framework/blob/main/docs/ESTADO-E-PLANOS.md" rel="noopener noreferrer">Estado e planos</a><p>O que os testes reais mostraram e o que vem a seguir.</p></div>
+</div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+<strong>LASTRO</strong> · Lifecycle, AI, Security, Threat models, Rules, Operations. Código sob Apache-2.0, documentação sob CC BY 4.0. Alinhado ao OWASP ASVS, ao NIST SSDF e aos guias da OpenSSF; não certifica nada: a nota mede evidência, não segurança.
+</div></footer>
+</body>
+</html>

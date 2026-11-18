@@ -109,6 +109,20 @@ p{margin:0 0 10px}
 .rank-track span{display:block;height:100%;border-radius:999px}
 .rank-val{text-align:right;font-weight:700;white-space:nowrap}
 .f-ok{background:var(--ok-fill)}.f-warn{background:var(--warn-fill)}.f-bad{background:var(--bad-fill)}.f-info{background:var(--info-fill)}
+.cards.big{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.cards.big .card-value{font-size:2.4rem}
+.decide-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;counter-reset:dec}
+.decide{counter-increment:dec;position:relative;margin:0;background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--info-fill);border-radius:var(--radius);padding:16px 18px 14px 58px;box-shadow:var(--shadow)}
+.decide::before{content:counter(dec);position:absolute;left:16px;top:16px;width:30px;height:30px;border-radius:999px;background:var(--brand);color:var(--brand-ink);font-weight:800;display:flex;align-items:center;justify-content:center}
+.decide.d-bad{border-top-color:var(--bad-fill)}.decide.d-warn{border-top-color:var(--warn-fill)}
+.decide h3{margin:2px 0 6px;font-size:1.02rem}
+.decide p{margin:0 0 6px;font-size:.92rem}
+.decide-who{color:var(--accent);font-size:.74rem !important;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.decide-link a{font-weight:700;text-decoration:none}
+.link-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.link-list li{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;box-shadow:var(--shadow)}
+.link-list a{text-decoration:none}
+.link-list span{display:block;color:var(--muted);font-size:.86rem}
 .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
 .why-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
 .why-card.w-bad{border-left-color:var(--bad-fill)}.why-card.w-warn{border-left-color:var(--warn-fill)}
