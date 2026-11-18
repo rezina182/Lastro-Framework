@@ -123,3 +123,53 @@ test('authprobe: login que não devolve o token declarado é inconclusivo', asyn
   const r = await probe({}, { ...CFG, csrfToken: { field: 'csrfToken', header: 'X-CSRF-Token' } });
   assert.match(r.inconclusive, /não devolveu o token anti-CSRF no campo "csrfToken"/);
 });
+
+test('authprobe: sessão sadia passa no cookie adulterado, na renovação no login e no Cache-Control', async () => {
+  const r = await probe({});
+  for (const id of ['AUTH-022', 'WEB-010']) {
+    assert.deepEqual(r.results[id].findings, [], id);
+    assert.match(r.results[id].notes[0], /passou em/, id);
+  }
+  assert.equal(r.results['AUTH-022'].tested, 2);
+});
+
+test('authprobe: cookie adulterado aceito é crítico; login que reaproveita o id é fixação de sessão', async () => {
+  const t = await probe({ tamperBug: true });
+  assert.ok(keysOf(t, 'AUTH-022').includes('session-tamper:sid'));
+  assert.equal(t.results['AUTH-022'].findings[0].severity, 'critical');
+  const f = await probe({ fixation: true });
+  assert.deepEqual(keysOf(f, 'AUTH-022'), ['session-fixation:sid']);
+  assert.match(f.results['AUTH-022'].findings[0].message, /não é renovado a cada autenticação/);
+});
+
+test('authprobe: rota autenticada sem Cache-Control: no-store é achado do WEB-010', async () => {
+  const r = await probe({ cacheBug: true });
+  assert.deepEqual(keysOf(r, 'WEB-010'), ['auth-cache:/api/me']);
+});
+
+test('authprobe: hash de senha na resposta autenticada é achado do CORE-056, sem configuração extra', async () => {
+  const r = await probe({ leak: true });
+  assert.deepEqual(keysOf(r, 'CORE-056'), ['field-leak:/api/me:senha_hash']);
+  const ok = await probe({});
+  assert.deepEqual(ok.results['CORE-056'].findings, []);
+  assert.match(ok.results['CORE-056'].notes[0], /passou em/);
+});
+
+test('authprobe: atribuição em massa gravada reprova AUTH-028 e CORE-056; rota que filtra os campos passa', async () => {
+  const cfg = { ...CFG, massAssignment: [{ path: '/api/conta', method: 'PATCH', body: { nome: 'Teste' }, read: '/api/conta' }] };
+  const bad = await probe({ mass: true }, cfg);
+  assert.equal(keysOf(bad, 'AUTH-028').length, 1);
+  assert.match(bad.results['AUTH-028'].findings[0].message, /gravou campo\(s\) que o usuário não devia controlar: .*role/);
+  assert.ok(keysOf(bad, 'CORE-056').some((k) => k.startsWith('mass-assign:')));
+  const good = await probe({}, cfg);
+  assert.deepEqual(good.results['AUTH-028'].findings, []);
+  assert.match(good.results['AUTH-028'].notes[0], /passou em 1 teste/);
+});
+
+test('authschema: massAssignment valida método, caminho e corpo', () => {
+  const { validateAuthProbes } = require('../src/authschema');
+  const base = { login: CFG.login, accounts: CFG.accounts, protected: CFG.protected };
+  assert.deepEqual(validateAuthProbes({ ...base, massAssignment: [{ path: '/api/conta', method: 'PATCH', body: { nome: 'x' } }] }), []);
+  const errs = validateAuthProbes({ ...base, massAssignment: [{ path: 'api', method: 'GET', body: {} }] }).join(' ');
+  for (const re of [/massAssignment\[0\]\.path/, /massAssignment\[0\]\.method/, /massAssignment\[0\]\.body/]) assert.match(errs, re);
+});

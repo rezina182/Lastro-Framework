@@ -16,8 +16,8 @@ function parseSetCookie(line) {
   return { name, value, removed };
 }
 
-function makeJar() {
-  const cookies = new Map();
+function makeJar(initial = null) {
+  const cookies = new Map(initial || []);
   return {
     /** Absorve as linhas Set-Cookie de uma resposta. */
     absorb(lines) {
@@ -32,6 +32,9 @@ function makeJar() {
     header: () => [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; '),
     size: () => cookies.size,
     names: () => [...cookies.keys()],
+    get: (name) => cookies.get(name),
+    /** Cópia independente: o teste de fixação leva os cookies antigos para um login novo sem mexer no original. */
+    clone: () => makeJar(cookies),
   };
 }
 

@@ -17,6 +17,7 @@ const { loadCatalog, validateCatalog } = require('./catalog');
 const { registry } = require('./checks');
 const { request } = require('./http');
 const { runAuthProbes, readAccounts } = require('./authprobe');
+const { runAssists } = require('./assist');
 const { computeScore } = require('./score');
 const { deriveContext, describeScope } = require('./context');
 const { engineeringFacts } = require('./engineering');
@@ -87,6 +88,7 @@ function isApplicable(control, packs, flags) {
 const DEFAULT_DELAY_MS = 150;
 const MIN_DELAY_MS = 50;
 const DEFAULT_MAX_REQUESTS = 120;
+const ACTIVE_MAX_REQUESTS = 250;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -176,10 +178,25 @@ function evaluateManual(control, status, now) {
  * (prova de máquina contra autodeclaração). A que passa só acrescenta uma nota: o estado manual continua valendo.
  */
 function overlayProbe(r, probe, now) {
-  if (probe.findings.length) {
-    return { state: 'failed', findings: probe.findings, notes: [...probe.notes, ...r.notes], evidence: { source: 'verifier-http', collectedAt: now.toISOString() } };
+  // Achado "soft" é ausência que a máquina não viu (hook, banco no CI), não falha medida: o mecanismo pode estar
+  // fora do repositório. Ele não derruba a decisão de uma pessoa; vira aviso para ela conferir.
+  const hard = probe.findings.filter((f) => !f.soft);
+  if (!hard.length && probe.findings.length && r.state !== 'unverified') {
+    return { ...r, notes: [...probe.findings.map((f) => `A máquina não confirmou o que foi atestado: ${f.message}`), ...probe.notes, ...r.notes] };
   }
+  if (probe.findings.length) {
+    return { state: 'failed', findings: probe.findings, notes: [...probe.notes, ...r.notes], evidence: { source: probe.source || 'verifier-http', collectedAt: now.toISOString() } };
+  }
+  // "Não se aplica" decidido por uma pessoa não ganha nota de prova parcial: a máquina não muda essa decisão.
+  if (r.state === 'not_applicable') return r;
   return { ...r, notes: [...probe.notes, ...r.notes] };
+}
+
+/** Junta o resultado da sonda autenticada e o da prova assistida do mesmo controle (qualquer um pode faltar). */
+function mergeProbes(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return { findings: [...a.findings, ...b.findings], notes: [...a.notes, ...b.notes], tested: (a.tested || 0) + (b.tested || 0), source: b.findings.length && !a.findings.length ? b.source : 'verifier-http' };
 }
 
 async function runCheck(opts = {}) {
@@ -232,11 +249,16 @@ async function runCheck(opts = {}) {
   const delayMs = opts.delayMs === undefined ? DEFAULT_DELAY_MS : opts.delayMs;
   if (!Number.isInteger(delayMs) || delayMs < MIN_DELAY_MS) throw new ConfigError(`--delay deve ser um inteiro de pelo menos ${MIN_DELAY_MS} ms.`);
 
-  const ctx = buildContext({ root, profile, catalog, url: opts.url || null, active: opts.active, now, delayMs, maxRequests: opts.maxRequests || DEFAULT_MAX_REQUESTS });
+  // Sondas ativas e autenticadas fazem mais requisições (tentativas de login, duas contas): o teto padrão sobe.
+  const maxRequests = opts.maxRequests || (opts.active || opts.auth ? ACTIVE_MAX_REQUESTS : DEFAULT_MAX_REQUESTS);
+  const ctx = buildContext({ root, profile, catalog, url: opts.url || null, active: opts.active, now, delayMs, maxRequests });
   const only = opts.only ? new Set(opts.only) : null;
   const warnings = [];
   // As sondas rodam antes dos controles: o login e as respostas ficam no cache e alimentam a análise dos cookies (AUTH-003).
   const authProbe = authAccounts ? await runAuthProbes(ctx, profile.authProbes, authAccounts) : null;
+  // Prova assistida dos controles manuais (assist.js): só os que se aplicam e foram pedidos.
+  const wanted = new Set(catalog.controls.filter((c) => c.check.type === 'manual' && (!only || only.has(c.id)) && isApplicable(c, catalog.packs, profile.flags)).map((c) => c.id));
+  const assists = opts.noAssist ? {} : await runAssists(ctx, profile, { active: !!opts.active, disc: discover(ctx), want: (id) => wanted.has(id) });
   const validRisk = (rk) => U.parseDate(rk.expires) > now.getTime();
 
   const controls = [];
@@ -260,7 +282,7 @@ async function runCheck(opts = {}) {
       r.evidence = { source: chk.kind === 'http' ? 'verifier-http' : 'verifier-repo', collectedAt: now.toISOString() };
     } else {
       r = evaluateManual(c, status, now);
-      const probe = authProbe && authProbe.results[c.id];
+      const probe = mergeProbes(authProbe && authProbe.results[c.id], assists[c.id]);
       if (probe) r = overlayProbe(r, probe, now);
     }
 

@@ -29,7 +29,24 @@ function validateAuthProbes(a) {
   const errs = [];
   const w = 'profile.authProbes';
   if (!isObj(a)) return [`${w}: deve ser objeto`];
-  keys(a, ['login', 'accounts', 'protected'], ['logout', 'objects', 'csrf', 'csrfToken'], w, errs);
+  keys(a, ['login', 'accounts', 'protected'], ['logout', 'objects', 'csrf', 'csrfToken', 'massAssignment'], w, errs);
+
+  // Rotas de edição da própria conta a, para a sonda de atribuição em massa (AUTH-028): edição legítima + releitura.
+  if (a.massAssignment !== undefined) {
+    if (!Array.isArray(a.massAssignment) || a.massAssignment.length > MAX_LIST) errs.push(`${w}.massAssignment: lista de até ${MAX_LIST} itens`);
+    else {
+      a.massAssignment.forEach((m, i) => {
+        const mw = `${w}.massAssignment[${i}]`;
+        if (!isObj(m)) { errs.push(`${mw}: deve ser objeto`); return; }
+        keys(m, ['path', 'method', 'body'], ['read', 'format'], mw, errs);
+        routePath(m.path, `${mw}.path`, errs);
+        oneOf(m.method, ['POST', 'PUT', 'PATCH'], `${mw}.method`, errs);
+        if (m.read !== undefined) routePath(m.read, `${mw}.read`, errs);
+        if (m.format !== undefined) oneOf(m.format, FORMATS, `${mw}.format`, errs);
+        if (!isObj(m.body) || Object.keys(m.body).length === 0 || Object.keys(m.body).length > 20 || JSON.stringify(m.body).length > 4000) errs.push(`${mw}.body: objeto com a edição legítima (1 a 20 campos, até 4000 caracteres)`);
+      });
+    }
+  }
 
   // Token anti-CSRF por sessão: o login devolve no JSON (field) e as escritas legítimas o mandam num cabeçalho (header).
   if (a.csrfToken !== undefined) {

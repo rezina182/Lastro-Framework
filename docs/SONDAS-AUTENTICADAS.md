@@ -8,6 +8,34 @@ As sondas comuns só fazem GET sem login. Por isso falhas de lógica, como "a co
 | WEB-013 (CSRF) | Envia a requisição legítima e depois a mesma requisição com `Origin` de outro site e sem token | Alto se a forjada for aceita |
 | AUTH-023 (logout) | Faz logout e reenvia o cookie antigo | Alto se o cookie antigo ainda vale |
 | AUTH-003 (cookie de sessão) | O cookie do login entra na análise de cookies que já existia | Os achados de `Secure`, `HttpOnly`, `SameSite` e prefixo |
+| AUTH-022 (token de sessão) | Reenvia o cookie de sessão com um caractere trocado; depois do logout, entra de novo levando o cookie antigo | Crítico se o cookie adulterado vale. Alto se o login novo mantém o mesmo valor (fixação de sessão) |
+| WEB-010 (cache) | Lê o `Cache-Control` da rota `protected` com a sessão aberta | Médio se não houver `no-store` nem `private` |
+| CORE-056 (campos devolvidos) | Lê a rota `protected` e os objetos da conta a e procura campos que nunca deveriam sair (hash de senha, segredo do MFA, token de troca de senha, chave de API) | Alto se algum aparece |
+| AUTH-028 e CORE-056 (atribuição em massa) | Para cada rota de `massAssignment`, manda a edição legítima com campos extras (`role`, `isAdmin`, `ownerId`, `status`...) e relê o registro | Alto se algum campo extra voltou gravado |
+
+A atribuição em massa grava na conta de teste a: depois de um achado, a conta pode ter ficado com `role: "admin"`. Recrie a conta antes de outros testes. Exemplo de configuração:
+
+```json
+"massAssignment": [{ "path": "/api/conta", "method": "PATCH", "body": { "nome": "Teste" }, "read": "/api/conta" }]
+```
+
+## Prova assistida dos controles manuais
+
+Além das sondas autenticadas, o `lastro check` faz sozinho a parte automatizável de outros controles manuais. A regra é a mesma: **achou a falha, o controle falha** (com prova de máquina, que vale mais que uma atestação). **Passou, fica a nota "Prova parcial da máquina"**, que o playbook mostra em "O que a máquina já testou" e usa para pré-preencher a atestação. Passar não verifica o controle, porque o roteiro do catálogo pede mais do que a máquina consegue ver.
+
+| Controle | Quando roda | O que a máquina faz | Achado |
+|---|---|---|---|
+| CORE-015 (testes no CI com banco real) | sempre (lê o repositório) | Procura nos workflows o passo de testes e um banco real (serviço do CI ou contêiner) | Médio: CI sem testes; médio: testes sem banco numa aplicação que usa banco |
+| AUTH-002 (hash de senha) | sempre | Acha a biblioteca (bcrypt, Argon2, scrypt) e o custo no código | Alto: bcrypt com custo abaixo de 10, scrypt com N abaixo de 16384 |
+| AG-001 e AG-007 (agente de IA) | sempre, se o perfil declara agentes | Procura hook de bloqueio ou regra `deny` para segredos e para a configuração do agente | Médio (não bloqueia): só instrução, sem mecanismo |
+| WEB-016 (documentação e listagem expostas) | `--url` | GET em `/docs`, `/swagger.json`, `/openapi.json`, `/metrics`, `/actuator`, `/uploads/` e outros | Médio: documentação, métricas, diagnóstico ou listagem acessíveis sem login |
+| WEB-018 (Content-Type) | `--url` | Lê a página inicial e uma rota inexistente | Médio: corpo sem Content-Type; baixo: texto sem charset |
+| AUTH-011 (contas padrão) | `--url --active --confirm-non-production` e `authProbes.login` no perfil | Tenta 8 credenciais padrão comuns (admin/admin, root/root...) | Crítico: alguma entra |
+| AUTH-016 (força bruta) | idem | 25 tentativas erradas seguidas numa conta inexistente | Alto: nenhum limite (nem 429, nem bloqueio, nem desafio) |
+
+Há dois tipos de achado. **Falha medida** (custo do bcrypt, login sem limite, credencial padrão aceita, documentação exposta, cookie adulterado aceito) vence qualquer atestação. **Ausência suspeita** (a máquina não viu o hook do agente, os testes no CI ou o banco no CI) só vira achado quando ninguém atestou o controle: o mecanismo pode estar fora do repositório. Se alguém atestou, a atestação vale e o relatório mostra "A máquina não confirmou o que foi atestado", para a pessoa conferir.
+
+As tentativas de login do AUTH-011 e do AUTH-016 podem disparar o limitador e o alarme do ambiente, e o endereço de quem testa pode ficar bloqueado por um tempo: rode só em local ou staging. Com `--active` ou `--auth`, o teto padrão de requisições sobe de 120 para 250.
 
 ## Como usar
 

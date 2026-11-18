@@ -61,6 +61,7 @@ function nextOf(c, disc = null) {
     const p = disc ? PM.proofFor(c, disc) : null;
     if (p && p.likelyNA) return 'confirmar e registrar "não se aplica" com a justificativa (lastro gaps traz o trecho)';
     if (p && p.via === 'sonda-auth' && p.runsToday) return 'rodar lastro check --url ... --auth com duas contas de teste, e atestar o que a sonda não cobre';
+    if (p && p.via === 'sonda' && p.runsToday) return 'rodar lastro check --url ... --active --confirm-non-production em local ou staging, e atestar o que a sonda não cobre';
     if (p && p.via === 'codigo') return `confirmar no código${p.hints.length ? ' (veja o indício)' : ''} e registrar a atestação (lastro playbook --only ${c.id})`;
     return `seguir o playbook (lastro playbook --only ${c.id}) e registrar a atestação`;
   }

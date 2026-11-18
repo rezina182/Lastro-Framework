@@ -12,10 +12,11 @@
 //  - qualquer dúvida (login recusado, rota protegida aberta, requisição legítima recusada) vira "inconclusivo".
 
 const { makeClient, login, tokenHeader, encodeBody, contentType, is2xx, granted } = require('./authclient');
+const { makeJar } = require('./cookiejar');
 
 const EVIL_ORIGIN = 'https://lastro-probe.invalid';
 const NOTE = 'Sonda autenticada:';
-const CONTROLS = ['AUTH-027', 'WEB-013', 'AUTH-023'];
+const CONTROLS = ['AUTH-027', 'WEB-013', 'AUTH-023', 'AUTH-022', 'WEB-010', 'CORE-056', 'AUTH-028'];
 
 const fill = (tpl, id) => tpl.replace('{id}', encodeURIComponent(id));
 
@@ -93,6 +94,115 @@ async function probeLogout(client, cfg, jars, legit, out) {
   if (is2xx(after)) out.findings.push({ severity: 'high', key: 'logout-replay', location: cfg.logout.path, message: `Depois do logout em ${cfg.logout.path}, o cookie de sessão antigo ainda é aceito em ${cfg.protected} (HTTP ${after.status}): a sessão não é encerrada no servidor.` });
 }
 
+// Troca o último caractere por outro do mesmo alfabeto: o valor continua com cara de válido, mas não é o emitido.
+function tamper(value) {
+  const last = value.slice(-1);
+  const pool = /[0-9]/.test(last) ? '0123456789' : /[a-f]/.test(last) ? 'abcdef' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  return value.slice(0, -1) + pool[(pool.indexOf(last) + 1) % pool.length];
+}
+
+/**
+ * AUTH-022: o servidor só aceita o token que emitiu (o adulterado é recusado) e emite um token novo a cada login
+ * (quem já tinha a sessão antiga não ganha a nova: proteção contra fixação de sessão).
+ */
+function sessionCookie(jar) {
+  const names = jar.names();
+  const name = names.find((n) => /sess|sid|auth|token|connect/i.test(n)) || names[0];
+  return name ? { name, value: jar.get(name) } : null;
+}
+
+/** AUTH-022, parte 1 (com a sessão viva): o servidor só aceita o token que emitiu. */
+async function probeTamper(client, cfg, jars, out) {
+  const s = sessionCookie(jars.a);
+  if (!s) { out.notes.push(`${NOTE} inconclusiva na sessão: o login não deixou cookie identificável.`); return null; }
+  if (!s.value || s.value.length < 8) { out.notes.push(`${NOTE} inconclusiva na sessão: o cookie ${s.name} é curto demais para o teste.`); return null; }
+  const forged = await client.send('GET', cfg.protected, { cookie: `${s.name}=${tamper(s.value)}` });
+  out.tested += 1;
+  if (is2xx(forged)) out.findings.push({ severity: 'critical', key: `session-tamper:${s.name}`, location: cfg.protected, message: `${cfg.protected} aceitou o cookie ${s.name} com um caractere alterado (HTTP ${forged.status}): o servidor não confere o token que emitiu.` });
+  return s;
+}
+
+/**
+ * AUTH-022, parte 2 (depois do logout): um login novo, levando o cookie antigo, recebe outro valor. Se o valor fica o
+ * mesmo, quem plantou o cookie antes do login (fixação de sessão) ganha a sessão autenticada.
+ */
+async function probeRotation(client, cfg, accounts, jars, legit, before, out) {
+  if (!before) return;
+  // O logout pode ter apagado o cookie do pote: o login novo leva explicitamente o valor antigo.
+  const again = await login(client, cfg, accounts.a, 'a', legit, makeJar([[before.name, before.value]]));
+  if (!again.ok) { out.notes.push(`${NOTE} renovação no login inconclusiva: ${again.reason}.`); return; }
+  out.tested += 1;
+  if (again.jar.get(before.name) === before.value) out.findings.push({ severity: 'high', key: `session-fixation:${before.name}`, location: cfg.login.path, message: `Um novo login manteve o mesmo valor do cookie ${before.name}: o token de sessão não é renovado a cada autenticação (fixação de sessão).` });
+}
+
+// Campos que nunca deveriam sair numa resposta da API (CORE-056): segredo, hash de senha, segundo fator, token de troca.
+const SECRET_FIELD = /^(password|passwd|senha|senha_?hash|password_?hash|hash_?senha|pass_?hash|salt|mfa_?secret|totp_?secret|otp_?secret|mfa_?segredo\w*|segredo_?mfa|reset_?token|token_?reset|refresh_?token|api_?key|secret|private_?key)$/i;
+
+/** Nomes de campo sensíveis em qualquer nível de um JSON (até 4 níveis e 200 chaves, para não varrer resposta enorme). */
+function secretFields(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (e) { return []; }
+  const found = new Set();
+  let seen = 0;
+  const walk = (v, depth) => {
+    if (depth > 4 || seen > 200 || v === null || typeof v !== 'object') return;
+    for (const [k, x] of Object.entries(v)) {
+      seen += 1;
+      if (SECRET_FIELD.test(k) && x !== null && x !== '' && typeof x !== 'boolean') found.add(k);
+      walk(x, depth + 1);
+    }
+  };
+  walk(j, 0);
+  return [...found];
+}
+
+/** CORE-056, parte 1: a rota autenticada e os objetos da própria conta não devolvem campo secreto. */
+async function probeLeaks(client, cfg, jars, out) {
+  const paths = [cfg.protected, ...(cfg.objects || []).map((o) => fill(o.path, o.ids.a))];
+  for (const p of paths.slice(0, 10)) {
+    const res = await client.send('GET', p, { jar: jars.a });
+    if (!is2xx(res)) continue;
+    out.tested += 1;
+    const leak = secretFields(res.body || '');
+    if (leak.length) out.findings.push({ severity: 'high', key: `field-leak:${p}:${leak.sort().join(',')}`, location: p, message: `${p} devolve campo(s) que nunca deveriam sair da API: ${leak.join(', ')}. Monte a resposta com uma lista de campos permitidos.` });
+  }
+}
+
+// Campos que um usuário comum tenta promover numa edição (AUTH-028). O valor é marcado para ser reconhecido na leitura.
+const MASS_FIELDS = { role: 'admin', isAdmin: true, admin: true, papel: 'admin', perfil: 'admin', ownerId: 'lastro-probe', userId: 'lastro-probe', status: 'lastro-probe' };
+
+/**
+ * AUTH-028 e CORE-056, parte 2: atribuição em massa. Para cada rota de edição declarada no perfil (massAssignment),
+ * manda a edição legítima com campos extras e relê o registro: se algum extra voltou gravado, a rota aceita campo
+ * que o usuário não devia controlar. Só a conta a, só nos registros dela.
+ */
+async function probeMass(client, cfg, jars, legit, out) {
+  for (const m of cfg.massAssignment || []) {
+    const format = m.format || 'json';
+    const extra = Object.fromEntries(Object.entries(MASS_FIELDS).filter(([k]) => !(k in (m.body || {}))));
+    const body = encodeBody(format, { ...(m.body || {}), ...extra });
+    const res = await client.send(m.method, m.path, { jar: jars.a, headers: { 'content-type': contentType(format), ...legit, ...tokenHeader(cfg, jars.tokens.a) }, body });
+    if (!granted(res)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva em ${m.method} ${m.path}: a edição foi recusada (HTTP ${res.status || 0}); confira "body" no perfil.`); continue; }
+    const back = await client.send('GET', m.read || m.path, { jar: jars.a });
+    if (!is2xx(back)) { out.notes.push(`${NOTE} atribuição em massa inconclusiva: ${m.read || m.path} não pôde ser relido (HTTP ${back.status || 0}).`); continue; }
+    out.tested += 1;
+    let j = null;
+    try { j = JSON.parse(back.body); } catch (e) { j = null; }
+    const flat = j && typeof j === 'object' ? { ...j, ...(j.data && typeof j.data === 'object' ? j.data : {}), ...(j.user && typeof j.user === 'object' ? j.user : {}) } : {};
+    const stuck = Object.keys(extra).filter((k) => k in flat && flat[k] === extra[k]);
+    if (stuck.length) out.findings.push({ severity: 'high', key: `mass-assign:${m.method}:${m.path}:${stuck.sort().join(',')}`, location: m.path, message: `${m.method} ${m.path} gravou campo(s) que o usuário não devia controlar: ${stuck.join(', ')}. Aceite só uma lista fixa de campos editáveis.` });
+  }
+}
+
+/** WEB-010: a resposta autenticada não pode ficar em cache compartilhado nem no disco do navegador. */
+async function probeCache(client, cfg, jars, out) {
+  const res = await client.send('GET', cfg.protected, { jar: jars.a });
+  if (!is2xx(res)) return;
+  out.tested += 1;
+  const cc = String(res.headers['cache-control'] || '').toLowerCase();
+  if (!/no-store/.test(cc) && !/private/.test(cc)) out.findings.push({ severity: 'medium', key: `auth-cache:${cfg.protected}`, location: cfg.protected, message: `A rota autenticada ${cfg.protected} responde sem Cache-Control: no-store${cc ? ` (veio "${cc.slice(0, 60)}")` : ''}: proxies e o navegador podem guardar dados da conta.` });
+}
+
 /**
  * Roda as sondas. `accounts` = { a: { user, password }, b: { user, password } } (lidas do ambiente pelo motor).
  * Devolve { ran, inconclusive, results: { 'AUTH-027': { findings, notes, tested }, ... } }.
@@ -115,9 +225,22 @@ async function runAuthProbes(ctx, cfg, accounts) {
   const results = emptyResults();
   await probeObjects(client, cfg, jars, legit, results['AUTH-027']);
   await probeCsrf(client, cfg, jars, legit, results['WEB-013']);
+  await probeCache(client, cfg, jars, results['WEB-010']);
+  await probeLeaks(client, cfg, jars, results['CORE-056']);
+  await probeMass(client, cfg, jars, legit, results['AUTH-028']);
+  // A mesma atribuição em massa também reprova o CORE-056 (bloquear atribuição em massa faz parte dele).
+  for (const f of results['AUTH-028'].findings) results['CORE-056'].findings.push({ ...f, key: `${f.key}:core` });
+  results['CORE-056'].tested += results['AUTH-028'].tested;
+  const session = await probeTamper(client, cfg, jars, results['AUTH-022']);
+  // O logout encerra a sessão da conta a; a renovação vem depois, com um login novo.
   await probeLogout(client, cfg, jars, legit, results['AUTH-023']);
+  await probeRotation(client, cfg, accounts, jars, legit, session, results['AUTH-022']);
 
-  const what = { 'AUTH-027': 'leituras entre contas e sem login', 'WEB-013': 'requisições de origem estranha', 'AUTH-023': 'replay do cookie após o logout' };
+  const what = {
+    'AUTH-027': 'leituras entre contas e sem login', 'WEB-013': 'requisições de origem estranha', 'AUTH-023': 'replay do cookie após o logout',
+    'AUTH-022': 'cookie adulterado e renovação no login', 'WEB-010': 'Cache-Control da rota autenticada',
+    'CORE-056': 'campos secretos nas respostas e atribuição em massa', 'AUTH-028': 'campos extras gravados numa edição',
+  };
   for (const id of CONTROLS) {
     const r = results[id];
     if (r.tested > 0 && r.findings.length === 0) {

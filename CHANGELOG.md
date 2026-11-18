@@ -4,6 +4,14 @@ Segue [SemVer](https://semver.org/lang/pt-BR/). O catálogo tem versão própria
 
 ## [0.1.0] - não publicado
 
+### Adicionado (automação dos controles manuais)
+- Prova assistida (`verifier/src/assist.js`): a máquina faz a parte automatizável de controles manuais. Achou a falha, o controle falha com prova de máquina; passou, fica a nota "Prova parcial da máquina". Cobertura inicial: CORE-015 (testes no CI com banco real), AUTH-002 (biblioteca e custo do hash de senha), AG-001 e AG-007 (mecanismo que barra o agente), WEB-016 (documentação, métricas e listagem expostas), WEB-018 (Content-Type), AUTH-011 (credenciais padrão, com `--active`) e AUTH-016 (25 tentativas erradas sem limite, com `--active`).
+- Sondas autenticadas novas: AUTH-022 (cookie de sessão adulterado aceito; fixação de sessão no login), WEB-010 (rota autenticada sem `Cache-Control: no-store`), CORE-056 (hash de senha, segredo do MFA ou token nas respostas, sem configuração extra) e AUTH-028 (atribuição em massa nas rotas de `massAssignment` do perfil).
+- Achado por ausência ("soft": a máquina não viu o hook, os testes ou o banco no CI) não derruba a atestação de uma pessoa: vira aviso "A máquina não confirmou o que foi atestado". Falha medida continua vencendo a atestação.
+- CORE-017 (SBOM por release) passa a ser automático: o kit confere se algum workflow gera o SBOM e o guarda como artefato ou na release.
+- O playbook mostra "O que a máquina já testou" e pré-preenche a atestação com essa prova parcial.
+- Com `--active` ou `--auth`, o teto padrão de requisições sobe para 250.
+
 ### Adicionado (por que a nota está assim e caminho de prova)
 - `lastro gaps [--json]`: explica as lacunas. Diz quantos controles manuais estão sem atestação e por qual caminho cada um pode ser provado (sonda do kit, sonda com duas contas, leitura do código, configuração da plataforma ou pessoa), os indícios que o código já mostra, os que provavelmente não se aplicam pela tecnologia (com o trecho pronto para registrar), os automáticos que não rodaram e o tipo de cada falha. Só lê o repositório (`verifier/src/proofmap.js`, `verifier/src/tech.js`).
 - Atestação "não se aplica" por controle (`state: "not_applicable"` em `.lastro/status.json`), com justificativa obrigatória e prazo. O controle sai da nota e do playbook até vencer, e aparece no registro de decisões do portal.

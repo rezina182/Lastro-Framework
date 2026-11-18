@@ -39,11 +39,12 @@ function makeClient(ctx) {
 }
 
 /** Entra com uma conta. Devolve { ok, jar } ou { ok: false, reason }. A razão nunca traz usuário, senha ou cookie. */
-async function login(client, cfg, account, label, legit) {
+async function login(client, cfg, account, label, legit, startJar = null) {
   const l = cfg.login;
   const format = l.format || 'json';
   const body = encodeBody(format, { [l.userField || 'username']: account.user, [l.passwordField || 'password']: account.password });
-  const jar = makeJar();
+  // startJar: cookies que o cliente já tinha antes do login (teste de fixação de sessão).
+  const jar = startJar || makeJar();
   const res = await client.send('POST', l.path, { jar, headers: { ...legit, 'content-type': contentType(format) }, body });
   if (!res.ok) return { ok: false, reason: `login da conta ${label} sem resposta (${res.error})` };
   if (res.status >= 400) return { ok: false, reason: `login da conta ${label} recusado (HTTP ${res.status})` };

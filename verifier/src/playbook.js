@@ -88,6 +88,8 @@ function buildPlaybook(report, catalog, { now = new Date(), only = null, scope =
     const threats = tm ? tm.threats.filter((t) => t.controls.includes(c.id)).map((t) => ({ id: t.id, name: t.strideName, state: t.state, decision: t.decision })) : [];
     const days = VALIDITY_DAYS[c.severity] || 365;
     const risk = report.risk ? report.risk.security.find((i) => i.id === c.id) : null;
+    // O que a máquina já testou deste controle (prova assistida e sondas autenticadas): a pessoa só faz o resto.
+    const machine = (c.notes || []).filter((n) => /^(Prova parcial da máquina:|Sonda autenticada: passou)/.test(n));
     items.push({
       id: c.id, title: c.title, pack: c.pack, severity: c.severity, state: c.state, kind: e.kind,
       kindLabel: R.KINDS[e.kind] ? R.KINDS[e.kind].label : e.kind,
@@ -100,6 +102,7 @@ function buildPlaybook(report, catalog, { now = new Date(), only = null, scope =
       steps, checks, registerHint: register[0] || null,
       fix: def.remediation,
       threats,
+      machine,
       attestation: {
         validityDays: days,
         highNeedsReviewer: c.severity === 'critical' || c.severity === 'high',
@@ -109,8 +112,8 @@ function buildPlaybook(report, catalog, { now = new Date(), only = null, scope =
             attestedBy: 'NOME DE QUEM TESTOU',
             collectedAt: isoDay(now),
             expiresAt: isoDay(new Date(now.getTime() + days * DAY)),
-            evidenceRef: 'onde está a evidência (link do PR, print, ticket ou pasta)',
-            note: 'resumo do resultado em uma frase',
+            evidenceRef: machine.length ? `lastro check de ${isoDay(now)} (prova parcial da máquina) e o que você testou` : 'onde está a evidência (link do PR, print, ticket ou pasta)',
+            note: machine.length ? `Máquina: ${machine[0].replace(/^(Prova parcial da máquina:|Sonda autenticada:)\s*/, '').slice(0, 220)} Pessoa: resumo do que você conferiu.` : 'resumo do resultado em uma frase',
           },
         },
       },
@@ -151,6 +154,7 @@ function itemMd(i, n) {
   if (i.lgpd) out.push(`- **LGPD:** ${md(i.lgpd)}`);
   if (i.threats.length) out.push(`- **Ameaças que este controle mitiga:** ${i.threats.map((t) => `${t.id} (${t.name})`).join(', ')}`);
   out.push('', `**Por que importa.** ${md(i.why)}`, '');
+  if (i.machine && i.machine.length) out.push('**O que a máquina já testou** (prova parcial: confira e complete com o passo a passo)', '', ...i.machine.map((x) => `- ${md(x)}`), '');
   if (i.prereqs.length) out.push('**Antes de começar**', '', ...i.prereqs.map((p) => `- ${p}`), '');
   out.push('**Passo a passo**', '', ...i.steps.map((s, k) => `${k + 1}. ${md(s)}`), '');
   out.push('**Resultado esperado (para passar)**', '');
@@ -198,6 +202,7 @@ function formatPlaybookHtml(p, { theme = null } = {}) {
     if (i.threats.length) meta.push(`<strong>Ameaças que mitiga:</strong> ${h(i.threats.map((t) => `${t.id} (${t.name})`).join(', '))}`);
     if (meta.length) s.push(`<p>${meta.join(' | ')}</p>`);
     s.push(`<p><strong>Por que importa.</strong> ${h(i.why)}</p>`);
+    if (i.machine && i.machine.length) s.push('<h3>O que a máquina já testou</h3><p>Prova parcial: confira e complete com o passo a passo.</p><ul>', ...i.machine.map((x) => `<li>${h(x)}</li>`), '</ul>');
     if (i.prereqs.length) s.push('<h3>Antes de começar</h3><ul>', ...i.prereqs.map((x) => `<li>${h(x)}</li>`), '</ul>');
     s.push('<h3>Passo a passo</h3><ol>', ...i.steps.map((x) => `<li>${h(x)}</li>`), '</ol>');
     s.push('<h3>Resultado esperado (para passar)</h3><ul>', ...(i.checks.length ? i.checks : ['Cada passo acima teve o resultado descrito, sem exceção.']).map((x) => `<li>${h(x)}</li>`),

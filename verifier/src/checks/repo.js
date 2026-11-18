@@ -170,6 +170,22 @@ function ciPermissions(ctx) {
 
 const SECRET_SCANNERS = /gitleaks|trufflehog|detect-secrets|secretlint|git-secrets/i;
 
+// SBOM (CORE-017): algum workflow gera o inventário em CycloneDX ou SPDX e o guarda (artefato ou release).
+const SBOM_TOOLS = /cyclonedx|\bsyft\b|npm\s+sbom|\bspdx\b|anchore\/sbom-action|\bcdxgen\b|trivy[^\n]*--format\s+(cyclonedx|spdx)/i;
+const SBOM_KEEP = /actions\/upload-artifact|softprops\/action-gh-release|gh\s+release\s+upload|actions\/attest-sbom|upload-release-asset/i;
+
+function ciSbom(ctx) {
+  const wf = workflows(ctx);
+  if (wf.length === 0) {
+    if (['.gitlab-ci.yml', 'azure-pipelines.yml', 'Jenkinsfile', '.circleci/config.yml'].some((f) => ctx.has(f))) return unverified('CI diferente do GitHub Actions: a v0.1 não analisa. Registre uma atestação.');
+    return failed([{ severity: 'low', key: 'sbom-no-ci', message: 'Nenhum CI encontrado: nenhum SBOM é gerado a cada release.' }]);
+  }
+  const gen = wf.find((f) => SBOM_TOOLS.test(ctx.read(f) || ''));
+  if (!gen) return failed([{ severity: 'low', key: 'sbom-missing', message: 'Nenhum workflow gera SBOM (CycloneDX ou SPDX: npm sbom, syft, cdxgen, anchore/sbom-action).' }]);
+  if (!SBOM_KEEP.test(ctx.read(gen) || '')) return failed([{ severity: 'low', key: 'sbom-not-kept', location: gen, message: `${gen} gera o SBOM, mas não o guarda como artefato nem o anexa à release: depois do job ele se perde.` }]);
+  return verified([`SBOM gerado e guardado em ${gen} (heurística por texto).`]);
+}
+
 function ciSecretScan(ctx) {
   const wf = workflows(ctx);
   if (wf.length === 0) {
@@ -863,6 +879,7 @@ module.exports = {
     'repo.ci.permissions': ciPermissions,
     'repo.ci.secret-scan': ciSecretScan,
     'repo.ci.dep-audit': ciDepAudit,
+    'repo.ci.sbom': ciSbom,
     'repo.deps.update-bot': updateBot,
     'repo.docs.security-md': securityMd,
     'repo.docs.threat-model': threatModel,

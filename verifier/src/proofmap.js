@@ -13,7 +13,8 @@ const VIA = {
   pessoa: 'processo, documento ou teste feito por uma pessoa',
 };
 // Caminhos que o kit já executa hoje, em parte, para o controle (a sonda que passa ajuda a atestação).
-const RUNS_TODAY = new Set(['AUTH-027', 'WEB-013', 'AUTH-023']);
+// Sondas autenticadas (authprobe.js) e prova assistida (assist.js).
+const RUNS_TODAY = new Set(['AUTH-027', 'WEB-013', 'AUTH-023', 'AUTH-022', 'WEB-010', 'CORE-056', 'AUTH-028', 'CORE-015', 'AUTH-002', 'AG-001', 'AG-007', 'WEB-016', 'WEB-018', 'AUTH-011', 'AUTH-016']);
 
 // Caminho principal de prova de cada controle manual do catálogo.
 const ROUTE = {
@@ -21,7 +22,7 @@ const ROUTE = {
   'sonda-auth': ['AUTH-001', 'AUTH-004', 'AUTH-006', 'AUTH-007', 'AUTH-008', 'AUTH-010', 'AUTH-013', 'AUTH-014', 'AUTH-017', 'AUTH-022', 'AUTH-023', 'AUTH-024', 'AUTH-025',
     'AUTH-027', 'AUTH-028', 'AUTH-029', 'AUTH-030', 'AUTH-031', 'WEB-010', 'WEB-013', 'WEB-021', 'CORE-030', 'CORE-031', 'CORE-032', 'CORE-035', 'CORE-036', 'CORE-039',
     'CORE-041', 'CORE-056', 'RT-001', 'RT-003', 'UP-001', 'UP-002', 'UP-003', 'UP-005', 'UP-006', 'UP-007'],
-  codigo: ['AG-001', 'AG-005', 'AG-007', 'AG-014', 'AUTH-002', 'AUTH-012', 'AUTH-018', 'CORE-015', 'CORE-016', 'CORE-017', 'CORE-018', 'CORE-019', 'CORE-020', 'CORE-021',
+  codigo: ['AG-001', 'AG-005', 'AG-007', 'AG-014', 'AUTH-002', 'AUTH-012', 'AUTH-018', 'CORE-015', 'CORE-016', 'CORE-018', 'CORE-019', 'CORE-020', 'CORE-021',
     'CORE-022', 'CORE-024', 'CORE-025', 'CORE-028', 'CORE-029', 'CORE-037', 'CORE-044', 'CORE-045', 'CORE-046', 'CORE-047', 'CORE-049', 'CORE-053', 'CORE-057', 'CORE-058',
     'PII-003', 'WEB-014'],
   plataforma: ['CORE-014', 'AG-009', 'AG-010'],
@@ -140,7 +141,7 @@ function formatGaps(g, { now = new Date(), name = '' } = {}) {
     const list = g.items.filter((i) => i.via === via && !i.likelyNA);
     if (!list.length) return;
     out.push('', `${title} (${list.length}):`);
-    for (const i of list.slice(0, 40)) out.push(`  ${i.id} [${SEV_PT[i.severity]}] ${i.title}${i.runsToday ? ' (a sonda do kit já testa em parte)' : ''}${i.hints.length ? ` | indício: ${i.hints.join('; ')}` : ''}`);
+    for (const i of list.slice(0, 40)) out.push(`  ${i.id} [${SEV_PT[i.severity]}] ${i.title}${i.runsToday ? ' (a máquina já testa em parte)' : ''}${i.hints.length ? ` | indício: ${i.hints.join('; ')}` : ''}`);
     if (list.length > 40) out.push(`  e mais ${list.length - 40}.`);
   };
   group('sonda', 'Uma sonda HTTP pode provar');
